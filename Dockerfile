@@ -1,8 +1,9 @@
 # Linux 主机用。Mac mini 用 deploy/install_mini.sh(launchd),不走 Docker。
 FROM node:22-alpine AS web
 WORKDIR /app/web
-RUN corepack enable
 COPY web/package.json web/pnpm-lock.yaml ./
+# corepack 按 package.json 的 packageManager 装同一个 pnpm 版本:锁文件在哪儿生成的,就用哪个版本装
+RUN corepack enable && corepack prepare --activate
 RUN pnpm install --frozen-lockfile
 COPY web ./
 RUN pnpm build
