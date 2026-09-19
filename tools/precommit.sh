@@ -16,4 +16,5 @@ uv run python tools/guard_hostnames.py
 uv run python tools/guard_status.py
 uv run python tools/guard_third_party.py
 uv run python tools/guard_attribution.py
+uv run python tools/guard_evals.py
 echo "全部通过。"

@@ -1,7 +1,8 @@
-"""入口:python -m mail2leads serve | ingest
+"""入口:python -m mail2leads serve | ingest | read
 
-serve  = 起 API(含前端)+ 后台每 POLL_SECONDS 秒收一次信
+serve  = 起 API(含前端)+ 后台每 POLL_SECONDS 秒收一次信,来信立刻读数
 ingest = 收一次信就退出,接线时用
+read   = 给还没有读数的来信补读,换模型或改合同后用
 """
 
 from __future__ import annotations
@@ -11,11 +12,13 @@ import sys
 import threading
 import time
 
+from mail2leads import backends
 from mail2leads.config import Config
 from mail2leads.ingest.imap import ImapSource
 from mail2leads.ingest.run import ingest_once
 from mail2leads.store import repo
 from mail2leads.store.db import connect
+from mail2leads.tasks.read import read_message, unread_incoming
 
 log = logging.getLogger("mail2leads")
 
@@ -29,7 +32,7 @@ def _ingest_all(config: Config, mailbox_id: int) -> None:
             config.imap_host, config.imap_port, config.imap_user, config.imap_password, folder
         )
         try:
-            report = ingest_once(conn, mailbox_id, source, folder, direction)
+            report = ingest_once(conn, mailbox_id, source, folder, direction, reader=_reader())
             log.info(
                 "%s:拉 %d 存 %d 跳过 %d 解析失败 %d",
                 folder,
@@ -40,6 +43,25 @@ def _ingest_all(config: Config, mailbox_id: int) -> None:
             )
         finally:
             source.close()
+    conn.close()
+
+
+def _reader():
+    """后端配好了就边收边读;没配好就只收不读,STATUS 会显示「还没有读数」。"""
+    ok, why = backends.ready()
+    if not ok:
+        log.warning("模型后端没配好(%s),只收信不读数", why)
+        return None
+    return read_message
+
+
+def _read_pending(config: Config, mailbox_id: int) -> None:
+    conn = connect(config.db_path)
+    pending = unread_incoming(conn, mailbox_id)
+    log.info("待读 %d 封,后端 %s", len(pending), backends.describe())
+    for pk in pending:
+        status = read_message(conn, pk)
+        log.info("message %s → %s", pk, status)
     conn.close()
 
 
@@ -64,8 +86,16 @@ def main(argv: list[str]) -> int:
         conn.close()
         _ingest_all(config, mailbox_id)
         return 0
+    if command == "read":
+        conn.close()
+        ok, why = backends.ready()
+        if not ok:
+            print(f"跑不了:{why}", file=sys.stderr)
+            return 2
+        _read_pending(config, mailbox_id)
+        return 0
     if command != "serve":
-        print(f"不认识的命令 {command!r};可用:serve / ingest", file=sys.stderr)
+        print(f"不认识的命令 {command!r};可用:serve / ingest / read", file=sys.stderr)
         return 2
 
     import uvicorn

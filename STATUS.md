@@ -34,6 +34,13 @@
 | 归并:靠头、靠主题+对方、不同对方不并、超 60 天不并、我方回信归客户线程 | ✅ | test_reply_with_in_reply_to_joins_thread, test_same_subject_same_sender_joins_thread, test_same_subject_different_sender_is_a_new_thread, test_same_subject_after_window_is_a_new_thread, test_outgoing_reply_joins_customer_thread |
 | IMAP 连接校验证书与主机名 | ✅ | test_ssl_context_verifies_certificate_and_hostname |
 | API:线程列表与详情形状与界面一致,错 ID 404 | ✅ | test_thread_list_has_the_web_shape, test_thread_detail_carries_messages_quoted_and_attachments, test_unknown_thread_is_404, test_folder_filter |
+| 守卫:没有评测集的模型任务不上线 | ✅ | test_task_without_eval_folder_is_caught, test_task_with_run_but_no_sample_dataset_is_caught, test_task_with_complete_eval_folder_passes, test_module_without_task_version_needs_no_evals |
+| 后端:模型不合规时报错、只重试一次、绝不编结果 | ✅ | test_truncated_json_is_rejected_rather_than_guessed, test_bad_output_gets_exactly_one_repair_attempt, test_wrong_types_are_rejected_not_coerced, test_unknown_backend_name_is_rejected_loudly |
+| 后端:发给网关的字节正确(路径、Bearer、模型名、温度 0、字段模板) | ✅ | test_request_lands_on_the_openai_chat_completions_path, test_api_key_is_sent_as_a_bearer_token, test_payload_carries_model_zero_temperature_and_shape, test_fenced_answer_from_a_real_socket_is_parsed |
+| 核对:模型引用的数字回原文核对,千分位不误判 | ✅ | test_number_absent_from_source_is_flagged, test_thousands_separator_is_not_a_hallucination, test_chinese_comma_and_whitespace_normalized |
+| 读数:落库带署名,失败也落库且显形,不是询盘归 invalid | ✅ | test_reading_is_stored_with_attribution, test_failed_reading_is_stored_as_failed_not_empty, test_non_inquiry_moves_thread_to_invalid, test_unverified_numbers_are_recorded_not_hidden |
+| 读数:核对依据与模型输入是同一份文本;只读来信;读数失败不挡收信 | ✅ | test_quoted_history_is_part_of_the_verified_source, test_ingest_reads_incoming_only, test_reader_failure_does_not_block_ingest |
+| API:读数以界面形状暴露 | ✅ | test_api_exposes_reading_in_the_web_shape |
 
 ## 里程碑
 
@@ -42,7 +49,7 @@
 | M0 地基:precommit + 守卫 + CI | ✅ CI 在 PR #2 跑绿 |
 | M1 设计系统:令牌、组件库、三页高保真 | ✅ 令牌 + 23 个组件 + /kit + 收件箱/线程/线索,亮暗截图在 docs/design/;数据是编的样本,真数据 M2 |
 | M2 收信:IMAP 进来,原文落库 | ⚠ 代码与测试齐;对真邮箱的首次收信要在部署机上验,验完改 ✅ |
-| M3 读信:摘要 + 核对 + 评测集 | ⏳ |
+| M3 读信:摘要 + 核对 + 评测集 | ⚠ 代码、测试、评测脚本齐;Spark 上的真实分数要在部署机跑 evals/summarize_inquiry/run.py,跑完把数填进这里再改 ✅ |
 | M4 线索:建议 → 人确认 → 事实 | ⏳ |
 | M5 草稿:人改人发 | ⏳ |
 | M6 记忆:同一客户的历史进上下文 | ⏳ |

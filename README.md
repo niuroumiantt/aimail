@@ -30,6 +30,19 @@ WEB_DIST=web/dist uv run python -m mail2leads serve   # http://localhost:8900
 收信的顺序是刻意的:原文先落库(一个字节不改,数据库触发器拒绝改删),再解析、切引用、归并线程。
 IMAP 连接显式校验证书——`imaplib` 默认不校验。
 
+## 读信(M3)
+
+来信落库后立刻读数:中英摘要、事实点、语种、是不是询盘;模型引用的每个数字由代码回原文核对,
+对不上的界面标红。不是询盘的线程自动归到「无效」。
+
+```bash
+uv run python -m mail2leads read     # 给还没有读数的来信补读(换模型、改合同后用)
+uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jsonl --no-judge
+```
+
+后端由 `LLM_BACKEND` 决定:`local`(Spark,默认)或 `claude`。同一份合同两条后端,
+两边跑同一套评测集,分数才可比;`fast` 还是 `brain` 由评测集裁决,不由人拍板。
+
 ## 计划
 
 第一份计划（架构、九层设计系统、里程碑 M0–M9）在发起人的私有文档里：
