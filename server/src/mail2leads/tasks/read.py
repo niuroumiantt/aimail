@@ -8,6 +8,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 from mail2leads import backends
+from mail2leads.ingest import attachments
 from mail2leads.store import history, leads, repo
 from mail2leads.tasks import extract_lead as lead_task
 from mail2leads.tasks.summarize import TASK_VERSION, compose_source, summarize
@@ -26,7 +27,14 @@ def read_message(conn: sqlite3.Connection, message_pk: int, now: datetime | None
         raise KeyError(f"没有 message {message_pk}")
     # 这位客户的往来(M6):同一邮箱里同一地址/同一公司域的其他线程,原文摘录 + 我们记的状态
     past = history.for_thread(conn, int(row["mailbox_id"]), int(row["thread_id"]))
-    source = compose_source(row["subject"], row["body_new"], row["body_quoted"], history=past)
+    attachments.extract_for_message(conn, message_pk, now)  # M7 之前收的信在这里补读
+    source = compose_source(
+        row["subject"],
+        row["body_new"],
+        row["body_quoted"],
+        attachments=attachments.source_text(conn, message_pk),
+        history=past,
+    )
     produced_at = now.replace(microsecond=0).isoformat()
 
     try:

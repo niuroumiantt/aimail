@@ -70,7 +70,7 @@ def test_thread_detail_carries_messages_quoted_and_attachments(conn, mailbox):
     t = client.get(f"/api/threads/{tid}").json()
     assert [m["body"] for m in t["messages"]] == ["We need 48 units.", "Still available?"]
     assert t["messages"][1]["quoted"].startswith("On x wrote:")
-    assert t["messages"][0]["attachments"] == ["spec.pdf"]
+    assert [a["name"] for a in t["messages"][0]["attachments"]] == ["spec.pdf"]
 
 
 def test_unknown_thread_is_404(conn, mailbox):

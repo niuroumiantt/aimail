@@ -1,7 +1,7 @@
 import { ArrowLeft, Archive, Reply, Tag } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
-import type { Thread } from "@/data/types";
+import type { AttachmentText, Thread } from "@/data/types";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { CustomerHistory } from "./customer-history";
@@ -17,10 +17,13 @@ export function ThreadDetail({
   thread,
   backSearch,
   reply,
+  onAttachment,
 }: {
   thread: Thread;
   backSearch: string;
   reply?: ReplyHandlers;
+  /** 点附件时取它的文字;没有就只显示名字 */
+  onAttachment?: (attachmentId: string) => Promise<AttachmentText>;
 }) {
   const [replying, setReplying] = useState(false);
   return (
@@ -76,7 +79,7 @@ export function ThreadDetail({
           {thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
           <ReadingCard reading={thread.reading} />
           {thread.messages.map((m) => (
-            <MessageView key={m.id} message={m} />
+            <MessageView key={m.id} message={m} onAttachment={onAttachment} />
           ))}
           {replying && reply && (
             <ReplyComposer thread={thread} reply={reply} onClose={() => setReplying(false)} />

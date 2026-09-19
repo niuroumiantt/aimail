@@ -5,7 +5,7 @@ export type Folder = "inbox" | "quote" | "replied" | "invalid";
 export type Attribution = {
   /** 谁算的,例如 "Spark · fast" —— 宪法第三条:派生物有署名 */
   model: string;
-  /** 任务合同的版本,例如 "summarize_inquiry@2" */
+  /** 任务合同的版本,例如 "summarize_inquiry@3" */
   task_version: string;
   /** ISO 时间 */
   produced_at: string;
@@ -29,6 +29,25 @@ export type Reading =
       reason: string;
     });
 
+/** 一份附件在线程里的样子。文字不随线程下发,点开再取 */
+export type AttachmentRef = {
+  id: string;
+  name: string;
+  size: number;
+  /** ok = 读出文字了;failed = 读不出(原因在 reason);none = 还没读 */
+  read: "ok" | "failed" | "none";
+  reason?: string;
+};
+
+/** 附件里读出来的文字。派生物:代码读的,带署名落库(ADR 见 README 附件一节) */
+export type AttachmentText = {
+  id: string;
+  name: string;
+  status: "ok" | "failed" | "none";
+  text: string;
+  reason: string;
+};
+
 export type Message = {
   id: string;
   direction: "in" | "out";
@@ -39,7 +58,7 @@ export type Message = {
   body: string;
   /** 引用的历史,默认折叠 */
   quoted?: string;
-  attachments?: string[];
+  attachments?: AttachmentRef[];
 };
 
 /** 这位客户此前的一条往来。代码从不可变记录里查出来的(ADR-0005),不是模型写的 */

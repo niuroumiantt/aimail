@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from mail2leads import send as send_mod
+from mail2leads.ingest import attachments
 from mail2leads.store import history, leads, repo
 from mail2leads.tasks import draft as draft_mod
 
@@ -112,6 +113,22 @@ def _reading_out(row: sqlite3.Row | None) -> dict | None:
     return {**base, **json.loads(row["payload"])}
 
 
+def _attachments_out(conn: sqlite3.Connection, message_pk: int) -> list[dict] | None:
+    items = attachments.texts_for_message(conn, message_pk)
+    if not items:
+        return None
+    return [
+        {
+            "id": str(a.attachment_id),
+            "name": a.filename,
+            "size": a.size,
+            "read": a.status,
+            "reason": a.reason,
+        }
+        for a in items
+    ]
+
+
 def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool) -> dict:
     messages = repo.thread_messages(conn, int(row["id"]))
     last_in = next((m for m in reversed(messages) if m["direction"] == "in"), None)
@@ -152,7 +169,7 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
                 "sent_at": m["sent_at"],
                 "body": m["body_new"],
                 "quoted": m["body_quoted"] or None,
-                "attachments": repo.attachment_names(conn, int(m["id"])) or None,
+                "attachments": _attachments_out(conn, int(m["id"])),
             }
             for m in messages
         ]
@@ -188,6 +205,19 @@ def create_app(
         if row is None or int(row["mailbox_id"]) != mailbox_id:
             raise HTTPException(404, "没有这条线程")
         return _thread_out(conn, row, with_messages=True)
+
+    @app.get("/api/attachments/{attachment_id}/text")
+    def attachment_text(attachment_id: int) -> dict:
+        item = attachments.get_text(conn, mailbox_id, attachment_id)
+        if item is None:
+            raise HTTPException(404, "没有这个附件")
+        return {
+            "id": str(item.attachment_id),
+            "name": item.filename,
+            "status": item.status,
+            "text": item.text,
+            "reason": item.reason,
+        }
 
     @app.get("/api/leads/suggestions")
     def suggestions() -> list[dict]:

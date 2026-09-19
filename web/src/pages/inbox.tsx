@@ -26,7 +26,8 @@ export default function InboxPage() {
   const [params] = useSearchParams();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { threads, details, openThread, user, setUser, latestDraft, makeDraft, send } = useData();
+  const { threads, details, openThread, user, setUser, latestDraft, makeDraft, send, attachmentText } =
+    useData();
   // 列表只有摘要行;信件与客户历史在详情里。列表刷新(发信、确认之后)时详情也跟着刷
   useEffect(() => {
     if (id) void openThread(id);
@@ -45,7 +46,13 @@ export default function InboxPage() {
       list={<ThreadList threads={visible} folder={folder} search={search} />}
       detail={
         selected ? (
-          <ThreadDetail key={selected.id} thread={selected} backSearch={search} reply={reply} />
+          <ThreadDetail
+            key={selected.id}
+            thread={selected}
+            backSearch={search}
+            reply={reply}
+            onAttachment={attachmentText}
+          />
         ) : (
           <InboxEmpty count={visible.length} />
         )

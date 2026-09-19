@@ -55,6 +55,10 @@
 | 记忆:历史段只有原文摘录与我们记的状态,模型输出进不去;历史里的数字算回得到原文;没有历史不占提示词 | ✅ | test_history_is_raw_excerpt_and_our_status_never_a_model_summary, test_numbers_from_history_count_as_verified, test_no_history_adds_nothing_to_the_prompt |
 | 记忆:读数与起草的模型输入都带这位客户的往来;详情 API 带 history,列表不带 | ✅ | test_reader_shows_the_model_this_customers_history, test_draft_source_carries_history, test_thread_detail_carries_history_in_the_web_shape |
 | 界面:线程页从详情接口取信件与历史;老客户显示往来卡,可点回去;第一次来信在页头标出 | ✅ | thread page shows the messages from the detail which the list does not carry, shows past dealings with their outcome and a way back to them, marks a first-time customer in the thread header, says nothing about history until the detail has loaded, shows the history card for a returning customer |
+| 附件:PDF 文字层、xlsx、docx、csv/txt 读成文字;扫描件、图片、坏文件、超大文件都是带原因的失败,不留白 | ✅ | test_pdf_text_layer_is_read, test_scanned_pdf_is_failed_with_a_visible_reason, test_xlsx_rows_become_tab_separated_lines, test_docx_paragraphs_are_read, test_image_unknown_and_broken_files_fail_with_reasons_not_blanks, test_oversized_attachment_is_refused_before_parsing, test_text_files_decode_utf8_then_gb18030 |
+| 附件:读出的文字带署名落库、幂等,原字节不动;读不出不挡收信 | ✅ | test_ingest_stores_attachment_text_with_attribution_and_keeps_the_blob, test_broken_attachment_does_not_block_ingest |
+| 附件:读数与起草的模型输入带附件文字,附件里的数字算回得到原文;API 按邮箱隔离按需取正文 | ✅ | test_reader_sees_attachment_text_and_its_numbers_verify, test_draft_source_carries_attachment_text, test_api_exposes_attachment_state_and_text_only_within_the_mailbox |
+| 界面:附件片标出读没读出来、原因可见;点开看读出的文字;没有取用器时只列名字 | ✅ | marks an attachment that could not be read and says why, opens the text that was read out of an attachment, shows the reason instead of a blank sheet when the text is missing, lists attachments without a way to open them when no handler is given |
 | 界面:回信框——占位没换发不出;署名、可疑数字、追问先看见;失败不留白;只经人发;草稿可找回 | ✅ | refuses to send while the name placeholder is still in the body, shows who drafted and which numbers are unverified before anyone sends, shows the failure instead of an empty draft, sends only what the person wrote through their handler and then closes, keeps the composer open and shows the reason when the server refuses, asks for a name before drafting or sending, restores the latest stored draft when reopened, decides the hard rules in code before anything reaches the server |
 
 ## 里程碑
@@ -68,6 +72,6 @@
 | M4 线索:建议 → 人确认 → 事实 | ⚠ 代码、测试齐;Spark 上 extract_lead 的真实分数要在部署机跑 evals/extract_lead/run.py |
 | M5 草稿:人改人发 | ⚠ 代码、测试齐;真 SMTP 的第一封要在部署机上发给自己验;Spark 上 draft_reply 的真实分数要跑 evals/draft_reply/run.py |
 | M6 记忆:同一客户的历史进上下文 | ⚠ 代码、测试齐;「只有一句新内容」的样本要在 Spark 上跑 evals/summarize_inquiry/run.py 看摘要是否指回历史里的型号 |
-| M7 附件:BOM 进摘要 | ⏳ |
+| M7 附件:BOM 进摘要 | ⚠ PDF 文字层 / xlsx / docx / csv 已进摘要与草稿,代码、测试齐;扫描件与图片的 vision 路由**推迟**(等手里有真实扫描件再接,界面已把它们标为「没读出来」);「正文只说 see attached」的样本要在 Spark 上跑评测 |
 | M8 下游:lead API 与 webhook | ⏳ |
 | M9 第二个邮箱 | ⏳ |

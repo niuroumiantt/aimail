@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from mail2leads import backends
 from mail2leads.verify.numbers import unverified_numbers
 
-TASK_VERSION = "draft_reply@2"  # @2:输入多了「此前的往来」段
+TASK_VERSION = "draft_reply@3"  # @2 加「此前的往来」段;@3 加附件文字
 
 SYSTEM = """你在帮一家做外贸的小公司(卖服务器、内存、GPU、存储等数据中心硬件)给客户回信。
 写的是**草稿**,业务员会改完再发。
@@ -28,6 +28,7 @@ SYSTEM = """你在帮一家做外贸的小公司(卖服务器、内存、GPU、�
 - 绝不报价、绝不承诺交期、绝不承诺库存——这些由人决定
 - 用客户来信的语言写(英文来信英文回,中文来信中文回,混杂就用英文)
 - 你引用的每个数字、型号,都要原样放进 quoted_numbers;邮件里没有的数字一个都不要写
+- 「附件」段是附件里读出来的文字,复述客户要什么时可以引用里面的型号和数量
 - 末尾标着「这位客户此前的往来」的部分是我们自己的记录:可以据此把客户当老客户称呼、指回上次的型号;
   但上次的价格、交期一个字都不能当承诺重复
 - 语气:专业、简短、具体。不要套话堆砌。"""

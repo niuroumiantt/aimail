@@ -4,7 +4,7 @@
 
 import type { Thread } from "../data/types";
 
-const spark = { model: "Spark · fast", task_version: "summarize_inquiry@2" } as const;
+const spark = { model: "Spark · fast", task_version: "summarize_inquiry@3" } as const;
 
 export const threads: Thread[] = [
   {
@@ -412,7 +412,7 @@ Please see the attached spec sheet and quote accordingly. We need 2 units.
 
 Regards,
 Farah`,
-        attachments: ["B300-BTO-spec.pdf"],
+        attachments: [{ id: "a-mytel-spec", name: "B300-BTO-spec.pdf", size: 184320, read: "ok" }],
       },
     ],
     reading: {
@@ -422,11 +422,15 @@ Farah`,
       is_inquiry: true,
       language: "en",
       summary_zh:
-        "吉隆坡 MyTel 要 2 台 Supermicro B300 定制机,配置全部在附件 B300-BTO-spec.pdf 里,正文没有任何参数。现在读不了附件,报价前必须人工打开看。",
+        "吉隆坡 MyTel 要 2 台 Supermicro B300 定制机,正文没有参数,配置在附件 B300-BTO-spec.pdf 里:SYS-A22GA-NBRT(8× B300 SXM)、Xeon 6 6960P、64GB DDR5-6400、7.68TB NVMe、ConnectX-8 800G。DDP 仰光,目标 2026-11-15 到货。",
       summary_en:
-        "MyTel (Kuala Lumpur) wants 2 × Supermicro B300 build-to-order units; the entire spec is in the attached B300-BTO-spec.pdf, the body carries no parameters. Attachments are not read yet — open it manually before quoting.",
-      facts: ["2 台 Supermicro B300 定制", "参数只在附件里,正文没有", "附件读取是 M7,现在要人工看"],
-      quoted_numbers: ["2", "B300"],
+        "MyTel (Kuala Lumpur) wants 2 × Supermicro B300 build-to-order units; the body has no parameters, the spec is in the attached B300-BTO-spec.pdf: SYS-A22GA-NBRT (8 × B300 SXM), Xeon 6 6960P, 64GB DDR5-6400, 7.68TB NVMe, ConnectX-8 800G. DDP Yangon, target 2026-11-15.",
+      facts: [
+        "2 台 Supermicro B300 定制机",
+        "参数来自附件 B300-BTO-spec.pdf:SYS-A22GA-NBRT、Xeon 6 6960P、64GB DDR5-6400、7.68TB NVMe、ConnectX-8 800G",
+        "交付 DDP 仰光,目标 2026-11-15",
+      ],
+      quoted_numbers: ["2", "B300", "SYS-A22GA-NBRT", "6960P", "64GB", "DDR5-6400", "7.68TB", "ConnectX-8", "2026-11-15"],
       unverified: [],
     },
   },
@@ -667,6 +671,15 @@ Quotation Q-2602 attached: 20 units as specified, USD 38,900/unit FOB Singapore,
 
 thx
 Rashid`,
+        attachments: [
+          {
+            id: "a-lumen-list",
+            name: "lot-list.jpg",
+            size: 2411520,
+            read: "failed",
+            reason: "图片要走 vision 路由,还没接",
+          },
+        ],
       },
     ],
     reading: {
@@ -735,7 +748,7 @@ Glocalstorage`,
         body: `PO attached, please proceed. Delivery to our Pangyo site as discussed.
 
 Min-jun`,
-        attachments: ["PO-HB-260609.pdf"],
+        attachments: [{ id: "a-hanbit-po", name: "PO-HB-260609.pdf", size: 91200, read: "ok" }],
       },
     ],
     reading: {

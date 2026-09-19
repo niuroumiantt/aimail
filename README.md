@@ -76,6 +76,14 @@ uv run python evals/draft_reply/run.py evals/draft_reply/dataset.jsonl
 记忆没有自己的表,也没有向量库(见 [ADR-0005](docs/adr/0005-memory-is-a-query.md))。
 线程页上老客户有「这位客户」卡,一行一条往来可点回去;第一次来信的客户在页头标出。
 
+## 附件(M7)
+
+收信落库后立刻把附件读成文字:PDF 的文字层(pypdf)、xlsx(openpyxl)、docx、csv / txt。这是确定性代码,
+不是模型;读出的文字是派生物,带署名落 `attachment_text`,原附件的字节一个不动。读数和起草的模型输入里多一段
+「附件」,正文只说 see attached 的询盘也能提出参数,附件里的数字照样回原文核对。
+读不出来的(扫描件、图片、坏文件、超过 15 MB)记为带原因的失败,线程里的附件片标黄、原因可见——vision 路由
+(扫描件 OCR)推迟到手里有真实扫描件时再接,不先写一段没法验证的代码。
+
 ## 上线
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:

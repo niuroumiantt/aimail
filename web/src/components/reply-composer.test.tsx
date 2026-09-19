@@ -17,7 +17,7 @@ const thread: Thread = {
   messages: [],
 };
 
-const signed = { model: "Spark · fast", task_version: "draft_reply@2", produced_at: "2026-09-19T08:01:00+08:00" };
+const signed = { model: "Spark · fast", task_version: "draft_reply@3", produced_at: "2026-09-19T08:01:00+08:00" };
 
 const okDraft: ReplyDraft = {
   ...signed,
@@ -63,7 +63,7 @@ it("refuses to send while the name placeholder is still in the body", async () =
 it("shows who drafted and which numbers are unverified before anyone sends", async () => {
   show();
   fireEvent.click(screen.getByRole("button", { name: "AI 起草" }));
-  expect(await screen.findByTestId("attribution")).toHaveTextContent("draft_reply@2");
+  expect(await screen.findByTestId("attribution")).toHaveTextContent("draft_reply@3");
   expect(screen.getByText(/发之前先核对/).parentElement).toHaveTextContent("480");
   expect(screen.getByText(/草稿向客户问了/)).toHaveTextContent("delivery address");
 });

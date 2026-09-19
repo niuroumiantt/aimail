@@ -43,7 +43,7 @@ const SWATCHES: Array<[string, string]> = [
 
 const TONES: Tone[] = ["neutral", "brand", "ok", "warn", "danger"];
 
-const base = { model: "Spark · fast", task_version: "summarize_inquiry@2", produced_at: "2026-09-19T08:13:41+08:00" };
+const base = { model: "Spark · fast", task_version: "summarize_inquiry@3", produced_at: "2026-09-19T08:13:41+08:00" };
 const KIT_THREAD: Thread = {
   id: "kit",
   subject: "RFQ – 48 × 2U servers",
@@ -59,7 +59,7 @@ const KIT_THREAD: Thread = {
 const KIT_DRAFT: ReplyDraft = {
   ...base,
   id: "kit-draft",
-  task_version: "draft_reply@2",
+  task_version: "draft_reply@3",
   status: "ok",
   language: "en",
   subject: "Re: RFQ – 48 × 2U servers",

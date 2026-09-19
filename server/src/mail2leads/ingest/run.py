@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from mail2leads.ingest import quote, thread
+from mail2leads.ingest import attachments, quote, thread
 from mail2leads.ingest.imap import Source
 from mail2leads.ingest.parse import Parsed, parse
 from mail2leads.store import repo
@@ -117,6 +117,10 @@ def ingest_once(
         else:
             report.stored += 1
             report.unparsable += int(unparsable)
+            try:
+                attachments.extract_for_message(conn, pk, now)
+            except Exception:  # noqa: BLE001 —— 附件读不出只记日志,收信不能因此停
+                log.exception("读附件失败 message=%s", pk)
             if reader is not None and direction == "in":
                 try:
                     reader(conn, pk)

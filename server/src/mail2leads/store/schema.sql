@@ -78,6 +78,19 @@ CREATE TABLE IF NOT EXISTS message_reading (
 CREATE INDEX IF NOT EXISTS reading_by_source ON message_reading (source_id, produced_at DESC);
 
 -- derived
+CREATE TABLE IF NOT EXISTS attachment_text (
+  id INTEGER PRIMARY KEY,
+  source_id INTEGER NOT NULL REFERENCES attachment(id),
+  model TEXT NOT NULL,                       -- 谁读的:pypdf x / openpyxl x / stdlib
+  task_version TEXT NOT NULL,
+  produced_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('ok', 'failed')),
+  text TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS attachment_text_by_source ON attachment_text (source_id, produced_at DESC);
+
+-- derived
 CREATE TABLE IF NOT EXISTS lead_suggestion (
   id INTEGER PRIMARY KEY,
   source_id INTEGER NOT NULL REFERENCES message(id),
