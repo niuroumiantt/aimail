@@ -1,0 +1,35 @@
+/* 设计令牌 —— 整个 web/ 里唯一允许出现字面色值的文件(宪法第九条,ADR-0002)。
+   M0 只放一套占位的中性色,让壳子能亮起来;M1 横评之后整套重定。
+   `--color-*: initial` 把 Tailwind 的默认色板整个清掉:blue-500、gray-200 从此不存在。 */
+@import "tailwindcss";
+
+@theme {
+  --color-*: initial;
+
+  --color-canvas: oklch(98.5% 0.003 90);
+  --color-surface: oklch(100% 0 0);
+  --color-line: oklch(90% 0.005 80);
+  --color-ink: oklch(22% 0.01 60);
+  --color-ink-2: oklch(48% 0.012 60);
+  --color-brand: oklch(56% 0.11 190);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", sans-serif;
+}
+
+@layer base {
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-canvas: oklch(17% 0.01 250);
+      --color-surface: oklch(21% 0.01 250);
+      --color-line: oklch(30% 0.01 250);
+      --color-ink: oklch(94% 0.005 250);
+      --color-ink-2: oklch(70% 0.01 250);
+      --color-brand: oklch(72% 0.1 190);
+    }
+  }
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+  }
+}
