@@ -9,9 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4   # 版本读 web/package.json 的 packageManager,和 Docker 里 corepack 用的一致
         with:
-          version: 10
+          package_json_file: web/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
