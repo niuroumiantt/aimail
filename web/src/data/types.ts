@@ -69,6 +69,8 @@ export type LeadSuggestion = Attribution & {
   quantity: string;
   region: string;
   priority: Priority;
+  /** 建议里引用、但原文里找不到的数字。非空 = 别急着确认 */
+  unverified?: string[];
 };
 
 export type LeadStatus = "quote" | "quoted" | "following" | "won" | "lost";

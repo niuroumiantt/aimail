@@ -2,7 +2,8 @@ import { Link } from "react-router";
 import type { Lead, LeadStatus } from "@/data/types";
 import { relativeTime } from "@/lib/text";
 import { Avatar } from "./avatar";
-import { Pill, type Tone } from "./pill";
+import { type Tone } from "./pill";
+import { StatusSelect } from "./status-select";
 
 export const LEAD_STATUS: Record<LeadStatus, { label: string; tone: Tone }> = {
   quote: { label: "待报价", tone: "warn" },
@@ -12,7 +13,15 @@ export const LEAD_STATUS: Record<LeadStatus, { label: string; tone: Tone }> = {
   lost: { label: "丢单", tone: "neutral" },
 };
 
-export function LeadTable({ leads, threadIds }: { leads: Lead[]; threadIds: Set<string> }) {
+export function LeadTable({
+  leads,
+  threadIds,
+  onUpdate,
+}: {
+  leads: Lead[];
+  threadIds: Set<string>;
+  onUpdate?: (id: string, patch: { status?: LeadStatus }) => Promise<string>;
+}) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface shadow-sm">
       <table className="w-full min-w-160 border-collapse text-sm">
@@ -28,7 +37,6 @@ export function LeadTable({ leads, threadIds }: { leads: Lead[]; threadIds: Set<
         </thead>
         <tbody>
           {leads.map((lead) => {
-            const s = LEAD_STATUS[lead.status];
             return (
               <tr key={lead.id} className="border-b border-line last:border-b-0 hover:bg-surface-2">
                 <td className="px-4 py-3">
@@ -53,9 +61,10 @@ export function LeadTable({ leads, threadIds }: { leads: Lead[]; threadIds: Set<
                 <td className="px-3 py-3 text-ink">{lead.wants}</td>
                 <td className="whitespace-nowrap px-3 py-3 font-mono text-ink">{lead.quantity}</td>
                 <td className="px-3 py-3">
-                  <Pill tone={s.tone} dot>
-                    {s.label}
-                  </Pill>
+                  <StatusSelect
+                    value={lead.status}
+                    onChange={onUpdate ? (status) => onUpdate(lead.id, { status }) : undefined}
+                  />
                 </td>
                 <td className="max-w-xs px-3 py-3 text-ink-2">{lead.next_step}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right text-xs text-ink-2">

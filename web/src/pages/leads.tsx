@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { useData } from "@/data/provider";
 
 export default function LeadsPage() {
-  const { threads, suggestions, leads, confirm, dismiss } = useData();
+  const { threads, suggestions, failed, leads, user, setUser, confirm, dismiss, updateLead } = useData();
   const threadIds = useMemo(() => new Set(threads.map((t) => t.id)), [threads]);
   const counts = useMemo(() => {
     const c = { all: threads.length, inbox: 0, quote: 0, replied: 0, invalid: 0 };
@@ -18,10 +18,14 @@ export default function LeadsPage() {
       main={
         <LeadsBoard
           suggestions={suggestions}
+          failed={failed}
           leads={leads}
           threadIds={threadIds}
+          user={user}
+          onSetUser={setUser}
           onConfirm={confirm}
           onDismiss={dismiss}
+          onUpdateLead={updateLead}
         />
       }
     />

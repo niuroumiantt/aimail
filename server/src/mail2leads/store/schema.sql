@@ -77,6 +77,42 @@ CREATE TABLE IF NOT EXISTS message_reading (
 );
 CREATE INDEX IF NOT EXISTS reading_by_source ON message_reading (source_id, produced_at DESC);
 
+-- derived
+CREATE TABLE IF NOT EXISTS lead_suggestion (
+  id INTEGER PRIMARY KEY,
+  source_id INTEGER NOT NULL REFERENCES message(id),
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  model TEXT NOT NULL,
+  task_version TEXT NOT NULL,
+  produced_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'confirmed', 'dismissed', 'failed')),
+  payload TEXT NOT NULL,                     -- JSON:合同的输出 + unverified
+  reason TEXT NOT NULL DEFAULT '',
+  decided_by TEXT NOT NULL DEFAULT '',
+  decided_at TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS suggestion_by_status ON lead_suggestion (status, produced_at DESC);
+
+-- 线索是人确认过的事实(宪法第五条):confirmed_by 非空,写它的接口必须带人的身份。
+CREATE TABLE IF NOT EXISTS lead (
+  id INTEGER PRIMARY KEY,
+  mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  suggestion_id INTEGER REFERENCES lead_suggestion(id),
+  company TEXT NOT NULL,
+  contact TEXT NOT NULL DEFAULT '',
+  wants TEXT NOT NULL,
+  quantity TEXT NOT NULL DEFAULT '',
+  region TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'quote'
+    CHECK (status IN ('quote', 'quoted', 'following', 'won', 'lost')),
+  next_step TEXT NOT NULL DEFAULT '',
+  confirmed_by TEXT NOT NULL CHECK (confirmed_by <> ''),
+  confirmed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS lead_recent ON lead (mailbox_id, updated_at DESC);
+
 -- 原文不可变。谁想改,数据库直接拒绝,不靠代码自觉。
 CREATE TRIGGER IF NOT EXISTS message_no_update BEFORE UPDATE ON message
 BEGIN

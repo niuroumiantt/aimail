@@ -41,6 +41,11 @@
 | 读数:落库带署名,失败也落库且显形,不是询盘归 invalid | ✅ | test_reading_is_stored_with_attribution, test_failed_reading_is_stored_as_failed_not_empty, test_non_inquiry_moves_thread_to_invalid, test_unverified_numbers_are_recorded_not_hidden |
 | 读数:核对依据与模型输入是同一份文本;只读来信;读数失败不挡收信 | ✅ | test_quoted_history_is_part_of_the_verified_source, test_ingest_reads_incoming_only, test_reader_failure_does_not_block_ingest |
 | API:读数以界面形状暴露 | ✅ | test_api_exposes_reading_in_the_web_shape |
+| 线索:询盘读数后自动提建议、带署名;提取失败也记录、可数 | ✅ | test_inquiry_reading_creates_an_open_suggestion_with_attribution, test_non_inquiry_creates_no_suggestion, test_failed_extraction_is_recorded_not_silent, test_unverified_numbers_in_a_suggestion_are_kept |
+| 线索:只有人能把建议变成事实,后台没有这条路 | ✅ | test_confirm_requires_a_person, test_background_code_has_no_way_to_confirm, test_api_refuses_confirm_without_identity_and_accepts_tailscale_header |
+| 线索:确认 → 线索表 + 线程归待报价;不能确认两次;忽略不产生线索;状态受校验 | ✅ | test_confirm_turns_suggestion_into_a_lead_and_moves_the_thread, test_confirming_twice_is_rejected, test_dismiss_marks_the_suggestion_and_creates_no_lead, test_lead_status_is_validated |
+| API:建议与线索的形状与界面一致 | ✅ | test_api_suggestion_and_lead_shapes_match_the_web |
+| 界面:确认前先写名字;建议里的可疑数字先标出;提取失败有计数 | ✅ | asks for a name before anyone can confirm, does not ask for a name once there is one, shows unverified numbers on a suggestion before confirmation, counts inquiries whose lead extraction failed |
 
 ## 里程碑
 
@@ -50,7 +55,7 @@
 | M1 设计系统:令牌、组件库、三页高保真 | ✅ 令牌 + 23 个组件 + /kit + 收件箱/线程/线索,亮暗截图在 docs/design/;数据是编的样本,真数据 M2 |
 | M2 收信:IMAP 进来,原文落库 | ⚠ 代码与测试齐;对真邮箱的首次收信要在部署机上验,验完改 ✅ |
 | M3 读信:摘要 + 核对 + 评测集 | ⚠ 代码、测试、评测脚本齐;Spark 上的真实分数要在部署机跑 evals/summarize_inquiry/run.py,跑完把数填进这里再改 ✅ |
-| M4 线索:建议 → 人确认 → 事实 | ⏳ |
+| M4 线索:建议 → 人确认 → 事实 | ⚠ 代码、测试齐;Spark 上 extract_lead 的真实分数要在部署机跑 evals/extract_lead/run.py |
 | M5 草稿:人改人发 | ⏳ |
 | M6 记忆:同一客户的历史进上下文 | ⏳ |
 | M7 附件:BOM 进摘要 | ⏳ |
