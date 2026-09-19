@@ -48,6 +48,17 @@ export type AttachmentText = {
   reason: string;
 };
 
+/** 推送发件箱的状态:线索一变就 POST 给下游(OA / PO / 合同),送没送到都看得见 */
+export type OutboxStatus = {
+  /** 没配 webhook 就是 false,界面什么都不显示 */
+  configured: boolean;
+  pending: number;
+  /** 试过、没送到、还会再试的 */
+  failed: number;
+  delivered: number;
+  last_error: string;
+};
+
 export type Message = {
   id: string;
   direction: "in" | "out";

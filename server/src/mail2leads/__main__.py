@@ -17,7 +17,7 @@ from mail2leads.config import Config
 from mail2leads.ingest.imap import ImapSource
 from mail2leads.ingest.run import ingest_once
 from mail2leads.send import SmtpTransport
-from mail2leads.store import repo
+from mail2leads.store import outbox, repo
 from mail2leads.store.db import connect
 from mail2leads.tasks.read import read_message, unread_incoming
 
@@ -66,6 +66,29 @@ def _read_pending(config: Config, mailbox_id: int) -> None:
     conn.close()
 
 
+def _deliver_once(config: Config, mailbox_id: int) -> tuple[int, int]:
+    conn = connect(config.db_path)
+    try:
+        result = outbox.deliver_pending(
+            conn, outbox.HttpPoster(config.webhook_url), config.webhook_secret
+        )
+    finally:
+        conn.close()
+    return result
+
+
+def _deliver_forever(config: Config, mailbox_id: int) -> None:
+    """推送线索事件到 WEBHOOK_URL。失败按退避重试,永不丢;送没送到 /api/outbox 看得见。"""
+    while True:
+        try:
+            sent, failed = _deliver_once(config, mailbox_id)
+            if sent or failed:
+                log.info("推送:送到 %d,失败 %d", sent, failed)
+        except Exception:  # noqa: BLE001 —— 推送失败只记日志,服务本身不能死
+            log.exception("推送失败")
+        time.sleep(30)
+
+
 def _poll_forever(config: Config, mailbox_id: int) -> None:
     while True:
         try:
@@ -95,8 +118,16 @@ def main(argv: list[str]) -> int:
             return 2
         _read_pending(config, mailbox_id)
         return 0
+    if command == "deliver":
+        conn.close()
+        if not config.webhook_url:
+            print("没配 WEBHOOK_URL,没有可推的地方", file=sys.stderr)
+            return 2
+        sent, failed = _deliver_once(config, mailbox_id)
+        print(f"送到 {sent},失败 {failed}")
+        return 0 if not failed else 1
     if command != "serve":
-        print(f"不认识的命令 {command!r};可用:serve / ingest / read", file=sys.stderr)
+        print(f"不认识的命令 {command!r};可用:serve / ingest / read / deliver", file=sys.stderr)
         return 2
 
     import uvicorn
@@ -106,6 +137,10 @@ def main(argv: list[str]) -> int:
     threading.Thread(
         target=_poll_forever, args=(config, mailbox_id), daemon=True, name="ingest"
     ).start()
+    if config.webhook_url:
+        threading.Thread(
+            target=_deliver_forever, args=(config, mailbox_id), daemon=True, name="deliver"
+        ).start()
     # 发信的口只在这里接上:后台线程没有请求,拿不到令牌,也就发不了(宪法第二条)
     transport = SmtpTransport(
         config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password
@@ -117,6 +152,8 @@ def main(argv: list[str]) -> int:
         sender=config.mailbox,
         sender_name=config.sender_name,
         transport=transport,
+        api_tokens=config.api_tokens,
+        webhook_configured=bool(config.webhook_url),
     )
     uvicorn.run(app, host="0.0.0.0", port=8900, log_level="info")
     return 0

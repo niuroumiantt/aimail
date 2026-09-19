@@ -77,6 +77,21 @@ CREATE TABLE IF NOT EXISTS message_reading (
 );
 CREATE INDEX IF NOT EXISTS reading_by_source ON message_reading (source_id, produced_at DESC);
 
+-- 推送发件箱:线索的每次变化一条,送到为止(M8)
+CREATE TABLE IF NOT EXISTS outbox (
+  id INTEGER PRIMARY KEY,
+  mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+  event TEXT NOT NULL CHECK (event IN ('lead.confirmed', 'lead.updated')),
+  lead_id INTEGER NOT NULL REFERENCES lead(id),
+  payload TEXT NOT NULL,                     -- JSON:lead@1,记事件当时的样子
+  created_at TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_at TEXT NOT NULL,
+  delivered_at TEXT,
+  last_error TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS outbox_due ON outbox (delivered_at, next_at);
+
 -- derived
 CREATE TABLE IF NOT EXISTS attachment_text (
   id INTEGER PRIMARY KEY,

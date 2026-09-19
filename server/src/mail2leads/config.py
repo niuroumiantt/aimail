@@ -21,6 +21,9 @@ class Config:
     smtp_user: str
     smtp_password: str
     sender_name: str
+    api_tokens: dict[str, str]
+    webhook_url: str
+    webhook_secret: str
     db_path: Path
     poll_seconds: int
     web_dist: Path | None
@@ -34,6 +37,10 @@ class Config:
             return value
 
         dist = os.environ.get("WEB_DIST", "").strip()
+        webhook_url = os.environ.get("WEBHOOK_URL", "").strip()
+        webhook_secret = os.environ.get("WEBHOOK_SECRET", "").strip()
+        if webhook_url and not webhook_secret:
+            raise RuntimeError("配了 WEBHOOK_URL 就必须配 WEBHOOK_SECRET:不签名的推送下游没法信")
         return cls(
             mailbox=required("MAILBOX"),
             imap_host=required("IMAP_HOST"),
@@ -48,7 +55,26 @@ class Config:
             smtp_user=os.environ.get("SMTP_USER", "").strip() or required("IMAP_USER"),
             smtp_password=os.environ.get("SMTP_PASSWORD", "").strip() or required("IMAP_PASSWORD"),
             sender_name=os.environ.get("SENDER_NAME", "").strip(),
+            api_tokens=parse_tokens(os.environ.get("API_TOKENS", "")),
+            webhook_url=webhook_url,
+            webhook_secret=webhook_secret,
             db_path=Path(os.environ.get("DB_PATH", "data/mail2leads.sqlite3")),
             poll_seconds=int(os.environ.get("POLL_SECONDS", "60")),
             web_dist=Path(dist) if dist else None,
         )
+
+
+def parse_tokens(raw: str) -> dict[str, str]:
+    """API_TOKENS="oa:长随机串,po:另一串" → {"oa": ..., "po": ...}。名字进日志,串永不进日志。"""
+    tokens: dict[str, str] = {}
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if ":" not in item:
+            raise RuntimeError(f"API_TOKENS 里的 {item[:8]}… 缺名字,格式是 名字:令牌")
+        name, value = item.split(":", 1)
+        if len(value) < 16:
+            raise RuntimeError(f"API 令牌 {name} 太短,至少 16 个字符(openssl rand -hex 32)")
+        tokens[name.strip()] = value.strip()
+    return tokens

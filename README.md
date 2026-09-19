@@ -84,6 +84,13 @@ uv run python evals/draft_reply/run.py evals/draft_reply/dataset.jsonl
 读不出来的(扫描件、图片、坏文件、超过 15 MB)记为带原因的失败,线程里的附件片标黄、原因可见——vision 路由
 (扫描件 OCR)推迟到手里有真实扫描件时再接,不先写一段没法验证的代码。
 
+## 下游(M8)
+
+OA、PO、合同这类系统只通过 `/v1/leads` 拿线索,拿到的只有人确认过的事实,模型的建议永远不出门。
+机器用 Bearer 令牌(`API_TOKENS`),**只能读**;写线索的接口只认人。线索每次变化还会 POST 到 `WEBHOOK_URL`
+(HMAC-SHA256 签名、失败按退避重试、永不丢,送没送到线索页上看得见)。接口形状钉死在测试里,改字段先写 ADR。
+细节见 [docs/api/v1.md](docs/api/v1.md),接线样例 `examples/pull_leads.py`(只用标准库)。
+
 ## 上线
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
@@ -109,6 +116,7 @@ Linux 主机用 `docker compose up -d --build`(`.env` 同样内容)。
 - [0003 SQLite 起步](docs/adr/0003-sqlite-first.md)
 - [0004 设计令牌、字体、图标与组件展示](docs/adr/0004-design-tokens-and-type.md)
 - [0005 记忆是一次查询,不是一张模型写的表](docs/adr/0005-memory-is-a-query.md)
+- [0006 下游只看事实:版本化只读接口 + 签名推送](docs/adr/0006-downstream-facts-only.md)
 
 ## 真实客户数据
 
