@@ -81,3 +81,16 @@ def test_folder_filter(conn, mailbox):
     client = _client(conn, mailbox)
     assert client.get("/api/threads?folder=quote").json() == []
     assert len(client.get("/api/threads?folder=inbox").json()) == 1
+
+
+def test_spa_fallback_serves_index_and_assets(conn, mailbox, tmp_path):
+    """部署时前端由 API 托管:深链接回 index.html,静态资源按路径给;API 路径不被兜底吞掉。"""
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<div id=root></div>", "utf-8")
+    (dist / "assets" / "app.js").write_text("console.log(1)", "utf-8")
+    client = TestClient(create_app(conn, mailbox, web_dist=dist))
+    assert client.get("/t/123").text == "<div id=root></div>"
+    assert client.get("/assets/app.js").text == "console.log(1)"
+    assert client.get("/api/threads/9999").status_code == 404
+    assert client.get("/healthz").json() == {"ok": True}

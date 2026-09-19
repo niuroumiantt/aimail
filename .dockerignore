@@ -1,0 +1,13 @@
+.git
+.venv
+node_modules
+web/node_modules
+web/dist
+web/dist-preview
+data
+docs
+evals/**/dataset.jsonl
+evals/**/*.tsv
+.env
+.env.*
+!.env.example

@@ -43,6 +43,19 @@ uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jso
 后端由 `LLM_BACKEND` 决定:`local`(Spark,默认)或 `claude`。同一份合同两条后端,
 两边跑同一套评测集,分数才可比;`fast` 还是 `brain` 由评测集裁决,不由人拍板。
 
+## 上线(只读版:收信 + 读数)
+
+Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
+
+```bash
+git clone git@github.com:niuroumiantt/mail2leads.git ~/mail2leads
+cd ~/mail2leads && bash deploy/install_mini.sh
+```
+
+第一次会生成 `~/.config/mail2leads/env`(0600),填 IMAP 与模型后再跑一次。
+脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/`。
+Linux 主机用 `docker compose up -d --build`(`.env` 同样内容)。
+
 ## 计划
 
 第一份计划（架构、九层设计系统、里程碑 M0–M9）在发起人的私有文档里：
