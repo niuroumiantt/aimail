@@ -6,8 +6,16 @@
 
 ## 现在能跑什么
 
-什么都还不能。这是第一个提交：宪法、三个决定记录、能力状态表。
-能力状态以 [STATUS.md](STATUS.md) 为准，那里只认机器验证，宁可写「未完成」。
+地基:守卫、测试、CI。业务功能还没有。
+能力状态以 [STATUS.md](STATUS.md) 为准,那里只认机器验证,宁可写「未完成」。
+
+```bash
+uv sync                      # Python 3.12,一个 venv
+bash tools/precommit.sh      # 提交前必须整条跑完,跑子集不算;CI 跑的就是它
+cd web && pnpm dev           # 界面开发服务器
+```
+
+守卫在 `tools/guard_*.py`,每个守着宪法的一条,每个都有攻击测试(`tools/tests/`)。
 
 ## 计划
 
