@@ -72,6 +72,7 @@ const KIT_DRAFT: ReplyDraft = {
 const KIT_REPLY: ReplyHandlers = {
   user: "Larry",
   onSetUser: () => {},
+  canDraft: true,
   latestDraft: async () => null,
   makeDraft: async () => KIT_DRAFT,
   send: async () => "样品间里发不出去",

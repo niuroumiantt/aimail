@@ -4,6 +4,7 @@ import { chooseSource, type DataSource } from "./source";
 import type {
   AttachmentText,
   Lead,
+  MailboxInfo,
   OutboxStatus,
   LeadStatus,
   LeadSuggestion,
@@ -24,6 +25,7 @@ type State = {
   failed: number;
   leads: Lead[];
   outbox: OutboxStatus;
+  mailbox: MailboxInfo;
   user: string;
   setUser: (name: string) => void;
   /** 人确认一条建议 → 变成线索。没有名字会被拒(宪法第五条)。返回错误文案或空串 */
@@ -42,6 +44,9 @@ type State = {
 
 const NO_OUTBOX: OutboxStatus = { configured: false, pending: 0, failed: 0, delivered: 0, last_error: "" };
 
+// 还没拿到之前当全开:藏入口是"知道没开"才做的事
+const NO_MAILBOX: MailboxInfo = { address: "", display_name: "", tasks: ["read", "leads", "draft"] };
+
 const Ctx = createContext<State | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
@@ -54,21 +59,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [failed, setFailed] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [outbox, setOutbox] = useState<OutboxStatus>(NO_OUTBOX);
+  const [mailbox, setMailbox] = useState<MailboxInfo>(NO_MAILBOX);
   const [user, setUserState] = useState(getUser);
 
   const refresh = useCallback(async (src: DataSource) => {
-    const [t, s, f, l, o] = await Promise.all([
+    const [t, s, f, l, o, m] = await Promise.all([
       src.threads(),
       src.suggestions(),
       src.failedSuggestions(),
       src.leads(),
       src.outbox(),
+      src.mailbox(),
     ]);
     setThreads(t);
     setSuggestions(s);
     setFailed(f);
     setLeads(l);
     setOutbox(o);
+    setMailbox(m);
   }, []);
 
   useEffect(() => {
@@ -133,6 +141,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       failed,
       leads,
       outbox,
+      mailbox,
       user,
       setUser,
       confirm: (s) => act((src) => src.confirm(s.id, user)),
@@ -149,7 +158,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.attachmentText(id);
       },
     }),
-    [loading, error, threads, details, openThread, suggestions, failed, leads, outbox, user, setUser, act, source],
+    [loading, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, user, setUser, act, source],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

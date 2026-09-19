@@ -35,6 +35,7 @@ function show(over: Partial<ReplyHandlers> = {}, user = "Larry") {
   const reply: ReplyHandlers = {
     user,
     onSetUser: vi.fn(),
+    canDraft: true,
     latestDraft: async () => null,
     makeDraft: async () => okDraft,
     send: vi.fn(async () => ""),
@@ -113,4 +114,10 @@ it("decides the hard rules in code before anything reaches the server", () => {
   expect(sendProblem({ to: ["a@b.test"], subject: "", body: "  " })).toMatch(/空/);
   expect(sendProblem({ to: ["a@b.test"], subject: "", body: "hi [姓名]" })).toMatch(/占位/);
   expect(sendProblem({ to: ["a@b.test"], subject: "", body: "hi" })).toBe("");
+});
+
+it("offers no AI draft when the mailbox does not draft", () => {
+  show({ canDraft: false });
+  expect(screen.queryByRole("button", { name: "AI 起草" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "发送" })).toBeInTheDocument();
 });

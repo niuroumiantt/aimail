@@ -1,5 +1,6 @@
 import { Inbox, Palette, Users } from "lucide-react";
 import { Link, useLocation } from "react-router";
+import type { MailboxInfo } from "@/data/types";
 import { cn } from "@/lib/cn";
 import { FOLDER_LABEL, FOLDER_ORDER, type FolderKey } from "./folders";
 import { ThemeToggle } from "./theme-toggle";
@@ -13,10 +14,13 @@ export function Sidebar({
   counts,
   activeFolder,
   inInbox,
+  mailbox,
 }: {
   counts: Record<FolderKey, number>;
   activeFolder: FolderKey;
   inInbox: boolean;
+  /** 伺候的邮箱;没开线索任务就不给线索入口 */
+  mailbox: MailboxInfo;
 }) {
   const { pathname } = useLocation();
   const current = (on: boolean) => (on ? ("page" as const) : undefined);
@@ -31,7 +35,9 @@ export function Sidebar({
         </span>
         <div className="leading-tight">
           <h1 className="text-sm font-semibold tracking-tight text-ink">mail2leads</h1>
-          <p className="font-mono text-2xs text-ink-2">sales@</p>
+          <p className="truncate font-mono text-2xs text-ink-2" title={mailbox.address}>
+            {mailbox.address || "…"}
+          </p>
         </div>
       </div>
 
@@ -42,12 +48,14 @@ export function Sidebar({
             收件箱
           </Link>
         </li>
-        <li>
-          <Link to="/leads" className={NAV_ITEM} aria-current={current(pathname === "/leads")}>
-            <Users size={16} strokeWidth={1.75} />
-            线索
-          </Link>
-        </li>
+        {mailbox.tasks.includes("leads") && (
+          <li>
+            <Link to="/leads" className={NAV_ITEM} aria-current={current(pathname === "/leads")}>
+              <Users size={16} strokeWidth={1.75} />
+              线索
+            </Link>
+          </li>
+        )}
         <li>
           <Link to="/kit" className={NAV_ITEM} aria-current={current(pathname === "/kit")}>
             <Palette size={16} strokeWidth={1.75} />

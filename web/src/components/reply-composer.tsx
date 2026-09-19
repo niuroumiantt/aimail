@@ -14,6 +14,8 @@ export const NAME_PLACEHOLDER = "[姓名]";
 export type ReplyHandlers = {
   user: string;
   onSetUser: (name: string) => void;
+  /** 这个邮箱开没开起草任务;没开就只有人写 */
+  canDraft: boolean;
   latestDraft: (threadId: string) => Promise<ReplyDraft | null>;
   makeDraft: (threadId: string) => Promise<ReplyDraft>;
   /** 返回错误文案;空串 = 发出去了 */
@@ -130,7 +132,7 @@ export function ReplyComposer({
 
   // 打开时把上次的草稿找回来:真模型要几十秒,不能因为切了一下线程就丢
   useEffect(() => {
-    if (restored.current) return;
+    if (restored.current || !reply.canDraft) return;
     let alive = true;
     reply
       .latestDraft(thread.id)
@@ -150,7 +152,7 @@ export function ReplyComposer({
     return () => {
       alive = false;
     };
-  }, [reply, thread.id]);
+  }, [reply, thread.id, reply.canDraft]);
 
   const draftNow = async () => {
     setBusy("draft");
@@ -251,16 +253,20 @@ export function ReplyComposer({
       />
 
       <footer className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2.5">
-        <Button
-          variant="soft"
-          size="sm"
-          icon={<Sparkles size={14} strokeWidth={2} />}
-          onClick={draftNow}
-          disabled={!canAct}
-        >
-          {busy === "draft" ? "起草中…" : draft ? "重新起草" : "AI 起草"}
-        </Button>
-        <span className="text-xs text-ink-3">草稿只是建议,发出去的每个字都算你说的。</span>
+        {reply.canDraft && (
+          <Button
+            variant="soft"
+            size="sm"
+            icon={<Sparkles size={14} strokeWidth={2} />}
+            onClick={draftNow}
+            disabled={!canAct}
+          >
+            {busy === "draft" ? "起草中…" : draft ? "重新起草" : "AI 起草"}
+          </Button>
+        )}
+        <span className="text-xs text-ink-3">
+          {reply.canDraft ? "草稿只是建议,发出去的每个字都算你说的。" : "这个邮箱不起草,写好就发。"}
+        </span>
         <span className="ml-auto flex items-center gap-2">
           {problem && (
             <span role="alert" className="text-xs text-danger-text">

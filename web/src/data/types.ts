@@ -59,6 +59,15 @@ export type OutboxStatus = {
   last_error: string;
 };
 
+export type TaskName = "read" | "leads" | "draft";
+
+/** 这个服务伺候的邮箱与它开了哪些任务。界面据此显示地址、藏起没开的入口 */
+export type MailboxInfo = {
+  address: string;
+  display_name: string;
+  tasks: TaskName[];
+};
+
 export type Message = {
   id: string;
   direction: "in" | "out";

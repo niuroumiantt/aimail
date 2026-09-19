@@ -91,6 +91,13 @@ OA、PO、合同这类系统只通过 `/v1/leads` 拿线索,拿到的只有人�
 (HMAC-SHA256 签名、失败按退避重试、永不丢,送没送到线索页上看得见)。接口形状钉死在测试里,改字段先写 ADR。
 细节见 [docs/api/v1.md](docs/api/v1.md),接线样例 `examples/pull_leads.py`(只用标准库)。
 
+## 第二个邮箱(M9)
+
+一个实例伺候一个邮箱:自己的 env、库、端口、launchd 服务,`bash deploy/install_mini.sh support` 一条命令。
+`TASKS` 定这个邮箱开哪些任务——`read`(读数,必开)、`leads`(提线索建议)、`draft`(起草回信);个人邮箱通常只写 `read`,
+界面就不给线索入口、回信框里没有 AI 起草。零 schema 变更:所有表从第一天就带 `mailbox_id`,
+两个实例可以共用一个库,凭 id 也拿不到对方的线程、草稿、令牌、建议、线索、附件,推送的账也分开(有测试守着)。
+
 ## 上线
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
