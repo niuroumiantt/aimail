@@ -73,6 +73,31 @@ export type LeadSuggestion = Attribution & {
   unverified?: string[];
 };
 
+/** 模型起的回信草稿。人改人发;正文里留 [姓名] 占位,没换掉发不出去(宪法第二条) */
+export type ReplyDraft =
+  | (Attribution & {
+      id: string;
+      status: "ok";
+      language: string;
+      subject: string;
+      body: string;
+      /** 草稿向客户提的问题 */
+      open_questions: string[];
+      quoted_numbers: string[];
+      /** 草稿里引用、但来信里找不到的数字。非空 = 发之前先核对(宪法第四条) */
+      unverified: string[];
+    })
+  | (Attribution & { id: string; status: "failed"; reason: string });
+
+/** 人按下「发送」时交给服务端的内容;令牌由数据源在发送那一刻签取,界面不持有 */
+export type SendRequest = {
+  to: string[];
+  subject: string;
+  body: string;
+  /** 从哪份草稿改出来的;纯手写就没有 */
+  draft_id?: string;
+};
+
 export type LeadStatus = "quote" | "quoted" | "following" | "won" | "lost";
 
 export type Lead = {

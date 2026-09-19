@@ -46,6 +46,12 @@
 | 线索:确认 → 线索表 + 线程归待报价;不能确认两次;忽略不产生线索;状态受校验 | ✅ | test_confirm_turns_suggestion_into_a_lead_and_moves_the_thread, test_confirming_twice_is_rejected, test_dismiss_marks_the_suggestion_and_creates_no_lead, test_lead_status_is_validated |
 | API:建议与线索的形状与界面一致 | ✅ | test_api_suggestion_and_lead_shapes_match_the_web |
 | 界面:确认前先写名字;建议里的可疑数字先标出;提取失败有计数 | ✅ | asks for a name before anyone can confirm, does not ask for a name once there is one, shows unverified numbers on a suggestion before confirmation, counts inquiries whose lead extraction failed |
+| 发信:没有令牌发不出;令牌只签给人、绑线程、一次性、十分钟过期 | ✅ | test_token_is_bound_and_single_use, test_expired_token_is_rejected, test_token_is_only_minted_for_a_person, test_send_without_a_token_is_impossible |
+| 发信:回信归客户线程、带 In-Reply-To、落库为我方、线程归已回复;空信拒发 | ✅ | test_sent_message_threads_correctly_and_lands_as_outgoing, test_empty_body_or_no_recipient_is_refused |
+| 发信:收信、读数、起草模块连发信模块都 import 不到 | ✅ | test_background_modules_never_import_send |
+| 起草:以整条线程为依据,带署名落库,失败也落库且显形 | ✅ | test_draft_is_stored_with_attribution, test_failed_draft_is_visible_not_blank, test_draft_source_is_the_whole_thread |
+| API:发信要人、要令牌、要 SMTP;伪造令牌 403;令牌用一次作废;起草要人 | ✅ | test_api_send_flow_requires_person_token_and_transport, test_api_draft_endpoints |
+| 界面:回信框——占位没换发不出;署名、可疑数字、追问先看见;失败不留白;只经人发;草稿可找回 | ✅ | refuses to send while the name placeholder is still in the body, shows who drafted and which numbers are unverified before anyone sends, shows the failure instead of an empty draft, sends only what the person wrote through their handler and then closes, keeps the composer open and shows the reason when the server refuses, asks for a name before drafting or sending, restores the latest stored draft when reopened, decides the hard rules in code before anything reaches the server |
 
 ## 里程碑
 
@@ -56,7 +62,7 @@
 | M2 收信:IMAP 进来,原文落库 | ⚠ 代码与测试齐;对真邮箱的首次收信要在部署机上验,验完改 ✅ |
 | M3 读信:摘要 + 核对 + 评测集 | ⚠ 代码、测试、评测脚本齐;Spark 上的真实分数要在部署机跑 evals/summarize_inquiry/run.py,跑完把数填进这里再改 ✅ |
 | M4 线索:建议 → 人确认 → 事实 | ⚠ 代码、测试齐;Spark 上 extract_lead 的真实分数要在部署机跑 evals/extract_lead/run.py |
-| M5 草稿:人改人发 | ⏳ |
+| M5 草稿:人改人发 | ⚠ 代码、测试齐;真 SMTP 的第一封要在部署机上发给自己验;Spark 上 draft_reply 的真实分数要跑 evals/draft_reply/run.py |
 | M6 记忆:同一客户的历史进上下文 | ⏳ |
 | M7 附件:BOM 进摘要 | ⏳ |
 | M8 下游:lead API 与 webhook | ⏳ |

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getUser, setUser as persistUser } from "@/lib/user";
 import { chooseSource, type DataSource } from "./source";
-import type { Lead, LeadStatus, LeadSuggestion, Thread } from "./types";
+import type { Lead, LeadStatus, LeadSuggestion, ReplyDraft, SendRequest, Thread } from "./types";
 
 type State = {
   loading: boolean;
@@ -16,6 +16,12 @@ type State = {
   confirm: (s: LeadSuggestion) => Promise<string>;
   dismiss: (s: LeadSuggestion) => Promise<string>;
   updateLead: (id: string, patch: { status?: LeadStatus; next_step?: string }) => Promise<string>;
+  /** 这条线程最近一份草稿 */
+  latestDraft: (threadId: string) => Promise<ReplyDraft | null>;
+  /** 让模型起草。模型失败返回 status: failed;没名字、没加载完才抛 */
+  makeDraft: (threadId: string) => Promise<ReplyDraft>;
+  /** 以当前这个人的名义发出。返回错误文案或空串;成功后线程列表刷新 */
+  send: (threadId: string, request: SendRequest) => Promise<string>;
 };
 
 const Ctx = createContext<State | null>(null);
@@ -89,8 +95,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       confirm: (s) => act((src) => src.confirm(s.id, user)),
       dismiss: (s) => act((src) => src.dismiss(s.id, user)),
       updateLead: (id, patch) => act((src) => src.updateLead(id, patch, user)),
+      latestDraft: async (id) => (source ? source.latestDraft(id) : null),
+      makeDraft: async (id) => {
+        if (!source) throw new Error("还没加载完");
+        return source.makeDraft(id, user);
+      },
+      send: (id, request) => act((src) => src.send(id, request, user)),
     }),
-    [loading, error, threads, suggestions, failed, leads, user, setUser, act],
+    [loading, error, threads, suggestions, failed, leads, user, setUser, act, source],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

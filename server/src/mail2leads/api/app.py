@@ -14,7 +14,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from mail2leads import send as send_mod
 from mail2leads.store import leads, repo
+from mail2leads.tasks import draft as draft_mod
 
 
 def who(request: Request) -> str:
@@ -65,6 +67,29 @@ class Decision(BaseModel):
 class LeadPatch(BaseModel):
     status: str | None = None
     next_step: str | None = None
+
+
+class SendBody(BaseModel):
+    token: str
+    to: list[str]
+    subject: str
+    body: str
+    draft_id: str | None = None
+
+
+def _draft_out(row: sqlite3.Row | None) -> dict | None:
+    if row is None:
+        return None
+    base = {
+        "id": str(row["id"]),
+        "model": row["model"],
+        "task_version": row["task_version"],
+        "produced_at": row["produced_at"],
+        "status": row["status"],
+    }
+    if row["status"] == "failed":
+        return {**base, "reason": row["reason"]}
+    return {**base, **json.loads(row["payload"])}
 
 
 def _company_of(email_addr: str) -> str:
@@ -121,8 +146,17 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
     return out
 
 
-def create_app(conn: sqlite3.Connection, mailbox_id: int, web_dist: Path | None = None) -> FastAPI:
+def create_app(
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    web_dist: Path | None = None,
+    *,
+    sender: str = "",
+    sender_name: str = "",
+    transport: send_mod.Transport | None = None,
+) -> FastAPI:
     app = FastAPI(title="mail2leads")
+    tokens = send_mod.TokenBox()
 
     @app.get("/healthz")
     def healthz() -> dict:
@@ -178,6 +212,56 @@ def create_app(conn: sqlite3.Connection, mailbox_id: int, web_dist: Path | None 
         except LookupError as exc:
             raise HTTPException(404, str(exc)) from exc
         return {"ok": True}
+
+    @app.get("/api/threads/{thread_id}/draft")
+    def get_draft(thread_id: int) -> dict:
+        return {"draft": _draft_out(draft_mod.latest_draft(conn, thread_id))}
+
+    @app.post("/api/threads/{thread_id}/draft")
+    def make_draft(thread_id: int, request: Request) -> dict:
+        _person(request)
+        if repo.get_thread(conn, thread_id) is None:
+            raise HTTPException(404, "没有这条线程")
+        draft_id = draft_mod.make_draft(conn, thread_id)
+        row = conn.execute("SELECT * FROM reply_draft WHERE id = ?", (draft_id,)).fetchone()
+        return {"draft": _draft_out(row)}
+
+    @app.post("/api/threads/{thread_id}/send-token")
+    def send_token(thread_id: int, request: Request) -> dict:
+        """一次性令牌:只签给人,绑定线程,十分钟有效。后台任务没有请求,也就没有令牌。"""
+        if repo.get_thread(conn, thread_id) is None:
+            raise HTTPException(404, "没有这条线程")
+        token = tokens.mint(thread_id, _person(request))
+        return {"token": token.value, "expires_in": send_mod.TOKEN_TTL_SECONDS}
+
+    @app.post("/api/threads/{thread_id}/send")
+    def send(thread_id: int, request: Request, payload: SendBody) -> dict:
+        user = _person(request)
+        if transport is None or not sender:
+            raise HTTPException(503, "没有配置 SMTP,发不了")
+        try:
+            token = tokens.consume(payload.token, thread_id, user)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        try:
+            send_mod.send(
+                conn,
+                token=token,
+                mailbox_id=mailbox_id,
+                sender=sender,
+                sender_name=sender_name,
+                thread_id=thread_id,
+                to=payload.to,
+                subject=payload.subject,
+                body=payload.body,
+                transport=transport,
+                draft_id=int(payload.draft_id) if payload.draft_id else None,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        row = repo.get_thread(conn, thread_id)
+        assert row is not None
+        return _thread_out(conn, row, with_messages=True)
 
     @app.patch("/api/leads/{lead_id}")
     def patch_lead(lead_id: int, request: Request, patch: LeadPatch) -> dict:
