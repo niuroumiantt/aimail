@@ -1,0 +1,19 @@
+# 真实客户往来永不进仓库 —— 按后缀整类挡,不靠每次记得加一行
+*.eml
+*.msg
+evals/**/dataset.jsonl
+evals/**/*.tsv
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+.env
+.env.*
+!.env.example
+
+# 构建与缓存
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
