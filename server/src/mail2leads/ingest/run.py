@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -94,7 +95,9 @@ def ingest_once(
     folder: str,
     direction: str = "in",
     now: datetime | None = None,
+    reader: Callable[[sqlite3.Connection, int], object] | None = None,
 ) -> Report:
+    """reader 是可选的读数钩子:来信落库后立刻调;它炸了只记日志,收信不能因此停。"""
     now = now or datetime.now(UTC)
     report = Report()
     validity = source.uid_validity()
@@ -114,5 +117,10 @@ def ingest_once(
         else:
             report.stored += 1
             report.unparsable += int(unparsable)
+            if reader is not None and direction == "in":
+                try:
+                    reader(conn, pk)
+                except Exception:  # noqa: BLE001 —— 读数失败不能挡住收信
+                    log.exception("读数失败 message=%s", pk)
         repo.set_cursor(conn, mailbox_id, folder, validity, uid)
     return report

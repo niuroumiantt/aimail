@@ -250,3 +250,48 @@ def test_skipped_test_fails_the_run(tmp_path):
     )
     assert result.returncode != 0, result.stdout
     assert "跳过的测试导致失败" in result.stdout
+
+
+# ── 评测集 ───────────────────────────────────────────────────────
+
+
+def _task(tmp_path: Path, name: str) -> tuple[Path, Path]:
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    (tasks / f"{name}.py").write_text(f'TASK_VERSION = "{name}@1"\n', "utf-8")
+    return tasks, tmp_path / "evals"
+
+
+def test_task_without_eval_folder_is_caught(tmp_path):
+    import guard_evals
+
+    tasks, evals = _task(tmp_path, "extract_lead")
+    assert any("extract_lead" in p for p in guard_evals.check(tasks, evals))
+
+
+def test_task_with_run_but_no_sample_dataset_is_caught(tmp_path):
+    import guard_evals
+
+    tasks, evals = _task(tmp_path, "extract_lead")
+    (evals / "extract_lead").mkdir(parents=True)
+    (evals / "extract_lead" / "run.py").write_text("", "utf-8")
+    assert any("dataset.sample.jsonl" in p for p in guard_evals.check(tasks, evals))
+
+
+def test_task_with_complete_eval_folder_passes(tmp_path):
+    import guard_evals
+
+    tasks, evals = _task(tmp_path, "extract_lead")
+    (evals / "extract_lead").mkdir(parents=True)
+    (evals / "extract_lead" / "run.py").write_text("", "utf-8")
+    (evals / "extract_lead" / "dataset.sample.jsonl").write_text("{}\n", "utf-8")
+    assert guard_evals.check(tasks, evals) == []
+
+
+def test_module_without_task_version_needs_no_evals(tmp_path):
+    import guard_evals
+
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    (tasks / "read.py").write_text("def read(): ...\n", "utf-8")
+    assert guard_evals.check(tasks, tmp_path / "evals") == []
