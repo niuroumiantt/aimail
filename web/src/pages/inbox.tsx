@@ -1,7 +1,9 @@
+import { useMemo } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { FOLDER_ORDER, type FolderKey } from "@/components/folders";
 import { InboxEmpty } from "@/components/inbox-empty";
+import type { ReplyHandlers } from "@/components/reply-composer";
 import { Sidebar } from "@/components/sidebar";
 import { ThreadDetail } from "@/components/thread-detail";
 import { ThreadList } from "@/components/thread-list";
@@ -24,7 +26,11 @@ export default function InboxPage() {
   const [params] = useSearchParams();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { threads } = useData();
+  const { threads, user, setUser, latestDraft, makeDraft, send } = useData();
+  const reply = useMemo<ReplyHandlers>(
+    () => ({ user, onSetUser: setUser, latestDraft, makeDraft, send }),
+    [user, setUser, latestDraft, makeDraft, send],
+  );
 
   const visible = folder === "all" ? threads : threads.filter((t) => t.folder === folder);
   const selected = id ? threads.find((t) => t.id === id) : undefined;
@@ -33,7 +39,13 @@ export default function InboxPage() {
     <AppShell
       sidebar={<Sidebar counts={countBy(threads)} activeFolder={folder} inInbox />}
       list={<ThreadList threads={visible} folder={folder} search={search} />}
-      detail={selected ? <ThreadDetail thread={selected} backSearch={search} /> : <InboxEmpty count={visible.length} />}
+      detail={
+        selected ? (
+          <ThreadDetail key={selected.id} thread={selected} backSearch={search} reply={reply} />
+        ) : (
+          <InboxEmpty count={visible.length} />
+        )
+      }
       showDetail={Boolean(selected)}
     />
   );

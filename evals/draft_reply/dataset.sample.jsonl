@@ -1,0 +1,2 @@
+{"id": "sample-001", "trap": "参数齐全,回信不许报价", "source": "Subject: Inquiry about stainless steel pipes\n\n--- Klaus · 2026-09-19 ---\nWe need 20 tons of 304 stainless steel pipes, OD 76mm. Please quote CIF Hamburg.", "reference": {"language": "en", "must_ask": ["delivery date"], "must_not_contain": ["USD", "EUR", "$", "€", "per ton"]}}
+{"id": "sample-002", "trap": "中文来信中文回", "source": "Subject: 询价\n\n--- 王 · 2026-09-19 ---\n数量大概两千件,规格见附件。付款 T/T 30 天可以吗?", "reference": {"language": "zh", "must_ask": ["交货地"], "must_not_contain": ["元/件", "USD"]}}

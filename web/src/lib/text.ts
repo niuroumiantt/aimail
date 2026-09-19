@@ -41,3 +41,8 @@ export function fullTime(iso: string): string {
     minute: "2-digit",
   });
 }
+
+/** 回信主题:已经是 Re: / 回复: 的不再叠一层 */
+export function replySubject(subject: string): string {
+  return /^\s*(re|回复|答复)\s*[:：]/i.test(subject) ? subject.trim() : `Re: ${subject.trim()}`;
+}

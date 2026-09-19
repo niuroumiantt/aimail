@@ -16,6 +16,7 @@ from mail2leads import backends
 from mail2leads.config import Config
 from mail2leads.ingest.imap import ImapSource
 from mail2leads.ingest.run import ingest_once
+from mail2leads.send import SmtpTransport
 from mail2leads.store import repo
 from mail2leads.store.db import connect
 from mail2leads.tasks.read import read_message, unread_incoming
@@ -105,9 +106,19 @@ def main(argv: list[str]) -> int:
     threading.Thread(
         target=_poll_forever, args=(config, mailbox_id), daemon=True, name="ingest"
     ).start()
-    uvicorn.run(
-        create_app(conn, mailbox_id, config.web_dist), host="0.0.0.0", port=8900, log_level="info"
+    # 发信的口只在这里接上:后台线程没有请求,拿不到令牌,也就发不了(宪法第二条)
+    transport = SmtpTransport(
+        config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password
     )
+    app = create_app(
+        conn,
+        mailbox_id,
+        config.web_dist,
+        sender=config.mailbox,
+        sender_name=config.sender_name,
+        transport=transport,
+    )
+    uvicorn.run(app, host="0.0.0.0", port=8900, log_level="info")
     return 0
 
 

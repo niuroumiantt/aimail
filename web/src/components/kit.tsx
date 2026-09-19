@@ -1,6 +1,6 @@
 import { Check, Reply } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Reading } from "@/data/types";
+import type { Reading, ReplyDraft, Thread } from "@/data/types";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { Card } from "./card";
@@ -9,6 +9,7 @@ import { Kbd } from "./kbd";
 import { LEAD_STATUS } from "./lead-table";
 import { Pill, type Tone } from "./pill";
 import { ReadingCard } from "./reading-card";
+import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
 import { SearchBox } from "./search-box";
 
 const SWATCHES: Array<[string, string]> = [
@@ -42,6 +43,39 @@ const SWATCHES: Array<[string, string]> = [
 const TONES: Tone[] = ["neutral", "brand", "ok", "warn", "danger"];
 
 const base = { model: "Spark · fast", task_version: "summarize_inquiry@1", produced_at: "2026-09-19T08:13:41+08:00" };
+const KIT_THREAD: Thread = {
+  id: "kit",
+  subject: "RFQ – 48 × 2U servers",
+  company: "Aurora Compute Oy",
+  contact: "Mikko Laine",
+  email: "mikko.laine@auroracompute.example",
+  region: "赫尔辛基",
+  scale: "48 台 · 2U",
+  folder: "inbox",
+  updated_at: "2026-09-19T08:12:00+08:00",
+  messages: [],
+};
+const KIT_DRAFT: ReplyDraft = {
+  ...base,
+  id: "kit-draft",
+  task_version: "draft_reply@1",
+  status: "ok",
+  language: "en",
+  subject: "Re: RFQ – 48 × 2U servers",
+  body: "Dear Mikko,\n\nThank you for your inquiry for 480 units. We are checking stock and lead time and will revert with a quotation shortly.\n\nBest regards,\n[姓名]",
+  open_questions: ["delivery address"],
+  quoted_numbers: ["480"],
+  unverified: ["480"],
+};
+/** 样品间里的回信框:起草给一份带幻觉数字的草稿,发送永远被服务端拒——只看样子,不出门。 */
+const KIT_REPLY: ReplyHandlers = {
+  user: "Larry",
+  onSetUser: () => {},
+  latestDraft: async () => null,
+  makeDraft: async () => KIT_DRAFT,
+  send: async () => "样品间里发不出去",
+};
+
 const READINGS: Array<[string, Reading | undefined]> = [
   [
     "正常",
@@ -187,6 +221,12 @@ export function Kit() {
               <ReadingCard reading={r} />
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section title="回信框" note="模型只起草;改和发都是人。署名、对不上的数字、追问、占位提醒都压在正文上面。">
+        <div className="max-w-3xl">
+          <ReplyComposer thread={KIT_THREAD} reply={KIT_REPLY} onClose={() => {}} />
         </div>
       </Section>
 

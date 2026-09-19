@@ -1,4 +1,5 @@
 import { ArrowLeft, Archive, Reply, Tag } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router";
 import type { Thread } from "@/data/types";
 import { Avatar } from "./avatar";
@@ -7,12 +8,23 @@ import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
 import { MessageView } from "./message";
 import { Pill } from "./pill";
 import { ReadingCard } from "./reading-card";
+import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
 import { Tip } from "./tip";
 
-export function ThreadDetail({ thread, backSearch }: { thread: Thread; backSearch: string }) {
+/** 线程页。有 reply(接上了数据源)才能回信;页面按线程 id 加 key,切线程时回信框状态归零。 */
+export function ThreadDetail({
+  thread,
+  backSearch,
+  reply,
+}: {
+  thread: Thread;
+  backSearch: string;
+  reply?: ReplyHandlers;
+}) {
+  const [replying, setReplying] = useState(false);
   return (
     <>
-      <header className="flex items-start gap-3 border-b border-line bg-surface px-5 py-4">
+      <header className="flex flex-wrap items-start gap-3 border-b border-line bg-surface px-5 py-4">
         <Link
           to={{ pathname: "/", search: backSearch }}
           aria-label="返回列表"
@@ -21,7 +33,7 @@ export function ThreadDetail({ thread, backSearch }: { thread: Thread; backSearc
           <ArrowLeft size={16} strokeWidth={2} />
         </Link>
         <Avatar name={thread.contact} size="lg" muted={thread.folder === "invalid"} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-48">
           <h2 className="text-base font-semibold leading-snug text-ink text-balance">{thread.subject}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
             <span className="font-medium text-ink">{thread.contact}</span>
@@ -32,12 +44,19 @@ export function ThreadDetail({ thread, backSearch }: { thread: Thread; backSearc
             <span className="font-mono">{thread.email}</span>
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex basis-full shrink-0 items-center justify-end gap-1.5 md:basis-auto">
           <Pill tone={FOLDER_TONE[thread.folder]} dot>
             {FOLDER_LABEL[thread.folder]}
           </Pill>
-          <Tip label="回复(M5 起可用)">
-            <Button size="sm" icon={<Reply size={14} strokeWidth={2} />} disabled>
+          <Tip label={reply ? "回复这封信" : "回复(要接上服务端)"}>
+            <Button
+              size="sm"
+              variant={replying ? "soft" : "outline"}
+              icon={<Reply size={14} strokeWidth={2} />}
+              disabled={!reply}
+              aria-pressed={replying}
+              onClick={() => setReplying((v) => !v)}
+            >
               回复
             </Button>
           </Tip>
@@ -56,6 +75,9 @@ export function ThreadDetail({ thread, backSearch }: { thread: Thread; backSearc
           {thread.messages.map((m) => (
             <MessageView key={m.id} message={m} />
           ))}
+          {replying && reply && (
+            <ReplyComposer thread={thread} reply={reply} onClose={() => setReplying(false)} />
+          )}
         </div>
       </div>
     </>

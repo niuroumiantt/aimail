@@ -16,6 +16,11 @@ class Config:
     imap_password: str
     imap_inbox: str
     imap_sent: str
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_password: str
+    sender_name: str
     db_path: Path
     poll_seconds: int
     web_dist: Path | None
@@ -37,6 +42,12 @@ class Config:
             imap_password=required("IMAP_PASSWORD"),
             imap_inbox=os.environ.get("IMAP_INBOX", "INBOX"),
             imap_sent=os.environ.get("IMAP_SENT", ""),
+            smtp_host=os.environ.get("SMTP_HOST", "").strip()
+            or required("IMAP_HOST").replace("imap.", "smtp.", 1),
+            smtp_port=int(os.environ.get("SMTP_PORT", "465")),
+            smtp_user=os.environ.get("SMTP_USER", "").strip() or required("IMAP_USER"),
+            smtp_password=os.environ.get("SMTP_PASSWORD", "").strip() or required("IMAP_PASSWORD"),
+            sender_name=os.environ.get("SENDER_NAME", "").strip(),
             db_path=Path(os.environ.get("DB_PATH", "data/mail2leads.sqlite3")),
             poll_seconds=int(os.environ.get("POLL_SECONDS", "60")),
             web_dist=Path(dist) if dist else None,

@@ -6,7 +6,7 @@
 
 ## 现在能跑什么
 
-地基:守卫、测试、CI。业务功能还没有。
+收信、读数、线索建议与确认、起草与回信,链路已通;每一环的验证状态见下。
 能力状态以 [STATUS.md](STATUS.md) 为准,那里只认机器验证,宁可写「未完成」。
 
 ```bash
@@ -54,7 +54,21 @@ uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jso
 uv run python evals/extract_lead/run.py evals/extract_lead/dataset.jsonl
 ```
 
-## 上线(只读版:收信 + 读数)
+## 回信(M5)
+
+线程页「回复」打开回信框。可以先让模型起草——以整条线程为依据,署名、对不上的数字、向客户提的问题都压在正文上面;
+但发出去的每个字都是人的:模型留的 `[姓名]` 占位没换掉发不出,收件人和正文不能空,这些由代码裁决,不问模型。
+发信要一次性令牌:只签给带身份的请求、绑定线程、十分钟有效、用一次作废;后台代码没有请求也就没有令牌,
+收信、读数、起草模块连发信模块都 import 不到(有测试守着)。发出的信原样落库为我方消息,线程归「已回复」。
+
+SMTP 不填就沿用 IMAP 的账号密码(主机名把 `imap.` 换成 `smtp.`),465 走 SMTP_SSL,其余端口 STARTTLS;
+`SENDER_NAME` 是发件人显示名,发件地址就是 `MAILBOX`。
+
+```bash
+uv run python evals/draft_reply/run.py evals/draft_reply/dataset.jsonl
+```
+
+## 上线
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
 

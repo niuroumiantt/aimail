@@ -113,6 +113,32 @@ CREATE TABLE IF NOT EXISTS lead (
 );
 CREATE INDEX IF NOT EXISTS lead_recent ON lead (mailbox_id, updated_at DESC);
 
+-- derived
+CREATE TABLE IF NOT EXISTS reply_draft (
+  id INTEGER PRIMARY KEY,
+  source_id INTEGER NOT NULL REFERENCES message(id),   -- 针对哪封来信起的草
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  model TEXT NOT NULL,
+  task_version TEXT NOT NULL,
+  produced_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('ok', 'failed')),
+  payload TEXT NOT NULL,
+  reason TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS draft_by_thread ON reply_draft (thread_id, produced_at DESC);
+
+-- 人发出去的信(宪法第二条):sent_by 非空;正文同时以 direction='out' 落进 message 表,线程里能看到。
+CREATE TABLE IF NOT EXISTS outbound (
+  id INTEGER PRIMARY KEY,
+  mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  message_pk INTEGER NOT NULL REFERENCES message(id),
+  draft_id INTEGER REFERENCES reply_draft(id),
+  sent_by TEXT NOT NULL CHECK (sent_by <> ''),
+  sent_at TEXT NOT NULL,
+  transport_result TEXT NOT NULL DEFAULT ''
+);
+
 -- 原文不可变。谁想改,数据库直接拒绝,不靠代码自觉。
 CREATE TRIGGER IF NOT EXISTS message_no_update BEFORE UPDATE ON message
 BEGIN
