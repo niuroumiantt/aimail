@@ -3,7 +3,12 @@ name = "mail2leads"
 version = "0.0.0"
 description = "把询盘邮件读成销售线索,人确认、人回复"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.13.5",
+    "uvicorn[standard]>=0.53.0",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.15"]

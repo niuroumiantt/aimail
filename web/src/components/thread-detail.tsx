@@ -26,8 +26,8 @@ export function ThreadDetail({ thread, backSearch }: { thread: Thread; backSearc
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
             <span className="font-medium text-ink">{thread.contact}</span>
             <span>{thread.company}</span>
-            <span className="text-ink-3">·</span>
-            <span>{thread.region}</span>
+            {thread.region && <span className="text-ink-3">·</span>}
+            {thread.region && <span>{thread.region}</span>}
             <span className="text-ink-3">·</span>
             <span className="font-mono">{thread.email}</span>
           </p>
