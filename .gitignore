@@ -13,6 +13,7 @@ evals/**/*.tsv
 # 构建与缓存
 node_modules/
 dist/
+dist-preview/
 .venv/
 __pycache__/
 .pytest_cache/
