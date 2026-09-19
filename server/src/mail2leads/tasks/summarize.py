@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from mail2leads import backends
 from mail2leads.verify.numbers import unverified_numbers
 
-TASK_VERSION = "summarize_inquiry@2"  # @2:输入多了「此前的往来」段,提示词教它指回历史
+TASK_VERSION = "summarize_inquiry@3"  # @2 加「此前的往来」段;@3 加「附件」段
 
 SYSTEM = """你在帮一家做外贸的小公司读客户询盘。
 
@@ -29,6 +29,8 @@ SYSTEM = """你在帮一家做外贸的小公司读客户询盘。
 - 你在摘要里提到的每一个数字、型号、价格、日期,都要原样放进 quoted_numbers。
 - 邮件是中英混杂或其他语种时,照样输出中英两版摘要。
 - 正文后面标着「引用的历史」的部分是之前的往来,只用来理解上下文;摘要说的是本封新增的内容。
+- 标着「附件」的部分是附件里读出来的文字(BOM、规格表、PO)。正文只说 see attached 时,
+  型号和数量从这里取,数字照样放进 quoted_numbers;标着「没读出来」的附件就当没有,说明一下就行。
 - 最后标着「这位客户此前的往来」的部分是我们自己的记录。本封只有一句话、指向之前的型号或数量时
   (如「同上次」「改成 32 台」),用那里的型号和数量把摘要补全,并在 facts 里注明「来自此前往来」;
   从历史里引用的数字、型号照样放进 quoted_numbers。
@@ -64,13 +66,17 @@ def compose_source(
     body_quoted: str = "",
     quoted_limit: int = 6000,
     *,
+    attachments: str = "",
     history: str = "",
 ) -> str:
     """模型看到的文本,也是核对的依据——两者必须是同一份。
-    history 是这位客户的往来(store/history.py 算出来的原文摘录),放在最后、单独标题。"""
+    attachments 是附件里读出的文字(ingest/attachments.py),history 是这位客户的往来
+    (store/history.py 算出来的原文摘录);各自单独标题,历史放最后。"""
     text = f"Subject: {subject}\n\n{body_new}".strip()
     if body_quoted:
         text += f"\n\n——引用的历史——\n{body_quoted[:quoted_limit]}"
+    if attachments:
+        text += f"\n\n{attachments}"
     if history:
         text += f"\n\n{history}"
     return text

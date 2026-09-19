@@ -47,7 +47,7 @@ def test_reading_is_stored_with_attribution(conn, mailbox, monkeypatch):
     assert read_message(conn, pk, NOW) == "ok"
     row = repo.latest_reading(conn, pk)
     assert row["model"] == "Spark · fast"
-    assert row["task_version"] == "summarize_inquiry@2"
+    assert row["task_version"] == "summarize_inquiry@3"
     assert row["produced_at"] == "2026-09-19T00:00:00+00:00"
     assert json.loads(row["payload"])["unverified"] == []
 

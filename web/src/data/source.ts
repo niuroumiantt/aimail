@@ -2,7 +2,16 @@
  *  人的动作(确认、忽略、改状态、起草、发信)都要带身份;没有身份的调用服务端会拒绝(宪法第二、五条)。 */
 
 import { replySubject } from "@/lib/text";
-import type { Lead, LeadSuggestion, LeadStatus, Message, ReplyDraft, SendRequest, Thread } from "./types";
+import type {
+  AttachmentText,
+  Lead,
+  LeadSuggestion,
+  LeadStatus,
+  Message,
+  ReplyDraft,
+  SendRequest,
+  Thread,
+} from "./types";
 
 export interface DataSource {
   threads(): Promise<Thread[]>;
@@ -19,7 +28,45 @@ export interface DataSource {
   makeDraft(threadId: string, user: string): Promise<ReplyDraft>;
   /** 以这个人的名义发出。服务端先签一次性令牌再发,两步都要身份(宪法第二条) */
   send(threadId: string, request: SendRequest, user: string): Promise<void>;
+  /** 一份附件里读出来的文字(或读不出的原因) */
+  attachmentText(attachmentId: string): Promise<AttachmentText>;
 }
+
+/** 样本附件的文字。真系统里是 pypdf / openpyxl 读出来落库的。 */
+const FIXTURE_ATTACHMENTS: Record<string, AttachmentText> = {
+  "a-mytel-spec": {
+    id: "a-mytel-spec",
+    name: "B300-BTO-spec.pdf",
+    status: "ok",
+    text: [
+      "HGX B300 BTO configuration — request for quotation",
+      "",
+      "Qty\tItem",
+      "2\tSYS-A22GA-NBRT (8x NVIDIA B300 SXM)",
+      "4\tIntel Xeon 6 6960P",
+      "64\t64GB DDR5-6400 ECC RDIMM",
+      "16\t7.68TB NVMe U.2 Gen5",
+      "2\tNVIDIA ConnectX-8 800G",
+      "",
+      "Delivery: Yangon, DDP. Target date: 2026-11-15.",
+    ].join("\n"),
+    reason: "",
+  },
+  "a-hanbit-po": {
+    id: "a-hanbit-po",
+    name: "PO-HB-260609.pdf",
+    status: "ok",
+    text: "PURCHASE ORDER PO-HB-260609\nSupplier: Glocalstorage Pte Ltd\n8 x 4-GPU server (L40S) per quotation Q-2588\nShip to: Hanbit Cloud, Pangyo",
+    reason: "",
+  },
+  "a-lumen-list": {
+    id: "a-lumen-list",
+    name: "lot-list.jpg",
+    status: "failed",
+    text: "",
+    reason: "图片要走 vision 路由,还没接",
+  },
+};
 
 /** 样本草稿:照读数编一封,和真模型一样带署名、带核对结果、留 [姓名] 占位。
  *  读数里有对不上的数字,草稿就会照抄——真模型也是这样把幻觉带进回信的,所以告警要一路跟到这里。 */
@@ -27,7 +74,7 @@ function fakeDraft(t: Thread): ReplyDraft {
   const base = {
     id: `d-${t.id}`,
     model: "Spark · fast",
-    task_version: "draft_reply@2",
+    task_version: "draft_reply@3",
     produced_at: new Date().toISOString(),
   };
   const r = t.reading;
@@ -129,6 +176,11 @@ export async function fixtureSource(): Promise<DataSource> {
         x.id === id ? { ...x, folder: "replied", updated_at: now, messages: [...x.messages, out] } : x,
       );
     },
+    attachmentText: async (id) => {
+      const found = FIXTURE_ATTACHMENTS[id];
+      if (!found) throw new Error("没有这个附件");
+      return found;
+    },
   };
 }
 
@@ -176,6 +228,7 @@ export function apiSource(): DataSource {
       const { token } = await call<{ token: string }>(`/api/threads/${id}/send-token`, asPerson(user));
       await call(`/api/threads/${id}/send`, asPerson(user, { ...request, token }, "POST"));
     },
+    attachmentText: (id) => call<AttachmentText>(`/api/attachments/${id}/text`),
   };
 }
 

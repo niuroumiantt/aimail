@@ -7,6 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 from mail2leads import backends
+from mail2leads.ingest import attachments
 from mail2leads.store import history
 from mail2leads.tasks import draft_reply as task
 
@@ -26,7 +27,13 @@ def thread_source(
     parts = [f"Subject: {rows[0]['subject']}"]
     for r in rows:
         who = "我方" if r["direction"] == "out" else (r["from_name"] or r["from_email"])
-        parts.append(f"--- {who} · {r['sent_at']} ---\n{r['body_new']}")
+        piece = f"--- {who} · {r['sent_at']} ---\n{r['body_new']}"
+        if r["direction"] == "in":
+            attachments.extract_for_message(conn, int(r["id"]))
+            atts = attachments.source_text(conn, int(r["id"]), per_file=1500)
+            if atts:
+                piece += "\n\n" + atts
+        parts.append(piece)
     text = "\n\n".join(parts)[-limit_chars:]
     mailbox_id = int(
         conn.execute("SELECT mailbox_id FROM thread WHERE id = ?", (thread_id,)).fetchone()[0]

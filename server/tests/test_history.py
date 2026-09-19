@@ -135,7 +135,7 @@ def test_history_is_raw_excerpt_and_our_status_never_a_model_summary(conn, mailb
     old_pk = conn.execute("SELECT id FROM message WHERE thread_id = ?", (old,)).fetchone()[0]
     conn.execute(
         "INSERT INTO message_reading (source_id, model, task_version, produced_at, status, payload)"
-        " VALUES (?, 'Spark · fast', 'summarize_inquiry@2', '2026-06-02T09:01:00+00:00', 'ok', ?)",
+        " VALUES (?, 'Spark · fast', 'summarize_inquiry@3', '2026-06-02T09:01:00+00:00', 'ok', ?)",
         (old_pk, json.dumps({"summary_zh": "HALLUCINATED 999 台"})),
     )
     text = history.for_thread(conn, mailbox, new)

@@ -93,6 +93,13 @@
 @utility grid-cols-kv {
   grid-template-columns: auto minmax(0, 1fr);
 }
+/* 抽屉:头部定高,正文占剩下的并可滚 */
+@utility grid-rows-sheet {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+@utility max-h-sheet {
+  max-height: 85vh;
+}
 
 @layer base {
   :root {

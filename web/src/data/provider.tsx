@@ -1,7 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getUser, setUser as persistUser } from "@/lib/user";
 import { chooseSource, type DataSource } from "./source";
-import type { Lead, LeadStatus, LeadSuggestion, ReplyDraft, SendRequest, Thread } from "./types";
+import type {
+  AttachmentText,
+  Lead,
+  LeadStatus,
+  LeadSuggestion,
+  ReplyDraft,
+  SendRequest,
+  Thread,
+} from "./types";
 
 type State = {
   loading: boolean;
@@ -26,6 +34,8 @@ type State = {
   makeDraft: (threadId: string) => Promise<ReplyDraft>;
   /** 以当前这个人的名义发出。返回错误文案或空串;成功后线程列表刷新 */
   send: (threadId: string, request: SendRequest) => Promise<string>;
+  /** 附件里读出来的文字,点开才取 */
+  attachmentText: (attachmentId: string) => Promise<AttachmentText>;
 };
 
 const Ctx = createContext<State | null>(null);
@@ -121,6 +131,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.makeDraft(id, user);
       },
       send: (id, request) => act((src) => src.send(id, request, user)),
+      attachmentText: async (id) => {
+        if (!source) throw new Error("还没加载完");
+        return source.attachmentText(id);
+      },
     }),
     [loading, error, threads, details, openThread, suggestions, failed, leads, user, setUser, act, source],
   );

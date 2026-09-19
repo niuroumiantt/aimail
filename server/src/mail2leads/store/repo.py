@@ -167,13 +167,6 @@ def thread_messages(conn: sqlite3.Connection, thread_id: int) -> list[sqlite3.Ro
     ).fetchall()
 
 
-def attachment_names(conn: sqlite3.Connection, message_pk: int) -> list[str]:
-    rows = conn.execute(
-        "SELECT filename FROM attachment WHERE message_id = ? ORDER BY id", (message_pk,)
-    )
-    return [str(r["filename"]) for r in rows]
-
-
 def latest_reading(conn: sqlite3.Connection, message_pk: int) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM message_reading WHERE source_id = ? "
