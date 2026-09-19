@@ -8,7 +8,8 @@ import sqlite3
 from datetime import UTC, datetime
 
 from mail2leads import backends
-from mail2leads.store import repo
+from mail2leads.store import leads, repo
+from mail2leads.tasks import extract_lead as lead_task
 from mail2leads.tasks.summarize import TASK_VERSION, compose_source, summarize
 
 log = logging.getLogger("mail2leads.read")
@@ -60,6 +61,33 @@ def read_message(conn: sqlite3.Connection, message_pk: int, now: datetime | None
     )
     if not s.is_inquiry:
         repo.set_folder(conn, int(row["thread_id"]), "invalid")
+        return "ok"
+    suggest_lead(conn, message_pk, int(row["thread_id"]), source, produced_at)
+    return "ok"
+
+
+def suggest_lead(
+    conn: sqlite3.Connection, message_pk: int, thread_id: int, source: str, produced_at: str
+) -> str:
+    """询盘 → 线索建议。失败也落一行(status=failed),界面能数出来有几封没提出来。"""
+    try:
+        result = lead_task.extract_lead(source)
+    except backends.LLMError as exc:
+        leads.insert_suggestion(
+            conn,
+            message_pk,
+            thread_id,
+            backends.describe(),
+            lead_task.TASK_VERSION,
+            produced_at,
+            None,
+            str(exc)[:500],
+        )
+        return "failed"
+    payload = {**result.lead.model_dump(), "unverified": list(result.unverified)}
+    leads.insert_suggestion(
+        conn, message_pk, thread_id, result.backend, lead_task.TASK_VERSION, produced_at, payload
+    )
     return "ok"
 
 

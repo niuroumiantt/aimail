@@ -43,6 +43,17 @@ uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jso
 后端由 `LLM_BACKEND` 决定:`local`(Spark,默认)或 `claude`。同一份合同两条后端,
 两边跑同一套评测集,分数才可比;`fast` 还是 `brain` 由评测集裁决,不由人拍板。
 
+## 线索(M4)
+
+读数说是询盘的信,模型再提一条**线索建议**(公司、联系人、要什么、多少、地区、优先级),数字照样回原文核对。
+建议不是事实:线索页上「确认为线索」之后它才进线索表,记下是谁、什么时候确认的;
+写线索的接口必须带人的身份——界面用 `X-User`,经 `tailscale serve` 进来时用它给的 `Tailscale-User-Login`。
+后台代码没有确认的路,有测试守着。线索状态(待报价 / 已报价 / 跟进中 / 成交 / 丢单)在表里直接改。
+
+```bash
+uv run python evals/extract_lead/run.py evals/extract_lead/dataset.jsonl
+```
+
 ## 上线(只读版:收信 + 读数)
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:

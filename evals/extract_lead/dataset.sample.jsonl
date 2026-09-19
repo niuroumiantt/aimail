@@ -1,0 +1,2 @@
+{"id": "sample-001", "trap": "参数齐全", "source": "Subject: Inquiry about stainless steel pipes\n\nDear Sir,\n\nWe are Nordbau GmbH, a construction company in Hamburg. We need 20 tons of 304 stainless steel pipes, OD 76mm. Please quote CIF Hamburg.\n\nBest regards,\nKlaus Berger", "reference": {"company": "Nordbau GmbH", "quantity": "20 tons", "priority": "high"}}
+{"id": "sample-002", "trap": "只有品类,没有数量", "source": "Subject: pipes?\n\nHi, do you sell steel pipes? Any price list?\n\nJoe", "reference": {"company": "未提及", "quantity": "未提及", "priority": "low"}}

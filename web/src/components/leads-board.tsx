@@ -1,4 +1,6 @@
-import type { Lead, LeadSuggestion } from "@/data/types";
+import { useState } from "react";
+import type { Lead, LeadStatus, LeadSuggestion } from "@/data/types";
+import { Button } from "./button";
 import { EmptyState } from "./empty-state";
 import { LeadSuggestionCard } from "./lead-suggestion-card";
 import { LeadTable } from "./lead-table";
@@ -6,24 +8,62 @@ import { LeadTable } from "./lead-table";
 /** 线索页:上面是模型的建议(等人确认),下面是事实(人确认过的)。两块永远分开。 */
 export function LeadsBoard({
   suggestions,
+  failed,
   leads,
   threadIds,
+  user,
+  onSetUser,
   onConfirm,
   onDismiss,
+  onUpdateLead,
 }: {
   suggestions: LeadSuggestion[];
+  failed: number;
   leads: Lead[];
   threadIds: Set<string>;
-  onConfirm: (s: LeadSuggestion) => void;
-  onDismiss: (s: LeadSuggestion) => void;
+  user: string;
+  onSetUser: (name: string) => void;
+  onConfirm: (s: LeadSuggestion) => Promise<string>;
+  onDismiss: (s: LeadSuggestion) => Promise<string>;
+  onUpdateLead: (id: string, patch: { status?: LeadStatus; next_step?: string }) => Promise<string>;
 }) {
+  const [draft, setDraft] = useState(user);
   return (
     <div className="mx-auto grid max-w-6xl gap-8 px-6 py-6">
+      {!user && (
+        <form
+          role="group"
+          aria-label="你的名字"
+          className="flex flex-wrap items-center gap-3 rounded-lg border border-brand-line bg-brand-wash px-4 py-3 text-sm text-brand-deep"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSetUser(draft);
+          }}
+        >
+          <span>确认线索会记下是谁确认的。先写上你的名字:</span>
+          <input
+            id="user-name"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="例如 Larry"
+            className="h-8 rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3"
+          />
+          <Button type="submit" variant="solid" size="sm" disabled={!draft.trim()}>
+            记住
+          </Button>
+        </form>
+      )}
+
       <section className="grid gap-3">
-        <header className="flex items-baseline gap-2">
+        <header className="flex flex-wrap items-baseline gap-2">
           <h2 className="text-base font-semibold text-ink">待确认的建议</h2>
           <span className="font-mono text-xs tabular-nums text-ink-2">{suggestions.length}</span>
           <p className="ml-2 text-xs text-ink-2">模型从邮件里提出来的;你确认之前它不算数。</p>
+          {failed > 0 && (
+            <p className="ml-auto text-xs text-danger-text">
+              有 <span className="font-mono">{failed}</span> 封询盘没提出线索,请看原信
+            </p>
+          )}
         </header>
         {suggestions.length === 0 ? (
           <EmptyState title="没有待确认的建议" subtitle="新询盘读出来后,线索建议会排在这里等你点头。" />
@@ -46,9 +86,9 @@ export function LeadsBoard({
         <header className="flex items-baseline gap-2">
           <h2 className="text-base font-semibold text-ink">线索</h2>
           <span className="font-mono text-xs tabular-nums text-ink-2">{leads.length}</span>
-          <p className="ml-2 text-xs text-ink-2">人确认过的事实。</p>
+          <p className="ml-2 text-xs text-ink-2">人确认过的事实。状态可以直接改。</p>
         </header>
-        <LeadTable leads={leads} threadIds={threadIds} />
+        <LeadTable leads={leads} threadIds={threadIds} onUpdate={onUpdateLead} />
       </section>
     </div>
   );
