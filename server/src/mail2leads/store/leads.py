@@ -224,6 +224,27 @@ def since_leads(
     return conn.execute(sql, args).fetchall()
 
 
+def suggestion_in(conn: sqlite3.Connection, suggestion_id: int, mailbox_id: int) -> bool:
+    """这条建议是不是这个邮箱的。接口层拿别的邮箱的 id 来,一律当不存在。"""
+    return (
+        conn.execute(
+            "SELECT 1 FROM lead_suggestion s JOIN thread t ON t.id = s.thread_id "
+            "WHERE s.id = ? AND t.mailbox_id = ?",
+            (suggestion_id, mailbox_id),
+        ).fetchone()
+        is not None
+    )
+
+
+def lead_in(conn: sqlite3.Connection, lead_id: int, mailbox_id: int) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM lead WHERE id = ? AND mailbox_id = ?", (lead_id, mailbox_id)
+        ).fetchone()
+        is not None
+    )
+
+
 def list_leads(conn: sqlite3.Connection, mailbox_id: int) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM lead WHERE mailbox_id = ? ORDER BY updated_at DESC", (mailbox_id,)

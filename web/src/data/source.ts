@@ -5,6 +5,7 @@ import { replySubject } from "@/lib/text";
 import type {
   AttachmentText,
   Lead,
+  MailboxInfo,
   OutboxStatus,
   LeadSuggestion,
   LeadStatus,
@@ -33,6 +34,8 @@ export interface DataSource {
   attachmentText(attachmentId: string): Promise<AttachmentText>;
   /** 推送给下游的状态 */
   outbox(): Promise<OutboxStatus>;
+  /** 伺候的是哪个邮箱、开了哪些任务 */
+  mailbox(): Promise<MailboxInfo>;
 }
 
 /** 样本附件的文字。真系统里是 pypdf / openpyxl 读出来落库的。 */
@@ -192,6 +195,11 @@ export async function fixtureSource(): Promise<DataSource> {
       delivered: 6,
       last_error: "HTTP 503 Service Unavailable(下次 30 分钟后再试)",
     }),
+    mailbox: async () => ({
+      address: "sales@glocalstorage.example",
+      display_name: "Sales",
+      tasks: ["read", "leads", "draft"],
+    }),
   };
 }
 
@@ -241,6 +249,7 @@ export function apiSource(): DataSource {
     },
     attachmentText: (id) => call<AttachmentText>(`/api/attachments/${id}/text`),
     outbox: () => call<OutboxStatus>("/api/outbox"),
+    mailbox: () => call<MailboxInfo>("/api/mailbox"),
   };
 }
 

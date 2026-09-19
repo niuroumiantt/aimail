@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from mail2leads import send as send_mod
+from mail2leads.config import DEFAULT_TASKS
 from mail2leads.ingest import attachments
 from mail2leads.store import history, leads, outbox, repo
 from mail2leads.tasks import draft as draft_mod
@@ -234,6 +235,8 @@ def create_app(
     transport: send_mod.Transport | None = None,
     api_tokens: dict[str, str] | None = None,
     webhook_configured: bool = False,
+    tasks: frozenset[str] = DEFAULT_TASKS,
+    display_name: str = "",
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
@@ -241,6 +244,17 @@ def create_app(
     @app.get("/healthz")
     def healthz() -> dict:
         return {"ok": True}
+
+    @app.get("/api/mailbox")
+    def api_mailbox() -> dict:
+        """这个服务伺候哪个邮箱、开了哪些任务。界面据此显示地址、藏起没开的入口。"""
+        row = conn.execute("SELECT address, display_name FROM mailbox WHERE id = ?", (mailbox_id,))
+        m = row.fetchone()
+        return {
+            "address": m["address"] if m else "",
+            "display_name": display_name or (m["display_name"] if m else ""),
+            "tasks": sorted(tasks),
+        }
 
     @app.get("/api/threads")
     def threads(folder: str | None = None) -> list[dict]:
@@ -251,8 +265,8 @@ def create_app(
 
     @app.get("/api/threads/{thread_id}")
     def thread(thread_id: int) -> dict:
-        row = repo.get_thread(conn, thread_id)
-        if row is None or int(row["mailbox_id"]) != mailbox_id:
+        row = repo.get_thread(conn, thread_id, mailbox_id)
+        if row is None:
             raise HTTPException(404, "没有这条线程")
         return _thread_out(conn, row, with_messages=True)
 
@@ -339,10 +353,11 @@ def create_app(
 
     @app.post("/api/leads/suggestions/{suggestion_id}/confirm")
     def confirm(suggestion_id: int, request: Request, decision: Decision | None = None) -> dict:
+        user = _person(request)
+        if not leads.suggestion_in(conn, suggestion_id, mailbox_id):
+            raise HTTPException(404, "建议不存在或已处理")
         try:
-            lead_id = leads.confirm(
-                conn, suggestion_id, _person(request), (decision or Decision()).overrides
-            )
+            lead_id = leads.confirm(conn, suggestion_id, user, (decision or Decision()).overrides)
         except LookupError as exc:
             raise HTTPException(404, str(exc)) from exc
         row = conn.execute("SELECT * FROM lead WHERE id = ?", (lead_id,)).fetchone()
@@ -350,21 +365,30 @@ def create_app(
 
     @app.post("/api/leads/suggestions/{suggestion_id}/dismiss")
     def dismiss(suggestion_id: int, request: Request) -> dict:
+        user = _person(request)
+        if not leads.suggestion_in(conn, suggestion_id, mailbox_id):
+            raise HTTPException(404, "建议不存在或已处理")
         try:
-            leads.dismiss(conn, suggestion_id, _person(request))
+            leads.dismiss(conn, suggestion_id, user)
         except LookupError as exc:
             raise HTTPException(404, str(exc)) from exc
         return {"ok": True}
 
+    def _drafting_thread(thread_id: int) -> None:
+        if "draft" not in tasks:
+            raise HTTPException(404, "这个邮箱没开起草")
+        if repo.get_thread(conn, thread_id, mailbox_id) is None:
+            raise HTTPException(404, "没有这条线程")
+
     @app.get("/api/threads/{thread_id}/draft")
     def get_draft(thread_id: int) -> dict:
+        _drafting_thread(thread_id)
         return {"draft": _draft_out(draft_mod.latest_draft(conn, thread_id))}
 
     @app.post("/api/threads/{thread_id}/draft")
     def make_draft(thread_id: int, request: Request) -> dict:
         _person(request)
-        if repo.get_thread(conn, thread_id) is None:
-            raise HTTPException(404, "没有这条线程")
+        _drafting_thread(thread_id)
         draft_id = draft_mod.make_draft(conn, thread_id)
         row = conn.execute("SELECT * FROM reply_draft WHERE id = ?", (draft_id,)).fetchone()
         return {"draft": _draft_out(row)}
@@ -372,7 +396,7 @@ def create_app(
     @app.post("/api/threads/{thread_id}/send-token")
     def send_token(thread_id: int, request: Request) -> dict:
         """一次性令牌:只签给人,绑定线程,十分钟有效。后台任务没有请求,也就没有令牌。"""
-        if repo.get_thread(conn, thread_id) is None:
+        if repo.get_thread(conn, thread_id, mailbox_id) is None:
             raise HTTPException(404, "没有这条线程")
         token = tokens.mint(thread_id, _person(request))
         return {"token": token.value, "expires_in": send_mod.TOKEN_TTL_SECONDS}
@@ -402,14 +426,17 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        row = repo.get_thread(conn, thread_id)
+        row = repo.get_thread(conn, thread_id, mailbox_id)
         assert row is not None
         return _thread_out(conn, row, with_messages=True)
 
     @app.patch("/api/leads/{lead_id}")
     def patch_lead(lead_id: int, request: Request, patch: LeadPatch) -> dict:
+        user = _person(request)
+        if not leads.lead_in(conn, lead_id, mailbox_id):
+            raise HTTPException(404, "线索不存在")
         try:
-            leads.update_lead(conn, lead_id, _person(request), patch.status, patch.next_step)
+            leads.update_lead(conn, lead_id, user, patch.status, patch.next_step)
         except LookupError as exc:
             raise HTTPException(404, str(exc)) from exc
         except ValueError as exc:

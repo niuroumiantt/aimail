@@ -91,18 +91,35 @@ OA、PO、合同这类系统只通过 `/v1/leads` 拿线索,拿到的只有人�
 (HMAC-SHA256 签名、失败按退避重试、永不丢,送没送到线索页上看得见)。接口形状钉死在测试里,改字段先写 ADR。
 细节见 [docs/api/v1.md](docs/api/v1.md),接线样例 `examples/pull_leads.py`(只用标准库)。
 
+## 第二个邮箱(M9)
+
+一个实例伺候一个邮箱:自己的 env、库、端口、launchd 服务,`bash deploy/install_mini.sh support` 一条命令。
+`TASKS` 定这个邮箱开哪些任务——`read`(读数,必开)、`leads`(提线索建议)、`draft`(起草回信);个人邮箱通常只写 `read`,
+界面就不给线索入口、回信框里没有 AI 起草。零 schema 变更:所有表从第一天就带 `mailbox_id`,
+两个实例可以共用一个库,凭 id 也拿不到对方的线程、草稿、令牌、建议、线索、附件,推送的账也分开(有测试守着)。
+
 ## 上线
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
 
 ```bash
 git clone git@github.com:niuroumiantt/mail2leads.git ~/mail2leads
-cd ~/mail2leads && bash deploy/install_mini.sh
+cd ~/mail2leads && bash deploy/install_mini.sh          # 实例名默认 sales
 ```
 
-第一次会生成 `~/.config/mail2leads/env`(0600),填 IMAP 与模型后再跑一次。
-脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/`。
-Linux 主机用 `docker compose up -d --build`(`.env` 同样内容)。
+第一次会生成 `~/.config/mail2leads/sales.env`(0600),按 `.env.example` 填好再跑一次:
+IMAP 与 `MAILBOX`;模型(`DGX_GATEWAY_URL` / `DGX_API_KEY` / `LOCAL_MODEL`);发信用的 `SENDER_NAME`
+(SMTP 默认沿用 IMAP 的账号);要接 OA 再填 `API_TOKENS` 与 `WEBHOOK_URL` / `WEBHOOK_SECRET`。
+脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/sales.log`。
+Linux 主机用 `docker compose up -d --build`(`.env` 同样内容,`PORT` 决定端口)。
+
+上线后的验证顺序(每一步验完把 STATUS.md 里对应的 ⚠ 改成 ✅):
+
+1. 发一封测试信到这个邮箱,30 秒内出现在收件箱,读数卡带署名
+2. `uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jsonl` 等三套评测在 Spark 上跑一遍,
+   `fast` 与 `brain` 各跑一次,分数填进 STATUS(真实邮件放 `dataset.jsonl`,永不进仓库)
+3. 线索页确认一条建议;用 `examples/pull_leads.py` 凭令牌拉到它
+4. 回信框起草、改、发给自己;收到的信落在线程里、线程归「已回复」
 
 ## 计划
 

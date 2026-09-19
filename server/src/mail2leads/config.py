@@ -22,6 +22,8 @@ class Config:
     smtp_password: str
     sender_name: str
     api_tokens: dict[str, str]
+    tasks: frozenset[str]
+    port: int
     webhook_url: str
     webhook_secret: str
     db_path: Path
@@ -56,6 +58,8 @@ class Config:
             smtp_password=os.environ.get("SMTP_PASSWORD", "").strip() or required("IMAP_PASSWORD"),
             sender_name=os.environ.get("SENDER_NAME", "").strip(),
             api_tokens=parse_tokens(os.environ.get("API_TOKENS", "")),
+            tasks=parse_tasks(os.environ.get("TASKS", "")),
+            port=int(os.environ.get("PORT", "8900")),
             webhook_url=webhook_url,
             webhook_secret=webhook_secret,
             db_path=Path(os.environ.get("DB_PATH", "data/mail2leads.sqlite3")),
@@ -78,3 +82,19 @@ def parse_tokens(raw: str) -> dict[str, str]:
             raise RuntimeError(f"API 令牌 {name} 太短,至少 16 个字符(openssl rand -hex 32)")
         tokens[name.strip()] = value.strip()
     return tokens
+
+
+# 一个邮箱开哪些任务:read 读数(必开)、leads 提线索建议、draft 起草回信。个人邮箱通常只开 read
+ALL_TASKS = frozenset({"read", "leads", "draft"})
+DEFAULT_TASKS = ALL_TASKS
+
+
+def parse_tasks(raw: str) -> frozenset[str]:
+    """TASKS="read,leads" → {"read", "leads"}。空 = 全开;不认识的名字启动即炸。"""
+    names = frozenset(n.strip() for n in raw.split(",") if n.strip())
+    if not names:
+        return DEFAULT_TASKS
+    unknown = names - ALL_TASKS
+    if unknown:
+        raise RuntimeError(f"TASKS 里不认识 {sorted(unknown)};可用:{sorted(ALL_TASKS)}")
+    return names | {"read"}

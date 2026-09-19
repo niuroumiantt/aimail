@@ -8,6 +8,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 from mail2leads import backends
+from mail2leads.config import DEFAULT_TASKS
 from mail2leads.ingest import attachments
 from mail2leads.store import history, leads, repo
 from mail2leads.tasks import extract_lead as lead_task
@@ -16,8 +17,14 @@ from mail2leads.tasks.summarize import TASK_VERSION, compose_source, summarize
 log = logging.getLogger("mail2leads.read")
 
 
-def read_message(conn: sqlite3.Connection, message_pk: int, now: datetime | None = None) -> str:
-    """返回 'ok' 或 'failed'。不是询盘的线程移到 invalid。"""
+def read_message(
+    conn: sqlite3.Connection,
+    message_pk: int,
+    now: datetime | None = None,
+    *,
+    tasks: frozenset[str] = DEFAULT_TASKS,
+) -> str:
+    """返回 'ok' 或 'failed'。不是询盘的线程移到 invalid。tasks 里没有 leads 就只读不提。"""
     now = now or datetime.now(UTC)
     row = conn.execute(
         "SELECT mailbox_id, thread_id, subject, body_new, body_quoted FROM message WHERE id = ?",
@@ -73,7 +80,8 @@ def read_message(conn: sqlite3.Connection, message_pk: int, now: datetime | None
     if not s.is_inquiry:
         repo.set_folder(conn, int(row["thread_id"]), "invalid")
         return "ok"
-    suggest_lead(conn, message_pk, int(row["thread_id"]), source, produced_at)
+    if "leads" in tasks:
+        suggest_lead(conn, message_pk, int(row["thread_id"]), source, produced_at)
     return "ok"
 
 

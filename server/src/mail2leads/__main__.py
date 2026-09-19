@@ -33,7 +33,9 @@ def _ingest_all(config: Config, mailbox_id: int) -> None:
             config.imap_host, config.imap_port, config.imap_user, config.imap_password, folder
         )
         try:
-            report = ingest_once(conn, mailbox_id, source, folder, direction, reader=_reader())
+            report = ingest_once(
+                conn, mailbox_id, source, folder, direction, reader=_reader(config)
+            )
             log.info(
                 "%s:拉 %d 存 %d 跳过 %d 解析失败 %d",
                 folder,
@@ -47,13 +49,13 @@ def _ingest_all(config: Config, mailbox_id: int) -> None:
     conn.close()
 
 
-def _reader():
+def _reader(config: Config):
     """后端配好了就边收边读;没配好就只收不读,STATUS 会显示「还没有读数」。"""
     ok, why = backends.ready()
     if not ok:
         log.warning("模型后端没配好(%s),只收信不读数", why)
         return None
-    return read_message
+    return lambda conn, pk: read_message(conn, pk, tasks=config.tasks)
 
 
 def _read_pending(config: Config, mailbox_id: int) -> None:
@@ -61,7 +63,7 @@ def _read_pending(config: Config, mailbox_id: int) -> None:
     pending = unread_incoming(conn, mailbox_id)
     log.info("待读 %d 封,后端 %s", len(pending), backends.describe())
     for pk in pending:
-        status = read_message(conn, pk)
+        status = read_message(conn, pk, tasks=config.tasks)
         log.info("message %s → %s", pk, status)
     conn.close()
 
@@ -154,8 +156,10 @@ def main(argv: list[str]) -> int:
         transport=transport,
         api_tokens=config.api_tokens,
         webhook_configured=bool(config.webhook_url),
+        tasks=config.tasks,
+        display_name=config.sender_name,
     )
-    uvicorn.run(app, host="0.0.0.0", port=8900, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=config.port, log_level="info")
     return 0
 
 

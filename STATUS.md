@@ -64,6 +64,9 @@
 | 推送:写线索的同一事务里记事件;签名可验;送到即标记不重复;失败退避重试、原因可见、永不丢 | ✅ | test_confirm_and_update_enqueue_events_atomically, test_delivery_is_signed_and_marked_delivered, test_failed_delivery_backs_off_and_stays_visible, test_network_error_is_a_recorded_failure_not_a_crash, test_real_http_delivery_end_to_end |
 | 下游:一个外部脚本只凭令牌走 HTTP 拿到确认过的线索 | ✅ | test_pull_leads_script_gets_confirmed_leads_over_http_with_only_a_token |
 | 界面:推送没送到在线索页显形;导出 CSV | ✅ | shows undelivered pushes so nobody assumes the OA got them, says nothing about pushes when no webhook is configured or all went through, offers the CSV export of confirmed leads |
+| 邮箱隔离:同一个库两个邮箱,凭 id 也拿不到对方的线程、草稿、令牌、建议、线索、附件;推送账分开;没身份先 401 | ✅ | test_everything_by_id_in_another_mailbox_is_invisible |
+| 任务表:一个邮箱开哪些任务由配置定;只读的邮箱不提线索、不起草;read 永远开;不认识的名字启动即炸 | ✅ | test_tasks_profile_turns_lead_suggestions_off, test_drafting_is_off_for_a_mailbox_that_only_reads, test_tasks_env_is_validated |
+| 界面:侧栏显示真实邮箱地址;没开线索任务藏起线索入口;没开起草的回信框没有 AI 起草 | ✅ | shows the mailbox address and hides leads for a mailbox that only reads, keeps the leads entry for a mailbox that suggests leads, offers no AI draft when the mailbox does not draft |
 | 界面:回信框——占位没换发不出;署名、可疑数字、追问先看见;失败不留白;只经人发;草稿可找回 | ✅ | refuses to send while the name placeholder is still in the body, shows who drafted and which numbers are unverified before anyone sends, shows the failure instead of an empty draft, sends only what the person wrote through their handler and then closes, keeps the composer open and shows the reason when the server refuses, asks for a name before drafting or sending, restores the latest stored draft when reopened, decides the hard rules in code before anything reaches the server |
 
 ## 里程碑
@@ -79,4 +82,4 @@
 | M6 记忆:同一客户的历史进上下文 | ⚠ 代码、测试齐;「只有一句新内容」的样本要在 Spark 上跑 evals/summarize_inquiry/run.py 看摘要是否指回历史里的型号 |
 | M7 附件:BOM 进摘要 | ⚠ PDF 文字层 / xlsx / docx / csv 已进摘要与草稿,代码、测试齐;扫描件与图片的 vision 路由**推迟**(等手里有真实扫描件再接,界面已把它们标为「没读出来」);「正文只说 see attached」的样本要在 Spark 上跑评测 |
 | M8 下游:lead API 与 webhook | ✅ /v1/leads(令牌、游标、CSV)与签名推送有端到端测试(真起服务、真走 HTTP);OA 那头的接收端不在本仓库,接上后按 docs/api/v1.md 验签即可 |
-| M9 第二个邮箱 | ⏳ |
+| M9 第二个邮箱 | ✅ 零 schema 变更;两个邮箱互不可见有测试;第二个实例 `deploy/install_mini.sh <名字>` 一条命令,TASKS 定它开什么。真机上起第二个实例是部署时的事 |

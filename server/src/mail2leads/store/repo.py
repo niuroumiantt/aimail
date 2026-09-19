@@ -155,8 +155,15 @@ def list_threads(
     return conn.execute(sql, args).fetchall()
 
 
-def get_thread(conn: sqlite3.Connection, thread_id: int) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
+def get_thread(
+    conn: sqlite3.Connection, thread_id: int, mailbox_id: int | None = None
+) -> sqlite3.Row | None:
+    """按 id 取线程。带 mailbox_id 时别的邮箱的线程当不存在——接口层永远带。"""
+    if mailbox_id is None:
+        return conn.execute("SELECT * FROM thread WHERE id = ?", (thread_id,)).fetchone()
+    return conn.execute(
+        "SELECT * FROM thread WHERE id = ? AND mailbox_id = ?", (thread_id, mailbox_id)
+    ).fetchone()
 
 
 def thread_messages(conn: sqlite3.Connection, thread_id: int) -> list[sqlite3.Row]:
