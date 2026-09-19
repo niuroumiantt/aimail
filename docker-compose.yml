@@ -1,0 +1,9 @@
+services:
+  mail2leads:
+    build: .
+    env_file: .env
+    ports:
+      - "8900:8900"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
