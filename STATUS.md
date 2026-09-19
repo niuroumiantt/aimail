@@ -59,6 +59,11 @@
 | 附件:读出的文字带署名落库、幂等,原字节不动;读不出不挡收信 | ✅ | test_ingest_stores_attachment_text_with_attribution_and_keeps_the_blob, test_broken_attachment_does_not_block_ingest |
 | 附件:读数与起草的模型输入带附件文字,附件里的数字算回得到原文;API 按邮箱隔离按需取正文 | ✅ | test_reader_sees_attachment_text_and_its_numbers_verify, test_draft_source_carries_attachment_text, test_api_exposes_attachment_state_and_text_only_within_the_mailbox |
 | 界面:附件片标出读没读出来、原因可见;点开看读出的文字;没有取用器时只列名字 | ✅ | marks an attachment that could not be read and says why, opens the text that was read out of an attachment, shows the reason instead of a blank sheet when the text is missing, lists attachments without a way to open them when no handler is given |
+| 下游:/v1 只认机器令牌;只出确认过的事实,建议不出门;形状钉死;机器令牌写不了线索 | ✅ | test_v1_leads_requires_a_machine_token, test_v1_returns_only_confirmed_facts_never_suggestions, test_machine_token_cannot_confirm_or_edit_leads, test_token_parsing_rejects_short_or_nameless_tokens |
+| 下游:游标 (since, after) 同一秒不漏;按状态过滤;按邮箱隔离;CSV 导出 | ✅ | test_v1_since_cursor_status_filter_and_mailbox_isolation, test_csv_export_has_one_row_per_lead_and_survives_commas |
+| 推送:写线索的同一事务里记事件;签名可验;送到即标记不重复;失败退避重试、原因可见、永不丢 | ✅ | test_confirm_and_update_enqueue_events_atomically, test_delivery_is_signed_and_marked_delivered, test_failed_delivery_backs_off_and_stays_visible, test_network_error_is_a_recorded_failure_not_a_crash, test_real_http_delivery_end_to_end |
+| 下游:一个外部脚本只凭令牌走 HTTP 拿到确认过的线索 | ✅ | test_pull_leads_script_gets_confirmed_leads_over_http_with_only_a_token |
+| 界面:推送没送到在线索页显形;导出 CSV | ✅ | shows undelivered pushes so nobody assumes the OA got them, says nothing about pushes when no webhook is configured or all went through, offers the CSV export of confirmed leads |
 | 界面:回信框——占位没换发不出;署名、可疑数字、追问先看见;失败不留白;只经人发;草稿可找回 | ✅ | refuses to send while the name placeholder is still in the body, shows who drafted and which numbers are unverified before anyone sends, shows the failure instead of an empty draft, sends only what the person wrote through their handler and then closes, keeps the composer open and shows the reason when the server refuses, asks for a name before drafting or sending, restores the latest stored draft when reopened, decides the hard rules in code before anything reaches the server |
 
 ## 里程碑
@@ -73,5 +78,5 @@
 | M5 草稿:人改人发 | ⚠ 代码、测试齐;真 SMTP 的第一封要在部署机上发给自己验;Spark 上 draft_reply 的真实分数要跑 evals/draft_reply/run.py |
 | M6 记忆:同一客户的历史进上下文 | ⚠ 代码、测试齐;「只有一句新内容」的样本要在 Spark 上跑 evals/summarize_inquiry/run.py 看摘要是否指回历史里的型号 |
 | M7 附件:BOM 进摘要 | ⚠ PDF 文字层 / xlsx / docx / csv 已进摘要与草稿,代码、测试齐;扫描件与图片的 vision 路由**推迟**(等手里有真实扫描件再接,界面已把它们标为「没读出来」);「正文只说 see attached」的样本要在 Spark 上跑评测 |
-| M8 下游:lead API 与 webhook | ⏳ |
+| M8 下游:lead API 与 webhook | ✅ /v1/leads(令牌、游标、CSV)与签名推送有端到端测试(真起服务、真走 HTTP);OA 那头的接收端不在本仓库,接上后按 docs/api/v1.md 验签即可 |
 | M9 第二个邮箱 | ⏳ |

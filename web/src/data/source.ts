@@ -5,6 +5,7 @@ import { replySubject } from "@/lib/text";
 import type {
   AttachmentText,
   Lead,
+  OutboxStatus,
   LeadSuggestion,
   LeadStatus,
   Message,
@@ -30,6 +31,8 @@ export interface DataSource {
   send(threadId: string, request: SendRequest, user: string): Promise<void>;
   /** 一份附件里读出来的文字(或读不出的原因) */
   attachmentText(attachmentId: string): Promise<AttachmentText>;
+  /** 推送给下游的状态 */
+  outbox(): Promise<OutboxStatus>;
 }
 
 /** 样本附件的文字。真系统里是 pypdf / openpyxl 读出来落库的。 */
@@ -181,6 +184,14 @@ export async function fixtureSource(): Promise<DataSource> {
       if (!found) throw new Error("没有这个附件");
       return found;
     },
+    // 样本里故意留一条没送到的:这个状态得让人看见
+    outbox: async () => ({
+      configured: true,
+      pending: 0,
+      failed: 1,
+      delivered: 6,
+      last_error: "HTTP 503 Service Unavailable(下次 30 分钟后再试)",
+    }),
   };
 }
 
@@ -229,6 +240,7 @@ export function apiSource(): DataSource {
       await call(`/api/threads/${id}/send`, asPerson(user, { ...request, token }, "POST"));
     },
     attachmentText: (id) => call<AttachmentText>(`/api/attachments/${id}/text`),
+    outbox: () => call<OutboxStatus>("/api/outbox"),
   };
 }
 

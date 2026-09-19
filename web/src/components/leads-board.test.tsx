@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { expect, it, vi } from "vitest";
-import type { LeadSuggestion } from "@/data/types";
+import type { LeadSuggestion, OutboxStatus } from "@/data/types";
 import { LeadsBoard } from "./leads-board";
 import { TipProvider } from "./tip";
 
@@ -20,7 +20,7 @@ const suggestion: LeadSuggestion = {
   produced_at: "2026-09-19T08:00:00+08:00",
 };
 
-function show(user: string, onSetUser = vi.fn()) {
+function show(user: string, onSetUser = vi.fn(), outbox?: OutboxStatus) {
   const noop = async () => "";
   render(
     <MemoryRouter>
@@ -29,6 +29,7 @@ function show(user: string, onSetUser = vi.fn()) {
           suggestions={[suggestion]}
           failed={2}
           leads={[]}
+          outbox={outbox}
           threadIds={new Set(["t1"])}
           user={user}
           onSetUser={onSetUser}
@@ -63,4 +64,19 @@ it("shows unverified numbers on a suggestion before confirmation", () => {
 it("counts inquiries whose lead extraction failed", () => {
   show("Larry");
   expect(screen.getByText(/没提出线索/)).toHaveTextContent("2");
+});
+
+it("shows undelivered pushes so nobody assumes the OA got them", () => {
+  show("Larry", vi.fn(), { configured: true, pending: 0, failed: 2, delivered: 5, last_error: "HTTP 503" });
+  expect(screen.getByText(/推送未送达/)).toHaveTextContent("2");
+});
+
+it("says nothing about pushes when no webhook is configured or all went through", () => {
+  show("Larry", vi.fn(), { configured: false, pending: 0, failed: 3, delivered: 0, last_error: "" });
+  expect(screen.queryByText(/推送未送达/)).not.toBeInTheDocument();
+});
+
+it("offers the CSV export of confirmed leads", () => {
+  show("Larry");
+  expect(screen.getByRole("link", { name: /导出 CSV/ })).toHaveAttribute("href", "/api/leads.csv");
 });

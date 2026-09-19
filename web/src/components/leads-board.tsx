@@ -1,14 +1,18 @@
-import type { Lead, LeadStatus, LeadSuggestion } from "@/data/types";
+import { Download } from "lucide-react";
+import type { Lead, LeadStatus, LeadSuggestion, OutboxStatus } from "@/data/types";
 import { EmptyState } from "./empty-state";
 import { LeadSuggestionCard } from "./lead-suggestion-card";
 import { LeadTable } from "./lead-table";
 import { NamePrompt } from "./name-prompt";
+import { Pill } from "./pill";
+import { Tip } from "./tip";
 
 /** 线索页:上面是模型的建议(等人确认),下面是事实(人确认过的)。两块永远分开。 */
 export function LeadsBoard({
   suggestions,
   failed,
   leads,
+  outbox,
   threadIds,
   user,
   onSetUser,
@@ -19,6 +23,8 @@ export function LeadsBoard({
   suggestions: LeadSuggestion[];
   failed: number;
   leads: Lead[];
+  /** 推送给下游的状态;没配就不显示 */
+  outbox?: OutboxStatus;
   threadIds: Set<string>;
   user: string;
   onSetUser: (name: string) => void;
@@ -63,6 +69,23 @@ export function LeadsBoard({
           <h2 className="text-base font-semibold text-ink">线索</h2>
           <span className="font-mono text-xs tabular-nums text-ink-2">{leads.length}</span>
           <p className="ml-2 text-xs text-ink-2">人确认过的事实。状态可以直接改。</p>
+          <span className="ml-auto flex items-center gap-2">
+            {outbox?.configured && outbox.failed > 0 && (
+              <Tip label={`推送给下游失败,还会再试:${outbox.last_error}`}>
+                <Pill tone="warn" dot>
+                  推送未送达 {outbox.failed}
+                </Pill>
+              </Tip>
+            )}
+            <a
+              href="/api/leads.csv"
+              download
+              className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-surface px-2.5 text-xs font-medium text-ink hover:bg-surface-2"
+            >
+              <Download size={13} strokeWidth={2} />
+              导出 CSV
+            </a>
+          </span>
         </header>
         <LeadTable leads={leads} threadIds={threadIds} onUpdate={onUpdateLead} />
       </section>

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 
+from mail2leads.store import outbox
 from mail2leads.store.repo import now_iso
 
 LEAD_STATUSES = ("quote", "quoted", "following", "won", "lost")
@@ -112,6 +113,7 @@ def confirm(
             (user, at, suggestion_id),
         )
         conn.execute("UPDATE thread SET folder = 'quote' WHERE id = ?", (s["thread_id"],))
+        _announce(conn, "lead.confirmed", int(cur.lastrowid))
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")
@@ -148,9 +150,78 @@ def update_lead(
         sets.append("next_step = ?")
         args.append(next_step)
     args.append(lead_id)
-    changed = conn.execute(f"UPDATE lead SET {', '.join(sets)} WHERE id = ?", args).rowcount
-    if not changed:
-        raise LookupError("线索不存在")
+    conn.execute("BEGIN")
+    try:
+        changed = conn.execute(f"UPDATE lead SET {', '.join(sets)} WHERE id = ?", args).rowcount
+        if not changed:
+            raise LookupError("线索不存在")
+        _announce(conn, "lead.updated", lead_id)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+
+
+LEAD_VERSION = "lead@1"
+
+
+def lead_v1(conn: sqlite3.Connection, row: sqlite3.Row) -> dict:
+    """线索对外的形状——/v1/leads 与 webhook 共用这一份。
+    改字段先写 ADR,再改 test_downstream 里钉死的键。"""
+    thread = conn.execute(
+        "SELECT subject, contact_email FROM thread WHERE id = ?", (row["thread_id"],)
+    ).fetchone()
+    mailbox = conn.execute(
+        "SELECT address FROM mailbox WHERE id = ?", (row["mailbox_id"],)
+    ).fetchone()
+    return {
+        "version": LEAD_VERSION,
+        "id": str(row["id"]),
+        "status": row["status"],
+        "company": row["company"],
+        "contact": row["contact"],
+        "email": thread["contact_email"] if thread else "",
+        "wants": row["wants"],
+        "quantity": row["quantity"],
+        "region": row["region"],
+        "next_step": row["next_step"],
+        "confirmed_by": row["confirmed_by"],
+        "confirmed_at": row["confirmed_at"],
+        "updated_at": row["updated_at"],
+        "source": {
+            "mailbox": mailbox["address"] if mailbox else "",
+            "thread_id": str(row["thread_id"]),
+            "subject": thread["subject"] if thread else "",
+        },
+    }
+
+
+def _announce(conn: sqlite3.Connection, event: str, lead_id: int) -> None:
+    row = conn.execute("SELECT * FROM lead WHERE id = ?", (lead_id,)).fetchone()
+    outbox.enqueue(conn, int(row["mailbox_id"]), event, lead_id, lead_v1(conn, row))
+
+
+def since_leads(
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    since: str,
+    after: int,
+    status: str | None,
+    limit: int,
+) -> list[sqlite3.Row]:
+    """给下游拉的:按 (updated_at, id) 升序、只出本邮箱、只出事实。
+    游标是 (since, after) 一对:同一秒里确认的几条靠 id 接着翻,一条都不会漏。"""
+    sql = (
+        "SELECT * FROM lead WHERE mailbox_id = ? "
+        "AND (updated_at > ? OR (updated_at = ? AND id > ?))"
+    )
+    args: list[object] = [mailbox_id, since, since, after]
+    if status:
+        sql += " AND status = ?"
+        args.append(status)
+    sql += " ORDER BY updated_at, id LIMIT ?"
+    args.append(limit)
+    return conn.execute(sql, args).fetchall()
 
 
 def list_leads(conn: sqlite3.Connection, mailbox_id: int) -> list[sqlite3.Row]:

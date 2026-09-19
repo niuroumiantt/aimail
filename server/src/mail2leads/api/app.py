@@ -5,18 +5,21 @@ JSON 形状与 web/src/data/types.ts 一致:界面不知道也不该知道数据
 
 from __future__ import annotations
 
+import csv
+import io
 import json
+import secrets
 import sqlite3
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from mail2leads import send as send_mod
 from mail2leads.ingest import attachments
-from mail2leads.store import history, leads, repo
+from mail2leads.store import history, leads, outbox, repo
 from mail2leads.tasks import draft as draft_mod
 
 
@@ -25,6 +28,51 @@ def who(request: Request) -> str:
     return (
         request.headers.get("tailscale-user-login") or request.headers.get("x-user") or ""
     ).strip()
+
+
+def machine(request: Request, tokens: dict[str, str]) -> str:
+    """机器的身份:Authorization: Bearer <令牌>。机器不是人:它只能读 /v1,写线索的接口不认它。"""
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return ""
+    given = auth[7:].strip()
+    for name, value in tokens.items():
+        if secrets.compare_digest(value, given):
+            return name
+    return ""
+
+
+CSV_COLUMNS = (
+    "id",
+    "status",
+    "company",
+    "contact",
+    "email",
+    "wants",
+    "quantity",
+    "region",
+    "next_step",
+    "confirmed_by",
+    "confirmed_at",
+    "updated_at",
+    "thread_id",
+    "subject",
+)
+
+
+def leads_csv(items: list[dict]) -> str:
+    """一行一条线索,Excel 直接开(带 BOM)。"""
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(CSV_COLUMNS)
+    for lead in items:
+        flat = {
+            **lead,
+            "thread_id": lead["source"]["thread_id"],
+            "subject": lead["source"]["subject"],
+        }
+        writer.writerow([flat.get(c, "") for c in CSV_COLUMNS])
+    return "\ufeff" + buf.getvalue()
 
 
 def _suggestion_out(row: sqlite3.Row) -> dict:
@@ -184,6 +232,8 @@ def create_app(
     sender: str = "",
     sender_name: str = "",
     transport: send_mod.Transport | None = None,
+    api_tokens: dict[str, str] | None = None,
+    webhook_configured: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
@@ -218,6 +268,56 @@ def create_app(
             "text": item.text,
             "reason": item.reason,
         }
+
+    def _machine(request: Request) -> str:
+        name = machine(request, api_tokens or {})
+        if not name:
+            raise HTTPException(401, "需要 API 令牌:Authorization: Bearer <令牌>")
+        return name
+
+    @app.get("/v1/leads")
+    def v1_leads(
+        request: Request,
+        since: str = "",
+        after: int = 0,
+        status: str | None = None,
+        limit: int = 200,
+    ) -> dict:
+        """给下游拉的线索:只有人确认过的事实,按 (updated_at, id) 升序;
+        下一页把 next_since / next_after 原样传回来。"""
+        _machine(request)
+        if status is not None and status not in leads.LEAD_STATUSES:
+            raise HTTPException(422, f"状态只能是 {leads.LEAD_STATUSES}")
+        rows = leads.since_leads(conn, mailbox_id, since, after, status, max(1, min(limit, 1000)))
+        items = [leads.lead_v1(conn, r) for r in rows]
+        return {
+            "version": "v1",
+            "leads": items,
+            "next_since": items[-1]["updated_at"] if items else since,
+            "next_after": int(items[-1]["id"]) if items else after,
+        }
+
+    def _csv_response() -> Response:
+        items = [leads.lead_v1(conn, r) for r in leads.list_leads(conn, mailbox_id)]
+        return Response(
+            leads_csv(items),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="leads.csv"'},
+        )
+
+    @app.get("/v1/leads.csv")
+    def v1_leads_csv(request: Request) -> Response:
+        _machine(request)
+        return _csv_response()
+
+    @app.get("/api/leads.csv")
+    def api_leads_csv() -> Response:
+        return _csv_response()
+
+    @app.get("/api/outbox")
+    def api_outbox() -> dict:
+        """推送送到没有。没配 webhook 就是 configured=false,界面什么都不显示。"""
+        return {"configured": webhook_configured, **outbox.status(conn, mailbox_id)}
 
     @app.get("/api/leads/suggestions")
     def suggestions() -> list[dict]:
