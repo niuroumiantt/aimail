@@ -1,35 +1,202 @@
-/* 设计令牌 —— 整个 web/ 里唯一允许出现字面色值的文件(宪法第九条,ADR-0002)。
-   M0 只放一套占位的中性色,让壳子能亮起来;M1 横评之后整套重定。
-   `--color-*: initial` 把 Tailwind 的默认色板整个清掉:blue-500、gray-200 从此不存在。 */
+/* 来源: Radix Colors 3.0.0 https://github.com/radix-ui/colors (MIT)
+   sage / teal / grass / amber / tomato 五个 12 级色阶的 sRGB 数值照抄;
+   语义命名、亮暗映射、字体、圆角、阴影是我们自己的。
+   这是整个 web/ 里唯一允许出现字面色值的文件(宪法第九条,ADR-0002)。
+
+   12 级色阶怎么用(Radix 的约定,照用):
+   1-2 页面与卡片底色 · 3-5 组件底色(静止/悬停/按下) · 6-8 边框(弱/常/强)
+   9-10 实色填充(静止/悬停) · 11 低对比文字 · 12 高对比文字
+
+   中性色选 sage(带一点绿的灰)而不是 slate 或 gray:它和 teal 同族,
+   整个界面就有一个方向。品牌色选 teal 而不是蓝——蓝是全网默认。 */
 @import "tailwindcss";
 
 @theme {
   --color-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --font-*: initial;
 
-  --color-canvas: oklch(98.5% 0.003 90);
-  --color-surface: oklch(100% 0 0);
-  --color-line: oklch(90% 0.005 80);
-  --color-ink: oklch(22% 0.01 60);
-  --color-ink-2: oklch(48% 0.012 60);
-  --color-brand: oklch(56% 0.11 190);
+  /* 底与面 —— sage */
+  --color-canvas: #f7f9f8; /* sage-2  页面底 */
+  --color-surface: #ffffff; /* 卡片、面板 */
+  --color-surface-2: #eef1f0; /* sage-3  悬停 */
+  --color-surface-3: #e6e9e8; /* sage-4  选中、按下 */
+  --color-line: #d7dad9; /* sage-6  常规边框 */
+  --color-line-2: #cbcfcd; /* sage-7  强边框、焦点环底 */
+  --color-ink: #1a211e; /* sage-12 正文 */
+  --color-ink-2: #5f6563; /* sage-11 次要文字 */
+  --color-ink-3: #868e8b; /* sage-9  只做图标与装饰,不做正文 */
 
+  /* 品牌 —— teal */
+  --color-brand: #12a594; /* teal-9  实色 */
+  --color-brand-2: #0d9b8a; /* teal-10 实色悬停 */
+  --color-brand-wash: #e0f8f3; /* teal-3  淡底 */
+  --color-brand-wash-2: #ccf3ea; /* teal-4  淡底悬停 */
+  --color-brand-line: #83cdc1; /* teal-7  边框 */
+  --color-brand-text: #008573; /* teal-11 文字 */
+  --color-brand-deep: #0d3d38; /* teal-12 淡底上的深字 */
+  --color-on-brand: #ffffff;
+
+  /* 语义 —— grass / amber / tomato。语义色不是品牌色,只表示状态 */
+  --color-ok: #46a758;
+  --color-ok-wash: #e9f6e9;
+  --color-ok-line: #94ce9a;
+  --color-ok-text: #2a7e3b;
+  --color-warn: #ffc53d;
+  --color-warn-wash: #fff7c2;
+  --color-warn-line: #e9c162;
+  --color-warn-text: #ab6400;
+  --color-on-warn: #4f3422;
+  --color-danger: #e54d2e;
+  --color-danger-wash: #feebe7;
+  --color-danger-line: #f5a898;
+  --color-danger-text: #d13415;
+
+  --color-overlay: rgba(26, 33, 30, 0.55);
+
+  /* 圆角:小控件 6,输入与按钮 8,卡片 12,面板 16 */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* 阴影带 sage 色相,不是纯黑 */
+  --shadow-sm: 0 1px 2px rgba(26, 33, 30, 0.06);
+  --shadow-md: 0 4px 12px rgba(26, 33, 30, 0.08), 0 1px 2px rgba(26, 33, 30, 0.05);
+  --shadow-lg: 0 12px 32px rgba(26, 33, 30, 0.14), 0 2px 6px rgba(26, 33, 30, 0.06);
+
+  /* 字体:IBM Plex 有工业感和好数字,和"服务器硬件贸易"对得上;中文落到系统苹方 */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
-    "Microsoft YaHei", sans-serif;
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, "PingFang SC", "Noto Sans SC", monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+/* Radix 组件的状态用 data-state 表达;定成命名变体,组件里就不用写任意值 */
+@custom-variant open (&[data-state="open"]);
+@custom-variant closed (&[data-state="closed"]);
+@custom-variant checked (&[data-state="checked"]);
+@custom-variant on (&[data-state="on"]);
+@custom-variant active-tab (&[data-state="active"]);
+@custom-variant current (&[aria-current="page"], &[aria-current="true"]);
+@custom-variant highlighted (&[data-highlighted]);
+
+/* 网格模板不在 Tailwind 的主题命名空间里,用 @utility 起名,免得组件里写任意值 */
+@utility grid-cols-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+@utility grid-cols-kv {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  /* 暗色:系统偏好且没有显式选亮 */
   @media (prefers-color-scheme: dark) {
-    :root {
-      --color-canvas: oklch(17% 0.01 250);
-      --color-surface: oklch(21% 0.01 250);
-      --color-line: oklch(30% 0.01 250);
-      --color-ink: oklch(94% 0.005 250);
-      --color-ink-2: oklch(70% 0.01 250);
-      --color-brand: oklch(72% 0.1 190);
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --color-canvas: #101211;
+      --color-surface: #171918;
+      --color-surface-2: #202221;
+      --color-surface-3: #272a29;
+      --color-line: #373b39;
+      --color-line-2: #444947;
+      --color-ink: #eceeed;
+      --color-ink-2: #adb5b2;
+      --color-ink-3: #717d79;
+      --color-brand: #12a594;
+      --color-brand-2: #0eb39e;
+      --color-brand-wash: #0d2d2a;
+      --color-brand-wash-2: #023b37;
+      --color-brand-line: #1c6961;
+      --color-brand-text: #0bd8b6;
+      --color-brand-deep: #adf0dd;
+      --color-on-brand: #ffffff;
+      --color-ok: #46a758;
+      --color-ok-wash: #1b2a1e;
+      --color-ok-line: #366740;
+      --color-ok-text: #71d083;
+      --color-warn: #ffc53d;
+      --color-warn-wash: #302008;
+      --color-warn-line: #714f19;
+      --color-warn-text: #ffca16;
+      --color-on-warn: #16120c;
+      --color-danger: #e54d2e;
+      --color-danger-wash: #391714;
+      --color-danger-line: #853a2d;
+      --color-danger-text: #ff977d;
+      --color-overlay: rgba(0, 0, 0, 0.7);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
     }
   }
+
+  /* 暗色:显式选了暗,压过系统偏好 */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-canvas: #101211;
+    --color-surface: #171918;
+    --color-surface-2: #202221;
+    --color-surface-3: #272a29;
+    --color-line: #373b39;
+    --color-line-2: #444947;
+    --color-ink: #eceeed;
+    --color-ink-2: #adb5b2;
+    --color-ink-3: #717d79;
+    --color-brand: #12a594;
+    --color-brand-2: #0eb39e;
+    --color-brand-wash: #0d2d2a;
+    --color-brand-wash-2: #023b37;
+    --color-brand-line: #1c6961;
+    --color-brand-text: #0bd8b6;
+    --color-brand-deep: #adf0dd;
+    --color-on-brand: #ffffff;
+    --color-ok: #46a758;
+    --color-ok-wash: #1b2a1e;
+    --color-ok-line: #366740;
+    --color-ok-text: #71d083;
+    --color-warn: #ffc53d;
+    --color-warn-wash: #302008;
+    --color-warn-line: #714f19;
+    --color-warn-text: #ffca16;
+    --color-on-warn: #16120c;
+    --color-danger: #e54d2e;
+    --color-danger-wash: #391714;
+    --color-danger-line: #853a2d;
+    --color-danger-text: #ff977d;
+    --color-overlay: rgba(0, 0, 0, 0.7);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
-    @apply bg-canvas text-ink font-sans antialiased;
+    @apply bg-canvas font-sans text-sm text-ink antialiased;
+  }
+  ::selection {
+    @apply bg-brand-wash-2 text-brand-deep;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
   }
 }

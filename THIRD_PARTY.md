@@ -9,3 +9,4 @@
 
 | 路径 | 来源 | 许可证 | 改了什么 |
 | --- | --- | --- | --- |
+| `web/src/tokens/theme.css` | Radix Colors 3.0.0 https://github.com/radix-ui/colors | MIT | 只抄 sage / teal / grass / amber / tomato 的 sRGB 数值;语义命名、亮暗映射、字体、圆角、阴影是我们的 |

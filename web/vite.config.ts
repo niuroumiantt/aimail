@@ -4,8 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // 相对路径:构建产物可以挂在任何子路径下(在线预览、Docker 里的静态目录都一样)
-  base: "./",
+  // 正式构建挂在根路径:history 路由下 /t/xxx 这类深链接要能找到 /assets/。
+  // 在线预览走 vite.preview.config.ts,全部内联,不受此影响。
+  base: "/",
   resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
   test: {
     environment: "jsdom",

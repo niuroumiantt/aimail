@@ -21,13 +21,17 @@
 | 守卫:派生表必须有署名字段 | ✅ | test_derived_table_missing_attribution_is_caught, test_nullable_attribution_column_is_caught, test_unmarked_table_is_not_a_derived_table |
 | 跳过的测试导致 CI 失败 | ✅ | test_skipped_test_fails_the_run |
 | web 工具链:构建、测试、lint 可跑 | ✅ | shell renders the product name |
+| 读数卡:四种状态,署名可见,可疑摘要压在警告下并调暗 | ✅ | shows who produced the reading, puts the warning above a summary with unverified numbers and dims it, renders the failure state instead of an empty summary, labels a non-inquiry as such, says plainly when there is no reading yet |
+| 主题:亮 / 暗 / 跟随系统,显式选择盖过系统偏好 | ✅ | theme toggle stamps data-theme on the root and clears it for system |
+| 头像:同一个人永远同一色,中日韩名取首字 | ✅ | gives the same person the same tint every time, uses the first character for CJK names |
+| 空状态:淡铺骨架 + 一句话 + 动作 | ✅ | empty state renders its action |
 
 ## 里程碑
 
 | 里程碑 | 状态 |
 | --- | --- |
-| M0 地基:precommit + 守卫 + CI | ⚠ 本地 precommit 绿;CI 首次跑通后改 ✅ |
-| M1 设计系统:令牌、组件库、三页高保真 | ⏳ |
+| M0 地基:precommit + 守卫 + CI | ✅ CI 在 PR #2 跑绿 |
+| M1 设计系统:令牌、组件库、三页高保真 | ✅ 令牌 + 23 个组件 + /kit + 收件箱/线程/线索,亮暗截图在 docs/design/;数据是编的样本,真数据 M2 |
 | M2 收信:IMAP 进来,原文落库 | ⏳ |
 | M3 读信:摘要 + 核对 + 评测集 | ⏳ |
 | M4 线索:建议 → 人确认 → 事实 | ⏳ |

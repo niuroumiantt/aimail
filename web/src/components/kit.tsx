@@ -1,0 +1,204 @@
+import { Check, Reply } from "lucide-react";
+import type { ReactNode } from "react";
+import type { Reading } from "@/data/types";
+import { Avatar } from "./avatar";
+import { Button } from "./button";
+import { Card } from "./card";
+import { EmptyState } from "./empty-state";
+import { Kbd } from "./kbd";
+import { LEAD_STATUS } from "./lead-table";
+import { Pill, type Tone } from "./pill";
+import { ReadingCard } from "./reading-card";
+import { SearchBox } from "./search-box";
+
+const SWATCHES: Array<[string, string]> = [
+  ["canvas", "bg-canvas"],
+  ["surface", "bg-surface"],
+  ["surface-2", "bg-surface-2"],
+  ["surface-3", "bg-surface-3"],
+  ["line", "bg-line"],
+  ["line-2", "bg-line-2"],
+  ["ink-3", "bg-ink-3"],
+  ["ink-2", "bg-ink-2"],
+  ["ink", "bg-ink"],
+  ["brand-wash", "bg-brand-wash"],
+  ["brand-wash-2", "bg-brand-wash-2"],
+  ["brand-line", "bg-brand-line"],
+  ["brand", "bg-brand"],
+  ["brand-2", "bg-brand-2"],
+  ["brand-text", "bg-brand-text"],
+  ["brand-deep", "bg-brand-deep"],
+  ["ok-wash", "bg-ok-wash"],
+  ["ok", "bg-ok"],
+  ["ok-text", "bg-ok-text"],
+  ["warn-wash", "bg-warn-wash"],
+  ["warn", "bg-warn"],
+  ["warn-text", "bg-warn-text"],
+  ["danger-wash", "bg-danger-wash"],
+  ["danger", "bg-danger"],
+  ["danger-text", "bg-danger-text"],
+];
+
+const TONES: Tone[] = ["neutral", "brand", "ok", "warn", "danger"];
+
+const base = { model: "Spark · fast", task_version: "summarize_inquiry@1", produced_at: "2026-09-19T08:13:41+08:00" };
+const READINGS: Array<[string, Reading | undefined]> = [
+  [
+    "正常",
+    {
+      ...base,
+      status: "ok",
+      is_inquiry: true,
+      language: "en",
+      summary_zh: "客户要 48 台 2U 服务器,CIF 赫尔辛基,12 个月保修。",
+      summary_en: "Customer needs 48 × 2U servers, CIF Helsinki, 12-month warranty.",
+      facts: ["48 台 2U", "CIF 赫尔辛基", "12 个月保修"],
+      quoted_numbers: ["48", "2U", "12"],
+      unverified: [],
+    },
+  ],
+  [
+    "数字可疑",
+    {
+      ...base,
+      status: "ok",
+      is_inquiry: true,
+      language: "en",
+      summary_zh: "客户要 1,200 条内存,目标价 125 美元。",
+      summary_en: "Customer needs 1,200 modules at USD 125 target.",
+      facts: ["目标价 125 美元"],
+      quoted_numbers: ["1200", "125"],
+      unverified: ["1200"],
+    },
+  ],
+  [
+    "不是询盘",
+    {
+      ...base,
+      status: "ok",
+      is_inquiry: false,
+      language: "en",
+      summary_zh: "这是丢单通知,不是询盘。",
+      summary_en: "A lost-deal notice, not an inquiry.",
+      facts: ["输在交期"],
+      quoted_numbers: [],
+      unverified: [],
+    },
+  ],
+  ["失败", { ...base, status: "failed", reason: "两次都没给出合规 JSON" }],
+  ["还没有", undefined],
+];
+
+function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-3">
+      <header className="flex items-baseline gap-2">
+        <h2 className="text-base font-semibold text-ink">{title}</h2>
+        {note && <p className="text-xs text-ink-2">{note}</p>}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+/** 组件页:每个组件的每种状态都在这儿,亮暗两套一起看。代替 Storybook。 */
+export function Kit() {
+  return (
+    <div className="mx-auto grid max-w-5xl gap-10 px-6 py-6">
+      <Section title="色板" note="sage 中性 + teal 品牌 + 三个语义色。全部来自 tokens/theme.css,别处不许写色值。">
+        <div className="grid grid-cols-5 gap-2 md:grid-cols-9">
+          {SWATCHES.map(([name, cls]) => (
+            <div key={name} className="grid gap-1">
+              <div className={`h-10 rounded-md border border-line ${cls}`} />
+              <span className="font-mono text-2xs text-ink-2">{name}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="字" note="IBM Plex Sans 正文,Plex Mono 给型号与数字;中文落到系统苹方。">
+        <Card className="grid gap-2 p-4">
+          <p className="text-2xl font-semibold tracking-tight text-ink">询盘工作台 Inquiry desk</p>
+          <p className="text-base text-ink">Aurora Compute 要 48 台 2U 服务器,CIF 赫尔辛基。</p>
+          <p className="text-sm text-ink">Body 14 — 业务员一天看几十封,这一档要最舒服。</p>
+          <p className="text-xs text-ink-2">Meta 12 — 时间、邮箱、地区。</p>
+          <p className="font-mono text-sm text-ink">SYS-6029U-TR4 · E5-2680v4 · 3.84TB · USD 4,850</p>
+          <p className="text-2xs uppercase tracking-wider text-ink-3">Label 11 · 分组标题</p>
+        </Card>
+      </Section>
+
+      <Section title="按钮">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="solid" icon={<Check size={14} strokeWidth={2.25} />}>确认为线索</Button>
+          <Button variant="soft">软</Button>
+          <Button>描边</Button>
+          <Button variant="ghost">幽灵</Button>
+          <Button variant="danger">删除</Button>
+          <Button disabled icon={<Reply size={14} />}>禁用</Button>
+          <Button size="sm" variant="solid">小</Button>
+          <Button size="sm">小描边</Button>
+          <Button size="sm" variant="ghost" aria-label="仅图标" icon={<Reply size={15} strokeWidth={1.75} />} />
+        </div>
+      </Section>
+
+      <Section title="标签">
+        <div className="flex flex-wrap items-center gap-2">
+          {TONES.map((t) => (
+            <Pill key={t} tone={t} dot>
+              {t}
+            </Pill>
+          ))}
+          <Pill mono>SYS-821GE-TNHR</Pill>
+          <Pill mono tone="danger">1200</Pill>
+          {Object.values(LEAD_STATUS).map((s) => (
+            <Pill key={s.label} tone={s.tone} dot>
+              {s.label}
+            </Pill>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="头像" note="同一个名字永远同一个色;圆角随尺寸走。">
+        <div className="flex flex-wrap items-center gap-3">
+          {["Mikko Laine", "王婷", "Omar Haddad", "김민준", "Ana Ribeiro", "Nguyễn Thị Lan"].map((n) => (
+            <Avatar key={n} name={n} size="lg" />
+          ))}
+          <Avatar name="Mikko Laine" size="md" />
+          <Avatar name="Mikko Laine" size="sm" />
+          <Avatar name="Priya Nair" size="md" muted />
+        </div>
+      </Section>
+
+      <Section title="输入与键位">
+        <div className="grid max-w-sm gap-3">
+          <SearchBox />
+          <p className="flex items-center gap-1.5 text-sm text-ink-2">
+            <Kbd>↑</Kbd>
+            <Kbd>↓</Kbd> 移动 <Kbd>Enter</Kbd> 打开 <Kbd>/</Kbd> 搜索
+          </p>
+        </div>
+      </Section>
+
+      <Section title="读数卡" note="四种状态;不可信的摘要被压在警告下面并调暗。">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {READINGS.map(([label, r]) => (
+            <div key={label} className="grid gap-1.5">
+              <span className="text-2xs uppercase tracking-wider text-ink-3">{label}</span>
+              <ReadingCard reading={r} />
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="空状态">
+        <Card className="h-72 overflow-hidden">
+          <EmptyState
+            title="这个分组是空的"
+            subtitle="新来的询盘会按读数结果自动落到对应分组。"
+            action={<Button variant="soft">看全部</Button>}
+          />
+        </Card>
+      </Section>
+    </div>
+  );
+}
