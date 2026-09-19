@@ -46,3 +46,7 @@ export function fullTime(iso: string): string {
 export function replySubject(subject: string): string {
   return /^\s*(re|回复|答复)\s*[:：]/i.test(subject) ? subject.trim() : `Re: ${subject.trim()}`;
 }
+
+export function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("zh-CN", { year: "numeric", month: "numeric", day: "numeric" });
+}

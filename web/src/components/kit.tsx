@@ -1,9 +1,10 @@
 import { Check, Reply } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Reading, ReplyDraft, Thread } from "@/data/types";
+import type { HistoryItem, Reading, ReplyDraft, Thread } from "@/data/types";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { Card } from "./card";
+import { CustomerHistory } from "./customer-history";
 import { EmptyState } from "./empty-state";
 import { Kbd } from "./kbd";
 import { LEAD_STATUS } from "./lead-table";
@@ -42,7 +43,7 @@ const SWATCHES: Array<[string, string]> = [
 
 const TONES: Tone[] = ["neutral", "brand", "ok", "warn", "danger"];
 
-const base = { model: "Spark · fast", task_version: "summarize_inquiry@1", produced_at: "2026-09-19T08:13:41+08:00" };
+const base = { model: "Spark · fast", task_version: "summarize_inquiry@2", produced_at: "2026-09-19T08:13:41+08:00" };
 const KIT_THREAD: Thread = {
   id: "kit",
   subject: "RFQ – 48 × 2U servers",
@@ -58,7 +59,7 @@ const KIT_THREAD: Thread = {
 const KIT_DRAFT: ReplyDraft = {
   ...base,
   id: "kit-draft",
-  task_version: "draft_reply@1",
+  task_version: "draft_reply@2",
   status: "ok",
   language: "en",
   subject: "Re: RFQ – 48 × 2U servers",
@@ -75,6 +76,39 @@ const KIT_REPLY: ReplyHandlers = {
   makeDraft: async () => KIT_DRAFT,
   send: async () => "样品间里发不出去",
 };
+
+const KIT_HISTORY: HistoryItem[] = [
+  {
+    id: "kit-1",
+    subject: "RFQ: 4-GPU L40S servers for AI lab",
+    first_at: "2026-06-02T11:00:00+08:00",
+    last_at: "2026-06-09T15:20:00+08:00",
+    folder: "replied",
+    replied: true,
+    lead_status: "won",
+    excerpt: "PO attached, please proceed.",
+  },
+  {
+    id: "kit-2",
+    subject: "Spare PSUs for the R740 fleet",
+    first_at: "2026-03-14T09:30:00+08:00",
+    last_at: "2026-03-20T18:00:00+08:00",
+    folder: "replied",
+    replied: true,
+    lead_status: "lost",
+    excerpt: "We went with a local supplier this time.",
+  },
+  {
+    id: "kit-3",
+    subject: "Question about warranty terms",
+    first_at: "2026-01-08T10:00:00+08:00",
+    last_at: "2026-01-08T10:00:00+08:00",
+    folder: "invalid",
+    replied: false,
+    lead_status: "",
+    excerpt: "Do refurbished units carry the same warranty?",
+  },
+];
 
 const READINGS: Array<[string, Reading | undefined]> = [
   [
@@ -221,6 +255,12 @@ export function Kit() {
               <ReadingCard reading={r} />
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section title="这位客户" note="代码从不可变记录里查出来的往来(ADR-0005):日期、主题、我们记的结果;没有往来的线程在页头标「第一次来信」。">
+        <div className="max-w-3xl">
+          <CustomerHistory items={KIT_HISTORY} />
         </div>
       </Section>
 

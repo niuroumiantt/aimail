@@ -4,7 +4,7 @@
 
 import type { Thread } from "../data/types";
 
-const spark = { model: "Spark · fast", task_version: "summarize_inquiry@1" } as const;
+const spark = { model: "Spark · fast", task_version: "summarize_inquiry@2" } as const;
 
 export const threads: Thread[] = [
   {
@@ -15,6 +15,7 @@ export const threads: Thread[] = [
     email: "mikko.laine@auroracompute.example",
     region: "赫尔辛基",
     scale: "48 台 · 2U",
+    history: [],
     folder: "quote",
     updated_at: "2026-09-19T08:12:00+08:00",
     messages: [
@@ -70,6 +71,7 @@ Procurement, Aurora Compute Oy`,
     email: "wangting@huaxin-si.example",
     region: "深圳",
     scale: "200 条 · DDR5 64GB",
+    history: [],
     folder: "quote",
     updated_at: "2026-09-19T07:40:00+08:00",
     messages: [
@@ -123,6 +125,7 @@ Procurement, Aurora Compute Oy`,
     email: "omar@gulfedge.example",
     region: "迪拜",
     scale: "4 台 · HGX H200",
+    history: [],
     folder: "quote",
     updated_at: "2026-09-18T23:05:00+08:00",
     messages: [
@@ -174,6 +177,7 @@ Gulf Edge Systems, Dubai`,
     email: "ana.ribeiro@ic.usp.example",
     region: "圣保罗",
     scale: "3 台 · 工作站",
+    history: [],
     folder: "inbox",
     updated_at: "2026-09-18T21:30:00+08:00",
     messages: [
@@ -226,6 +230,7 @@ Dra. Ana Ribeiro`,
     email: "daniel.koh@straitms.example",
     region: "新加坡",
     scale: "5 台 · 已报价",
+    history: [],
     folder: "inbox",
     updated_at: "2026-09-19T09:02:00+08:00",
     messages: [
@@ -305,6 +310,7 @@ Validity: 14 days`,
     email: "priya@northgrid.example",
     region: "多伦多",
     scale: "已流失",
+    history: [],
     folder: "invalid",
     updated_at: "2026-09-18T04:47:00+08:00",
     messages: [
@@ -352,6 +358,7 @@ We need 12 units of 2U storage nodes with 24× 16TB drives each. Please quote CI
     email: "marketing@connector-world.example",
     region: "—",
     scale: "推销",
+    history: [],
     folder: "invalid",
     updated_at: "2026-09-18T02:00:00+08:00",
     messages: [
@@ -389,6 +396,7 @@ Unsubscribe | Connector World Ltd.`,
     email: "farah.aziz@mytel.example",
     region: "吉隆坡",
     scale: "2 台 · B300 · 参数在附件",
+    history: [],
     folder: "inbox",
     updated_at: "2026-09-18T17:15:00+08:00",
     messages: [
@@ -430,6 +438,7 @@ Farah`,
     email: "j.weber@rheinwerk-dt.example",
     region: "杜塞尔多夫",
     scale: "500 片 · 3.84TB SSD",
+    history: [],
     folder: "quote",
     updated_at: "2026-09-18T15:48:00+08:00",
     messages: [
@@ -477,6 +486,7 @@ Jonas Weber`,
     email: "brian@savannanet.example",
     region: "内罗毕",
     scale: "10–15 台 · 无型号",
+    history: [],
     folder: "inbox",
     updated_at: "2026-09-18T14:02:00+08:00",
     messages: [
@@ -517,6 +527,7 @@ Brian`,
     email: "lan.nguyen@vinaparts.example",
     region: "海防",
     scale: "1,000 条 · DDR4 32GB",
+    history: [],
     folder: "quote",
     updated_at: "2026-09-18T11:20:00+08:00",
     messages: [
@@ -560,6 +571,18 @@ VinaParts Manufacturing`,
     email: "minjun.kim@hanbitcloud.example",
     region: "首尔",
     scale: "32 台 · L40S",
+    history: [
+      {
+        id: "t-hanbit-jun",
+        subject: "RFQ: 4-GPU L40S servers for AI lab",
+        first_at: "2026-06-02T11:00:00+08:00",
+        last_at: "2026-06-09T15:20:00+08:00",
+        folder: "replied",
+        replied: true,
+        lead_status: "won",
+        excerpt: "PO attached, please proceed. Delivery to our Pangyo site as discussed.",
+      },
+    ],
     folder: "quote",
     updated_at: "2026-09-18T10:05:00+08:00",
     messages: [
@@ -628,6 +651,7 @@ Quotation Q-2602 attached: 20 units as specified, USD 38,900/unit FOB Singapore,
     email: "rashid@lumentrading.example",
     region: "沙迦",
     scale: "混合清单 · 未读出",
+    history: [],
     folder: "inbox",
     updated_at: "2026-09-18T09:10:00+08:00",
     messages: [
@@ -652,4 +676,80 @@ Rashid`,
       reason: "两次都没给出合规 JSON:第二次输出仍在 facts 数组中途被截断",
     },
   },
+  {
+    id: "t-hanbit-jun",
+    subject: "RFQ: 4-GPU L40S servers for AI lab",
+    company: "Hanbit Cloud",
+    contact: "김민준",
+    email: "minjun.kim@hanbitcloud.example",
+    region: "首尔",
+    scale: "8 台 · L40S",
+    history: [
+      {
+        id: "t-hanbit",
+        subject: "Re: Re: GPU server order — quantity change",
+        first_at: "2026-09-10T10:30:00+08:00",
+        last_at: "2026-09-18T10:05:00+08:00",
+        folder: "quote",
+        replied: true,
+        lead_status: "quoted",
+        excerpt:
+          "Hi, Our customer increased the order. Please change the quantity to 32 units, same configuration. Can you hold the unit price from Q-2602?",
+      },
+    ],
+    folder: "replied",
+    updated_at: "2026-06-09T15:20:00+08:00",
+    messages: [
+      {
+        id: "m-hanbit-jun-1",
+        direction: "in",
+        from_name: "김민준",
+        from_email: "minjun.kim@hanbitcloud.example",
+        sent_at: "2026-06-02T11:00:00+08:00",
+        body: `Hello,
+
+We are setting up an AI lab and need 8 units of 4-GPU servers with NVIDIA L40S, 2× Xeon Gold 6430, 512GB DDR5. Please quote FOB Singapore with lead time.
+
+Thanks,
+Min-jun Kim`,
+      },
+      {
+        id: "m-hanbit-jun-2",
+        direction: "out",
+        from_name: "Glocalstorage Sales",
+        from_email: "sales@glocalstorage.example",
+        sent_at: "2026-06-03T16:40:00+08:00",
+        body: `Hi Min-jun,
+
+Quotation Q-2588 attached: 8 units as specified, lead time 3 weeks, validity 14 days.
+
+Best regards,
+Glocalstorage`,
+      },
+      {
+        id: "m-hanbit-jun-3",
+        direction: "in",
+        from_name: "김민준",
+        from_email: "minjun.kim@hanbitcloud.example",
+        sent_at: "2026-06-09T15:20:00+08:00",
+        body: `PO attached, please proceed. Delivery to our Pangyo site as discussed.
+
+Min-jun`,
+        attachments: ["PO-HB-260609.pdf"],
+      },
+    ],
+    reading: {
+      ...spark,
+      status: "ok",
+      produced_at: "2026-06-09T15:21:05+08:00",
+      is_inquiry: true,
+      language: "en",
+      summary_zh: "Hanbit 已下 PO,按 Q-2588 的 8 台 L40S 4-GPU 服务器执行,交付到板桥。",
+      summary_en: "Hanbit sent the PO for the 8 × L40S 4-GPU servers per Q-2588; deliver to the Pangyo site.",
+      facts: ["PO 已到", "按 Q-2588 执行:8 台", "交付地板桥"],
+      quoted_numbers: ["Q-2588", "8", "L40S"],
+      unverified: [],
+    },
+  },
 ];
+

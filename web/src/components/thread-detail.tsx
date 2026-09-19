@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import type { Thread } from "@/data/types";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
+import { CustomerHistory } from "./customer-history";
 import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
 import { MessageView } from "./message";
 import { Pill } from "./pill";
@@ -48,6 +49,7 @@ export function ThreadDetail({
           <Pill tone={FOLDER_TONE[thread.folder]} dot>
             {FOLDER_LABEL[thread.folder]}
           </Pill>
+          {thread.history?.length === 0 && <Pill tone="brand">第一次来信</Pill>}
           <Tip label={reply ? "回复这封信" : "回复(要接上服务端)"}>
             <Button
               size="sm"
@@ -71,6 +73,7 @@ export function ThreadDetail({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid max-w-3xl gap-5 px-5 py-5">
+          {thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
           <ReadingCard reading={thread.reading} />
           {thread.messages.map((m) => (
             <MessageView key={m.id} message={m} />

@@ -51,6 +51,10 @@
 | 发信:收信、读数、起草模块连发信模块都 import 不到 | ✅ | test_background_modules_never_import_send |
 | 起草:以整条线程为依据,带署名落库,失败也落库且显形 | ✅ | test_draft_is_stored_with_attribution, test_failed_draft_is_visible_not_blank, test_draft_source_is_the_whole_thread |
 | API:发信要人、要令牌、要 SMTP;伪造令牌 403;令牌用一次作废;起草要人 | ✅ | test_api_send_flow_requires_person_token_and_transport, test_api_draft_endpoints |
+| 记忆:同一地址或同一公司域算同一位客户,公共邮箱域只认地址;不出本邮箱,不含自己 | ✅ | test_same_address_is_the_same_customer, test_same_company_domain_is_the_same_customer, test_public_mail_domain_is_not_a_company, test_history_excludes_itself_and_other_mailboxes |
+| 记忆:历史段只有原文摘录与我们记的状态,模型输出进不去;历史里的数字算回得到原文;没有历史不占提示词 | ✅ | test_history_is_raw_excerpt_and_our_status_never_a_model_summary, test_numbers_from_history_count_as_verified, test_no_history_adds_nothing_to_the_prompt |
+| 记忆:读数与起草的模型输入都带这位客户的往来;详情 API 带 history,列表不带 | ✅ | test_reader_shows_the_model_this_customers_history, test_draft_source_carries_history, test_thread_detail_carries_history_in_the_web_shape |
+| 界面:线程页从详情接口取信件与历史;老客户显示往来卡,可点回去;第一次来信在页头标出 | ✅ | thread page shows the messages from the detail which the list does not carry, shows past dealings with their outcome and a way back to them, marks a first-time customer in the thread header, says nothing about history until the detail has loaded, shows the history card for a returning customer |
 | 界面:回信框——占位没换发不出;署名、可疑数字、追问先看见;失败不留白;只经人发;草稿可找回 | ✅ | refuses to send while the name placeholder is still in the body, shows who drafted and which numbers are unverified before anyone sends, shows the failure instead of an empty draft, sends only what the person wrote through their handler and then closes, keeps the composer open and shows the reason when the server refuses, asks for a name before drafting or sending, restores the latest stored draft when reopened, decides the hard rules in code before anything reaches the server |
 
 ## 里程碑
@@ -63,7 +67,7 @@
 | M3 读信:摘要 + 核对 + 评测集 | ⚠ 代码、测试、评测脚本齐;Spark 上的真实分数要在部署机跑 evals/summarize_inquiry/run.py,跑完把数填进这里再改 ✅ |
 | M4 线索:建议 → 人确认 → 事实 | ⚠ 代码、测试齐;Spark 上 extract_lead 的真实分数要在部署机跑 evals/extract_lead/run.py |
 | M5 草稿:人改人发 | ⚠ 代码、测试齐;真 SMTP 的第一封要在部署机上发给自己验;Spark 上 draft_reply 的真实分数要跑 evals/draft_reply/run.py |
-| M6 记忆:同一客户的历史进上下文 | ⏳ |
+| M6 记忆:同一客户的历史进上下文 | ⚠ 代码、测试齐;「只有一句新内容」的样本要在 Spark 上跑 evals/summarize_inquiry/run.py 看摘要是否指回历史里的型号 |
 | M7 附件:BOM 进摘要 | ⏳ |
 | M8 下游:lead API 与 webhook | ⏳ |
 | M9 第二个邮箱 | ⏳ |

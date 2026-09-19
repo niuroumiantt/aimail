@@ -191,7 +191,7 @@ def test_draft_is_stored_with_attribution(conn, mailbox, monkeypatch):
     row = draft_mod.latest_draft(conn, tid)
     assert (
         row["model"] == "Spark · fast"
-        and row["task_version"] == "draft_reply@1"
+        and row["task_version"] == "draft_reply@2"
         and row["status"] == "ok"
     )
     assert json.loads(row["payload"])["unverified"] == []

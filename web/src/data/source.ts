@@ -27,7 +27,7 @@ function fakeDraft(t: Thread): ReplyDraft {
   const base = {
     id: `d-${t.id}`,
     model: "Spark · fast",
-    task_version: "draft_reply@1",
+    task_version: "draft_reply@2",
     produced_at: new Date().toISOString(),
   };
   const r = t.reading;
@@ -64,8 +64,10 @@ export async function fixtureSource(): Promise<DataSource> {
     if (!user.trim()) throw new Error(`${doing}要先写上你的名字`);
   };
   const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  // 列表和 API 一样不带信件与历史;详情才有。界面必须走 thread(id) 才看得到信
+  const listEntry = (t: Thread): Thread => ({ ...t, messages: [], history: undefined });
   return {
-    threads: async () => threads,
+    threads: async () => threads.map(listEntry),
     thread: async (id) => threads.find((t) => t.id === id),
     suggestions: async () => suggestions,
     failedSuggestions: async () => 0,

@@ -7,6 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 from mail2leads import backends
+from mail2leads.store import history
 from mail2leads.tasks import draft_reply as task
 
 
@@ -26,8 +27,14 @@ def thread_source(
     for r in rows:
         who = "我方" if r["direction"] == "out" else (r["from_name"] or r["from_email"])
         parts.append(f"--- {who} · {r['sent_at']} ---\n{r['body_new']}")
-    text = "\n\n".join(parts)
-    return int(last_in["id"]), text[-limit_chars:]
+    text = "\n\n".join(parts)[-limit_chars:]
+    mailbox_id = int(
+        conn.execute("SELECT mailbox_id FROM thread WHERE id = ?", (thread_id,)).fetchone()[0]
+    )
+    past = history.for_thread(conn, mailbox_id, thread_id)
+    if past:
+        text += "\n\n" + past
+    return int(last_in["id"]), text
 
 
 def make_draft(conn: sqlite3.Connection, thread_id: int, now: datetime | None = None) -> int:

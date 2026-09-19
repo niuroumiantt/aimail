@@ -7,6 +7,10 @@ type State = {
   loading: boolean;
   error?: string;
   threads: Thread[];
+  /** 打开过的线程详情(带信件与客户历史),按 id 存 */
+  details: Record<string, Thread>;
+  /** 拉一条线程的详情;列表刷新后再调一次就是刷新 */
+  openThread: (id: string) => Promise<void>;
   suggestions: LeadSuggestion[];
   failed: number;
   leads: Lead[];
@@ -31,6 +35,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [details, setDetails] = useState<Record<string, Thread>>({});
   const [suggestions, setSuggestions] = useState<LeadSuggestion[]>([]);
   const [failed, setFailed] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -68,6 +73,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setUserState(name.trim());
   }, []);
 
+  const openThread = useCallback(
+    async (id: string) => {
+      if (!source) return;
+      try {
+        const t = await source.thread(id);
+        if (t) setDetails((d) => ({ ...d, [id]: t }));
+      } catch {
+        /* 列表里那份先顶着;下次刷新再试 */
+      }
+    },
+    [source],
+  );
+
   const act = useCallback(
     async (fn: (src: DataSource) => Promise<void>): Promise<string> => {
       if (!source) return "还没加载完";
@@ -87,6 +105,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       threads,
+      details,
+      openThread,
       suggestions,
       failed,
       leads,
@@ -102,7 +122,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
       send: (id, request) => act((src) => src.send(id, request, user)),
     }),
-    [loading, error, threads, suggestions, failed, leads, user, setUser, act, source],
+    [loading, error, threads, details, openThread, suggestions, failed, leads, user, setUser, act, source],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
