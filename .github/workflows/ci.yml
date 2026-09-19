@@ -18,3 +18,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - run: bash tools/precommit.sh
+  docker:
+    # Mac mini 走 launchd 不用它;这里只证明 Dockerfile 能建出来,不推镜像
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mail2leads:ci .
+      - run: docker run --rm mail2leads:ci uv run --no-sync python -c "import mail2leads; print('镜像里能 import')"
