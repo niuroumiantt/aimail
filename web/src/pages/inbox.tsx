@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { FOLDER_ORDER, type FolderKey } from "@/components/folders";
@@ -26,14 +26,18 @@ export default function InboxPage() {
   const [params] = useSearchParams();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { threads, user, setUser, latestDraft, makeDraft, send } = useData();
+  const { threads, details, openThread, user, setUser, latestDraft, makeDraft, send } = useData();
+  // 列表只有摘要行;信件与客户历史在详情里。列表刷新(发信、确认之后)时详情也跟着刷
+  useEffect(() => {
+    if (id) void openThread(id);
+  }, [id, openThread, threads]);
   const reply = useMemo<ReplyHandlers>(
     () => ({ user, onSetUser: setUser, latestDraft, makeDraft, send }),
     [user, setUser, latestDraft, makeDraft, send],
   );
 
   const visible = folder === "all" ? threads : threads.filter((t) => t.folder === folder);
-  const selected = id ? threads.find((t) => t.id === id) : undefined;
+  const selected = id ? (details[id] ?? threads.find((t) => t.id === id)) : undefined;
 
   return (
     <AppShell

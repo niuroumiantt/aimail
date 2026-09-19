@@ -68,6 +68,14 @@ SMTP 不填就沿用 IMAP 的账号密码(主机名把 `imap.` 换成 `smtp.`),4
 uv run python evals/draft_reply/run.py evals/draft_reply/dataset.jsonl
 ```
 
+## 记忆(M6)
+
+客户的第二封信常常只有一句话(「同上次」「改成 32 台」)。读数和起草时,代码从不可变记录里查出这位客户在**同一邮箱**里的
+其他线程(同一地址,或同一公司域名;gmail、qq 这类公共邮箱域只认地址),把主题、日期、我们记的结果(已回复、成交、丢单)
+和最后一封来信的原文摘录放在模型输入末尾。历史段不含任何模型输出——派生物不喂派生物,模型从历史里引用的数字仍能回到原文。
+记忆没有自己的表,也没有向量库(见 [ADR-0005](docs/adr/0005-memory-is-a-query.md))。
+线程页上老客户有「这位客户」卡,一行一条往来可点回去;第一次来信的客户在页头标出。
+
 ## 上线
 
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
@@ -91,6 +99,8 @@ Linux 主机用 `docker compose up -d --build`(`.env` 同样内容)。
 - [0001 不用 Chatwoot 做地基](docs/adr/0001-no-chatwoot-foundation.md)
 - [0002 React + Tailwind v4 + 三条规则](docs/adr/0002-react-tailwind-v4.md)
 - [0003 SQLite 起步](docs/adr/0003-sqlite-first.md)
+- [0004 设计令牌、字体、图标与组件展示](docs/adr/0004-design-tokens-and-type.md)
+- [0005 记忆是一次查询,不是一张模型写的表](docs/adr/0005-memory-is-a-query.md)
 
 ## 真实客户数据
 

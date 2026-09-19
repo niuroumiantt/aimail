@@ -5,7 +5,7 @@ export type Folder = "inbox" | "quote" | "replied" | "invalid";
 export type Attribution = {
   /** 谁算的,例如 "Spark · fast" —— 宪法第三条:派生物有署名 */
   model: string;
-  /** 任务合同的版本,例如 "summarize_inquiry@1" */
+  /** 任务合同的版本,例如 "summarize_inquiry@2" */
   task_version: string;
   /** ISO 时间 */
   produced_at: string;
@@ -42,6 +42,19 @@ export type Message = {
   attachments?: string[];
 };
 
+/** 这位客户此前的一条往来。代码从不可变记录里查出来的(ADR-0005),不是模型写的 */
+export type HistoryItem = {
+  id: string;
+  subject: string;
+  first_at: string;
+  last_at: string;
+  folder: Folder;
+  replied: boolean;
+  lead_status: LeadStatus | "";
+  /** 最后一封来信的原文开头 */
+  excerpt: string;
+};
+
 export type Thread = {
   id: string;
   subject: string;
@@ -53,8 +66,11 @@ export type Thread = {
   scale: string;
   folder: Folder;
   updated_at: string;
+  /** 详情才有;列表里是空数组 */
   messages: Message[];
   reading?: Reading;
+  /** 同一位客户的其他线程。详情才有;空数组 = 第一次来信 */
+  history?: HistoryItem[];
 };
 
 export type Priority = "high" | "normal" | "low";

@@ -4,7 +4,7 @@ import type { Reading } from "@/data/types";
 import { ReadingCard } from "./reading-card";
 import { TipProvider } from "./tip";
 
-const base = { model: "Spark · fast", task_version: "summarize_inquiry@1", produced_at: "2026-09-19T08:13:41+08:00" };
+const base = { model: "Spark · fast", task_version: "summarize_inquiry@2", produced_at: "2026-09-19T08:13:41+08:00" };
 const ok: Reading = {
   ...base,
   status: "ok",
@@ -30,7 +30,7 @@ describe("读数卡", () => {
     show(ok);
     const sig = screen.getByTestId("attribution");
     expect(sig).toHaveTextContent("Spark · fast");
-    expect(sig).toHaveTextContent("summarize_inquiry@1");
+    expect(sig).toHaveTextContent("summarize_inquiry@2");
   });
 
   it("puts the warning above a summary with unverified numbers and dims it", () => {

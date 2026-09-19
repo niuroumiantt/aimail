@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from mail2leads import send as send_mod
-from mail2leads.store import leads, repo
+from mail2leads.store import history, leads, repo
 from mail2leads.tasks import draft as draft_mod
 
 
@@ -130,6 +130,19 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
         "messages": [],
     }
     if with_messages:
+        out["history"] = [
+            {
+                "id": str(h.thread_id),
+                "subject": h.subject,
+                "first_at": h.first_at,
+                "last_at": h.last_at,
+                "folder": h.folder,
+                "replied": h.replied,
+                "lead_status": h.lead_status,
+                "excerpt": h.excerpt,
+            }
+            for h in history.related_threads(conn, int(row["mailbox_id"]), int(row["id"]))
+        ]
         out["messages"] = [
             {
                 "id": str(m["id"]),
