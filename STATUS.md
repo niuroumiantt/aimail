@@ -25,6 +25,15 @@
 | 主题:亮 / 暗 / 跟随系统,显式选择盖过系统偏好 | ✅ | theme toggle stamps data-theme on the root and clears it for system |
 | 头像:同一个人永远同一色,中日韩名取首字 | ✅ | gives the same person the same tint every time, uses the first character for CJK names |
 | 空状态:淡铺骨架 + 一句话 + 动作 | ✅ | empty state renders its action |
+| 收信:原文落库后不可改不可删(数据库触发器) | ✅ | test_message_update_is_rejected, test_message_delete_is_rejected, test_attachment_is_immutable, test_raw_bytes_are_kept_verbatim |
+| 收信:重复投递只存一次(Message-ID + 原文哈希两道唯一约束) | ✅ | test_same_message_id_is_stored_once, test_same_bytes_are_stored_once_even_without_message_id, test_redelivered_message_is_skipped_not_duplicated |
+| 收信:断点续拉,UIDVALIDITY 变化不重复 | ✅ | test_cursor_advances_per_message_so_a_crash_resumes, test_uidvalidity_change_refetches_without_duplicating, test_second_run_fetches_nothing_new |
+| 收信:解析失败不丢原文 | ✅ | test_unparsable_message_keeps_its_raw_bytes, test_garbage_bytes_do_not_crash_the_parser |
+| 解析:HTML 退化成文本、附件带哈希、编码主题、线程头 | ✅ | test_plain_text_body_and_headers, test_html_only_mail_falls_back_to_text, test_attachments_are_listed_with_hash, test_thread_headers_are_parsed |
+| 切引用:Gmail / Outlook / 中文客户端 / > 行,认不出整封算新增 | ✅ | test_gmail_on_wrote_splits, test_outlook_from_sent_block_splits, test_chinese_reply_marker_splits, test_angle_bracket_lines_split, test_no_quote_keeps_everything_as_new |
+| 归并:靠头、靠主题+对方、不同对方不并、超 60 天不并、我方回信归客户线程 | ✅ | test_reply_with_in_reply_to_joins_thread, test_same_subject_same_sender_joins_thread, test_same_subject_different_sender_is_a_new_thread, test_same_subject_after_window_is_a_new_thread, test_outgoing_reply_joins_customer_thread |
+| IMAP 连接校验证书与主机名 | ✅ | test_ssl_context_verifies_certificate_and_hostname |
+| API:线程列表与详情形状与界面一致,错 ID 404 | ✅ | test_thread_list_has_the_web_shape, test_thread_detail_carries_messages_quoted_and_attachments, test_unknown_thread_is_404, test_folder_filter |
 
 ## 里程碑
 
@@ -32,7 +41,7 @@
 | --- | --- |
 | M0 地基:precommit + 守卫 + CI | ✅ CI 在 PR #2 跑绿 |
 | M1 设计系统:令牌、组件库、三页高保真 | ✅ 令牌 + 23 个组件 + /kit + 收件箱/线程/线索,亮暗截图在 docs/design/;数据是编的样本,真数据 M2 |
-| M2 收信:IMAP 进来,原文落库 | ⏳ |
+| M2 收信:IMAP 进来,原文落库 | ⚠ 代码与测试齐;对真邮箱的首次收信要在部署机上验,验完改 ✅ |
 | M3 读信:摘要 + 核对 + 评测集 | ⏳ |
 | M4 线索:建议 → 人确认 → 事实 | ⏳ |
 | M5 草稿:人改人发 | ⏳ |

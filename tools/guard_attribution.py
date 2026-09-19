@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """守卫:派生表必须带四个署名字段(宪法第三条:派生物有署名)。
 
-约定:schema.sql 里,紧跟在 `-- derived` 标记之后的 CREATE TABLE 是派生表。
+约定:schema.sql 里,独占一行的 `-- derived` 标记之后的 CREATE TABLE 是派生表。
 它必须含 model、task_version、produced_at、source_id 四列,且都 NOT NULL。
 没有署名的 AI 输出不许落库,更不许显示。
 
@@ -16,8 +16,10 @@ from pathlib import Path
 
 DEFAULT_SCHEMA = Path("server/src/mail2leads/store/schema.sql")
 REQUIRED = ("model", "task_version", "produced_at", "source_id")
+# 标记必须独占一行:注释里顺嘴提到「-- derived」不算
 DERIVED = re.compile(
-    r"--\s*derived\b[^\n]*\n\s*CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)\s*\((.*?)\)\s*;", re.S | re.I
+    r"^[ \t]*--[ \t]*derived[ \t]*$\s*CREATE TABLE(?: IF NOT EXISTS)?\s+(\w+)\s*\((.*?)\)\s*;",
+    re.S | re.I | re.M,
 )
 
 

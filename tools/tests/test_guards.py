@@ -206,6 +206,15 @@ def test_complete_derived_table_passes():
     assert guard_attribution.check(GOOD_DERIVED) == []
 
 
+def test_mention_of_marker_inside_a_comment_is_not_a_marker():
+    """文件头注释里解释「-- derived 标记」这几个字,不能把下一张表当成派生表。"""
+    text = (
+        "-- 派生表以 `-- derived` 标记,必须带署名\n\n"
+        "CREATE TABLE mailbox (\n  id INTEGER PRIMARY KEY\n);\n"
+    )
+    assert guard_attribution.check(text) == []
+
+
 def test_unmarked_table_is_not_a_derived_table():
     plain = GOOD_DERIVED.replace("-- derived\n", "")
     assert guard_attribution.check(plain) == []

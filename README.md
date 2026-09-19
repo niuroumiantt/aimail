@@ -17,6 +17,19 @@ cd web && pnpm dev           # 界面开发服务器
 
 守卫在 `tools/guard_*.py`,每个守着宪法的一条,每个都有攻击测试(`tools/tests/`)。
 
+## 接真邮箱(M2)
+
+```bash
+cp .env.example .env         # 填 IMAP 地址、账号、密码;密码永远不进仓库
+set -a; . ./.env; set +a
+uv run python -m mail2leads ingest    # 收一次信就退出,看日志里拉了几封
+cd web && pnpm build && cd ..
+WEB_DIST=web/dist uv run python -m mail2leads serve   # http://localhost:8900
+```
+
+收信的顺序是刻意的:原文先落库(一个字节不改,数据库触发器拒绝改删),再解析、切引用、归并线程。
+IMAP 连接显式校验证书——`imaplib` 默认不校验。
+
 ## 计划
 
 第一份计划（架构、九层设计系统、里程碑 M0–M9）在发起人的私有文档里：

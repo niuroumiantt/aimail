@@ -31,9 +31,9 @@ export function ThreadRow({ thread, search }: { thread: Thread; search: string }
       </time>
       <p className="col-span-2 truncate text-sm text-ink-2">{thread.subject}</p>
       <div className="flex min-w-0 items-center gap-1.5 text-2xs text-ink-2">
-        <span className="truncate">{thread.region}</span>
-        <span className="text-ink-3">·</span>
-        <span className="truncate font-mono">{thread.scale}</span>
+        {thread.region && <span className="truncate">{thread.region}</span>}
+        {thread.region && thread.scale && <span className="text-ink-3">·</span>}
+        {thread.scale && <span className="truncate font-mono">{thread.scale}</span>}
       </div>
       <span className="justify-self-end">
         <StatusGlyph reading={thread.reading} />
