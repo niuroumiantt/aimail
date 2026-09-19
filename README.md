@@ -104,12 +104,22 @@ Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升
 
 ```bash
 git clone git@github.com:niuroumiantt/mail2leads.git ~/mail2leads
-cd ~/mail2leads && bash deploy/install_mini.sh
+cd ~/mail2leads && bash deploy/install_mini.sh          # 实例名默认 sales
 ```
 
-第一次会生成 `~/.config/mail2leads/env`(0600),填 IMAP 与模型后再跑一次。
-脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/`。
-Linux 主机用 `docker compose up -d --build`(`.env` 同样内容)。
+第一次会生成 `~/.config/mail2leads/sales.env`(0600),按 `.env.example` 填好再跑一次:
+IMAP 与 `MAILBOX`;模型(`DGX_GATEWAY_URL` / `DGX_API_KEY` / `LOCAL_MODEL`);发信用的 `SENDER_NAME`
+(SMTP 默认沿用 IMAP 的账号);要接 OA 再填 `API_TOKENS` 与 `WEBHOOK_URL` / `WEBHOOK_SECRET`。
+脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/sales.log`。
+Linux 主机用 `docker compose up -d --build`(`.env` 同样内容,`PORT` 决定端口)。
+
+上线后的验证顺序(每一步验完把 STATUS.md 里对应的 ⚠ 改成 ✅):
+
+1. 发一封测试信到这个邮箱,30 秒内出现在收件箱,读数卡带署名
+2. `uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jsonl` 等三套评测在 Spark 上跑一遍,
+   `fast` 与 `brain` 各跑一次,分数填进 STATUS(真实邮件放 `dataset.jsonl`,永不进仓库)
+3. 线索页确认一条建议;用 `examples/pull_leads.py` 凭令牌拉到它
+4. 回信框起草、改、发给自己;收到的信落在线程里、线程归「已回复」
 
 ## 计划
 
