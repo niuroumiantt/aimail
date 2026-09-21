@@ -75,11 +75,10 @@ cat > "$PLIST" <<PLIST
 </dict>
 </plist>
 PLIST
-launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-if launchctl bootstrap "gui/$(id -u)" "$PLIST"; then
+if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
   launchctl kickstart -k "gui/$(id -u)/$LABEL"
 else
-  # 部分 macOS 桌面会话拒绝 bootstrap(gui/uid)，保留旧接口作为同一用户的兼容入口。
+  # 部分 macOS 桌面会话拒绝 bootstrap(gui/uid)，首次安装用旧接口即可。
   launchctl load -w "$PLIST"
 fi
 sleep 2
