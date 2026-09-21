@@ -23,7 +23,7 @@ def make_ssl_context() -> ssl.SSLContext:
 
 class ImapSource:
     def __init__(self, host: str, port: int, user: str, password: str, folder: str) -> None:
-        self.conn = imaplib.IMAP4_SSL(host, port, ssl_context=make_ssl_context())
+        self.conn = imaplib.IMAP4_SSL(host, port, ssl_context=make_ssl_context(), timeout=30)
         self.conn.login(user, password)
         status, _ = self.conn.select(self._quote(folder), readonly=True)
         if status != "OK":

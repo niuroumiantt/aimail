@@ -162,6 +162,12 @@ def test_request_lands_on_the_openai_chat_completions_path(fake_gateway):
     assert seen["path"] == "/v1/chat/completions"
 
 
+def test_task_can_bound_its_output_budget(fake_gateway):
+    backends.complete("sys", "mail", InquirySummary, max_tokens=3072, reasoning_effort="none")
+    assert seen["body"]["max_tokens"] == 3072
+    assert seen["body"]["reasoning_effort"] == "none"
+
+
 def test_api_key_is_sent_as_a_bearer_token(fake_gateway):
     backends.complete("你是助手", "x", InquirySummary)
     assert seen["auth"] == "Bearer tok"

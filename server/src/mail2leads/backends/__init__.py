@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any
@@ -38,7 +39,9 @@ def backend() -> str:
     return value
 
 
-def model_name() -> str:
+def model_name(override: str | None = None) -> str:
+    if override:
+        return override.strip()
     if backend() == "local":
         return os.environ.get("LOCAL_MODEL", "").strip()
     return os.environ.get("MODEL", DEFAULT_CLAUDE_MODEL).strip()
@@ -63,10 +66,11 @@ def api_key() -> str:
     )
 
 
-def describe() -> str:
+def describe(model: str | None = None) -> str:
     """一行字说明这次结果是谁算的——两个后端的输出长得一样,不标就分不清。"""
-    name = model_name() or "(未设置)"
-    return f"Spark · {name}" if backend() == "local" else f"Claude · {name}"
+    name = model_name(model) or "(未设置)"
+    label = os.environ.get("LOCAL_PROVIDER_LABEL", "Spark")
+    return f"{label} · {name}" if backend() == "local" else f"Claude · {name}"
 
 
 def ready() -> tuple[bool, str]:
@@ -82,6 +86,9 @@ def ready() -> tuple[bool, str]:
 def _shape_hint(model_cls: type[BaseModel]) -> str:
     """把 Pydantic 模型渲染成人读得懂的字段模板;原始 JSON Schema 的 $defs、anyOf 对小模型是噪音。"""
     schema = model_cls.model_json_schema()
+    if "$defs" in schema:
+        # Nested result contracts must retain object fields, not become array<string>.
+        return json.dumps(schema, ensure_ascii=False)
     lines = []
     for name, spec in schema.get("properties", {}).items():
         kind = spec.get("type", "string")
@@ -122,13 +129,21 @@ def _extract_json(text: str) -> str:
     raise LLMError(f"JSON 没有闭合(多半被截断了):…{text[-200:]}")
 
 
-def _call_local(system: str, user: str, shape: str) -> str:
-    model = model_name()
-    if not model:
+def _call_local(
+    system: str,
+    user: str,
+    shape: str,
+    *,
+    max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    model: str | None = None,
+) -> str:
+    selected_model = model_name(model)
+    if not selected_model:
         raise LLMError("没有设置 LOCAL_MODEL(网关路由名,例如 fast 或 brain)")
     url = f"{base_url()}/chat/completions"
     payload: dict[str, Any] = {
-        "model": model,
+        "model": selected_model,
         "temperature": 0,
         "messages": [
             {
@@ -143,6 +158,10 @@ def _call_local(system: str, user: str, shape: str) -> str:
         "response_format": {"type": "json_object"},
     }
     timeout = float(os.environ.get("LOCAL_TIMEOUT", "180"))
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
     try:
         with httpx.Client(timeout=timeout) as client:
             response = client.post(
@@ -153,6 +172,8 @@ def _call_local(system: str, user: str, shape: str) -> str:
     if response.status_code >= 300:
         raise LLMError(f"本地模型 {response.status_code}:{response.text[:300]}")
     data = response.json()
+    if any(c.get("finish_reason") == "length" for c in data.get("choices", [])):
+        raise LLMError("输出达到 token 上限，未作为完整结果保存")
     try:
         content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
@@ -178,10 +199,30 @@ def _call_claude(system: str, user: str, shape: str) -> str:
     return next(block.text for block in response.content if block.type == "text")
 
 
-def complete(system: str, user: str, model_cls: type[BaseModel]) -> BaseModel:
+def complete(
+    system: str,
+    user: str,
+    model_cls: type[BaseModel],
+    *,
+    max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    model: str | None = None,
+) -> BaseModel:
     """跑一次任务,拿回一个校验过的对象。校验不过给一次改正机会,再不过就报错。"""
     shape = _shape_hint(model_cls)
-    call = _call_local if backend() == "local" else _call_claude
+
+    def call(system, user, shape):
+        if backend() == "local":
+            options = {}
+            if max_tokens is not None:
+                options["max_tokens"] = max_tokens
+            if reasoning_effort is not None:
+                options["reasoning_effort"] = reasoning_effort
+            if model:
+                options["model"] = model
+            return _call_local(system, user, shape, **options)
+        return _call_claude(system, user, shape)
+
     raw = call(system, user, shape)
     try:
         return model_cls.model_validate_json(_extract_json(raw))
