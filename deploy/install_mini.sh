@@ -7,6 +7,9 @@
 #
 # 第一次跑会生成 ~/.config/mail2leads/<实例名>.env(0600),填好 IMAP、模型、PORT、TASKS 再跑第二次。
 set -euo pipefail
+# A stale node@22 path can remain ahead of the current Homebrew Node after an upgrade.
+# Prefer Homebrew's active formula so pnpm's env-based launcher uses the same working Node.
+if [ -x /opt/homebrew/bin/node ]; then export PATH="/opt/homebrew/bin:$PATH"; fi
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
 NAME="${1:-sales}"
