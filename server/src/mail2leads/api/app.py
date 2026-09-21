@@ -10,6 +10,7 @@ import io
 import json
 import secrets
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -24,11 +25,11 @@ from mail2leads.store import history, leads, outbox, repo
 from mail2leads.tasks import draft as draft_mod
 
 
-def who(request: Request) -> str:
+def who(request: Request, require_oa_auth: bool = False) -> str:
     """人的身份。经 tailscale serve 进来时带 Tailscale-User-Login;否则界面自己带 X-User。"""
-    return (
-        request.headers.get("tailscale-user-login") or request.headers.get("x-user") or ""
-    ).strip()
+    if require_oa_auth:
+        return request.headers.get("x-oa-user", "").strip()
+    return (request.headers.get("tailscale-user-login") or request.headers.get("x-user") or "").strip()
 
 
 def machine(request: Request, tokens: dict[str, str]) -> str:
@@ -237,12 +238,25 @@ def create_app(
     webhook_configured: bool = False,
     tasks: frozenset[str] = DEFAULT_TASKS,
     display_name: str = "",
+    sync_mailbox: Callable[[], None] | None = None,
+    require_oa_auth: bool = False,
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
 
     @app.get("/healthz")
     def healthz() -> dict:
+        return {"ok": True}
+
+    @app.post("/api/sync")
+    def sync() -> dict:
+        """立即同步一次；调用方等待完成，成功后便可直接刷新列表。"""
+        if sync_mailbox is None:
+            raise HTTPException(503, "当前服务没有配置收信")
+        try:
+            sync_mailbox()
+        except Exception as exc:  # noqa: BLE001 - 把同步失败明确交给界面
+            raise HTTPException(502, f"收信失败：{exc}") from exc
         return {"ok": True}
 
     @app.get("/api/mailbox")
@@ -346,7 +360,7 @@ def create_app(
         return [_lead_out(r) for r in leads.list_leads(conn, mailbox_id)]
 
     def _person(request: Request) -> str:
-        user = who(request)
+        user = who(request, require_oa_auth)
         if not user:
             raise HTTPException(401, "确认线索要先写上你的名字")
         return user

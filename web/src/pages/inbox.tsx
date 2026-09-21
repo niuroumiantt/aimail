@@ -26,7 +26,7 @@ export default function InboxPage() {
   const [params] = useSearchParams();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { threads, details, openThread, mailbox, user, setUser, latestDraft, makeDraft, send, attachmentText } =
+  const { threads, details, openThread, mailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing } =
     useData();
   // 列表只有摘要行;信件与客户历史在详情里。列表刷新(发信、确认之后)时详情也跟着刷
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function InboxPage() {
 
   return (
     <AppShell
-      sidebar={<Sidebar counts={countBy(threads)} activeFolder={folder} inInbox mailbox={mailbox} />}
+      sidebar={<Sidebar counts={countBy(threads)} activeFolder={folder} inInbox mailbox={mailbox} onSync={sync} syncing={syncing} />}
       list={<ThreadList threads={visible} folder={folder} search={search} />}
       detail={
         selected ? (

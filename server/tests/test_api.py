@@ -77,6 +77,13 @@ def test_unknown_thread_is_404(conn, mailbox):
     assert _client(conn, mailbox).get("/api/threads/9999").status_code == 404
 
 
+def test_oa_auth_mode_accepts_only_the_portal_identity(conn, mailbox):
+    client = TestClient(create_app(conn, mailbox, require_oa_auth=True))
+    # 这里用一个写接口验证身份头；X-User 在 OA 模式下不能伪造审计人。
+    assert client.post("/api/leads/suggestions/1/dismiss", headers={"X-User": "Mallory"}).status_code == 401
+    assert client.post("/api/leads/suggestions/1/dismiss", headers={"X-OA-User": "Alice"}).status_code == 404
+
+
 def test_folder_filter(conn, mailbox):
     client = _client(conn, mailbox)
     assert client.get("/api/threads?folder=quote").json() == []

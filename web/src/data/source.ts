@@ -16,6 +16,8 @@ import type {
 } from "./types";
 
 export interface DataSource {
+  /** 立即从邮箱同步，接口返回时本轮已结束。 */
+  sync(): Promise<void>;
   threads(): Promise<Thread[]>;
   thread(id: string): Promise<Thread | undefined>;
   suggestions(): Promise<LeadSuggestion[]>;
@@ -120,6 +122,7 @@ export async function fixtureSource(): Promise<DataSource> {
   // 列表和 API 一样不带信件与历史;详情才有。界面必须走 thread(id) 才看得到信
   const listEntry = (t: Thread): Thread => ({ ...t, messages: [], history: undefined });
   return {
+    sync: async () => {},
     threads: async () => threads.map(listEntry),
     thread: async (id) => threads.find((t) => t.id === id),
     suggestions: async () => suggestions,
@@ -226,6 +229,7 @@ const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH"): Requ
 
 export function apiSource(): DataSource {
   return {
+    sync: () => call("/api/sync", { method: "POST" }),
     threads: () => call<Thread[]>("/api/threads"),
     thread: (id) => call<Thread>(`/api/threads/${id}`),
     suggestions: () => call<LeadSuggestion[]>("/api/leads/suggestions"),

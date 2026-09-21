@@ -22,31 +22,36 @@ from mail2leads.store.db import connect
 from mail2leads.tasks.read import read_message, unread_incoming
 
 log = logging.getLogger("mail2leads")
+ingest_lock = threading.Lock()
 
 
 def _ingest_all(config: Config, mailbox_id: int) -> None:
-    conn = connect(config.db_path)
-    for folder, direction in ((config.imap_inbox, "in"), (config.imap_sent, "out")):
-        if not folder:
-            continue
-        source = ImapSource(
-            config.imap_host, config.imap_port, config.imap_user, config.imap_password, folder
-        )
+    # 定时任务和人工点击共用锁，避免同一个邮箱同时跑两次 IMAP 同步。
+    with ingest_lock:
+        conn = connect(config.db_path)
         try:
-            report = ingest_once(
-                conn, mailbox_id, source, folder, direction, reader=_reader(config)
-            )
-            log.info(
-                "%s:拉 %d 存 %d 跳过 %d 解析失败 %d",
-                folder,
-                report.fetched,
-                report.stored,
-                report.skipped,
-                report.unparsable,
-            )
+            for folder, direction in ((config.imap_inbox, "in"), (config.imap_sent, "out")):
+                if not folder:
+                    continue
+                source = ImapSource(
+                    config.imap_host, config.imap_port, config.imap_user, config.imap_password, folder
+                )
+                try:
+                    report = ingest_once(
+                        conn, mailbox_id, source, folder, direction, reader=_reader(config)
+                    )
+                    log.info(
+                        "%s:拉 %d 存 %d 跳过 %d 解析失败 %d",
+                        folder,
+                        report.fetched,
+                        report.stored,
+                        report.skipped,
+                        report.unparsable,
+                    )
+                finally:
+                    source.close()
         finally:
-            source.close()
-    conn.close()
+            conn.close()
 
 
 def _reader(config: Config):
@@ -158,6 +163,8 @@ def main(argv: list[str]) -> int:
         webhook_configured=bool(config.webhook_url),
         tasks=config.tasks,
         display_name=config.sender_name,
+        sync_mailbox=lambda: _ingest_all(config, mailbox_id),
+        require_oa_auth=config.require_oa_auth,
     )
     uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")
     return 0

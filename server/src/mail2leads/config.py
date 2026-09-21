@@ -30,6 +30,7 @@ class Config:
     db_path: Path
     poll_seconds: int
     web_dist: Path | None
+    require_oa_auth: bool
 
     @classmethod
     def from_env(cls) -> Config:
@@ -67,6 +68,7 @@ class Config:
             db_path=Path(os.environ.get("DB_PATH", "data/mail2leads.sqlite3")),
             poll_seconds=int(os.environ.get("POLL_SECONDS", "60")),
             web_dist=Path(dist) if dist else None,
+            require_oa_auth=os.environ.get("REQUIRE_OA_AUTH", "") == "1",
         )
 
 

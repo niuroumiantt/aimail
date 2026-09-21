@@ -1,4 +1,5 @@
-import { Inbox, Palette, Users } from "lucide-react";
+import { Inbox, Palette, RefreshCw, Users } from "lucide-react";
+import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import type { MailboxInfo } from "@/data/types";
 import { cn } from "@/lib/cn";
@@ -15,15 +16,23 @@ export function Sidebar({
   activeFolder,
   inInbox,
   mailbox,
+  onSync,
+  syncing = false,
 }: {
   counts: Record<FolderKey, number>;
   activeFolder: FolderKey;
   inInbox: boolean;
   /** 伺候的邮箱;没开线索任务就不给线索入口 */
   mailbox: MailboxInfo;
+  onSync?: () => Promise<string>;
+  syncing?: boolean;
 }) {
   const { pathname } = useLocation();
+  const [syncError, setSyncError] = useState("");
   const current = (on: boolean) => (on ? ("page" as const) : undefined);
+  const syncNow = async () => {
+    if (onSync) setSyncError(await onSync());
+  };
   return (
     <nav
       aria-label="主导航"
@@ -63,6 +72,19 @@ export function Sidebar({
           </Link>
         </li>
       </ul>
+
+      {onSync && <div>
+        <button
+          type="button"
+          onClick={() => void syncNow()}
+          disabled={syncing}
+          className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-surface-2 px-2.5 text-sm font-medium text-ink transition-colors hover:bg-surface-3 disabled:cursor-wait disabled:opacity-60"
+        >
+          <RefreshCw className={syncing ? "animate-spin" : ""} size={15} strokeWidth={2} />
+          {syncing ? "正在收信…" : "立即收信"}
+        </button>
+        {syncError && <p className="mt-1 px-1 text-2xs text-danger">{syncError}</p>}
+      </div>}
 
       <div className="grid gap-1">
         <h2 className="px-2.5 text-2xs font-medium uppercase tracking-wider text-ink-3">收件箱</h2>

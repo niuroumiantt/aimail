@@ -15,6 +15,7 @@ import type {
 
 type State = {
   loading: boolean;
+  syncing: boolean;
   error?: string;
   threads: Thread[];
   /** 打开过的线程详情(带信件与客户历史),按 id 存 */
@@ -28,6 +29,8 @@ type State = {
   mailbox: MailboxInfo;
   user: string;
   setUser: (name: string) => void;
+  /** 立即收一次信并刷新界面。返回错误文案或空串。 */
+  sync: () => Promise<string>;
   /** 人确认一条建议 → 变成线索。没有名字会被拒(宪法第五条)。返回错误文案或空串 */
   confirm: (s: LeadSuggestion) => Promise<string>;
   dismiss: (s: LeadSuggestion) => Promise<string>;
@@ -52,6 +55,7 @@ const Ctx = createContext<State | null>(null);
 export function DataProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<DataSource>();
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string>();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [details, setDetails] = useState<Record<string, Thread>>({});
@@ -103,6 +107,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setUserState(name.trim());
   }, []);
 
+  const sync = useCallback(async (): Promise<string> => {
+    if (!source) return "还没加载完";
+    setSyncing(true);
+    try {
+      await source.sync();
+      await refresh(source);
+      return "";
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    } finally {
+      setSyncing(false);
+    }
+  }, [source, refresh]);
+
   const openThread = useCallback(
     async (id: string) => {
       if (!source) return;
@@ -153,6 +171,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const value = useMemo<State>(
     () => ({
       loading,
+      syncing,
       error,
       threads,
       details,
@@ -164,6 +183,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       mailbox,
       user,
       setUser,
+      sync,
       confirm: (s) => act((src) => src.confirm(s.id, user)),
       dismiss: (s) => act((src) => src.dismiss(s.id, user)),
       updateLead: (id, patch) => act((src) => src.updateLead(id, patch, user)),
@@ -178,7 +198,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.attachmentText(id);
       },
     }),
-    [loading, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, user, setUser, act, source, send],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, user, setUser, sync, act, source, send],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
