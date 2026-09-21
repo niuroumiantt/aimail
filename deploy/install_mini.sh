@@ -76,8 +76,12 @@ cat > "$PLIST" <<PLIST
 </plist>
 PLIST
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST"
-launchctl kickstart -k "gui/$(id -u)/$LABEL"
+if launchctl bootstrap "gui/$(id -u)" "$PLIST"; then
+  launchctl kickstart -k "gui/$(id -u)/$LABEL"
+else
+  # 部分 macOS 桌面会话拒绝 bootstrap(gui/uid)，保留旧接口作为同一用户的兼容入口。
+  launchctl load -w "$PLIST"
+fi
 sleep 2
 if curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null; then
   echo "── 起来了:http://$(hostname -s):$PORT ,日志在 $LOGS/$NAME.log ──"
