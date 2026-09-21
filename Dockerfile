@@ -6,6 +6,7 @@ COPY web/package.json web/pnpm-lock.yaml ./
 RUN corepack enable && corepack prepare --activate
 RUN pnpm install --frozen-lockfile
 COPY web ./
+ENV VITE_DATA_SOURCE=api
 RUN pnpm build
 
 FROM python:3.12-slim
@@ -16,7 +17,7 @@ COPY server ./server
 RUN uv sync --frozen --no-dev
 COPY --from=web /app/web/dist ./web/dist
 USER app
-ENV WEB_DIST=/app/web/dist DB_PATH=/data/mail2leads.sqlite3
+ENV WEB_DIST=/app/web/dist DB_PATH=/data/mail2leads.sqlite3 LISTEN_HOST=0.0.0.0
 VOLUME /data
 EXPOSE 8900
 CMD ["uv", "run", "--no-sync", "python", "-m", "mail2leads", "serve"]

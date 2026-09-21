@@ -37,7 +37,7 @@ fi
 
 echo "── 装依赖、建前端 ──"
 uv sync -q
-(cd web && pnpm install --frozen-lockfile --silent && pnpm -s build)
+(cd web && pnpm install --frozen-lockfile --silent && VITE_DATA_SOURCE=api pnpm -s build)
 
 echo "── 冒烟:收一次信 ──"
 set -a; . "$CONF"; set +a

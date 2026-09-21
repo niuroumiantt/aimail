@@ -8,6 +8,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 export default defineConfig({
   plugins: [react(), tailwindcss(), viteSingleFile()],
   base: "./",
+  define: { "import.meta.env.VITE_DATA_SOURCE": JSON.stringify("fixture") },
   resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
   build: { outDir: "dist-preview", emptyOutDir: true },
 });

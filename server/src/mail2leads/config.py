@@ -24,6 +24,7 @@ class Config:
     api_tokens: dict[str, str]
     tasks: frozenset[str]
     port: int
+    listen_host: str
     webhook_url: str
     webhook_secret: str
     db_path: Path
@@ -60,6 +61,7 @@ class Config:
             api_tokens=parse_tokens(os.environ.get("API_TOKENS", "")),
             tasks=parse_tasks(os.environ.get("TASKS", "")),
             port=int(os.environ.get("PORT", "8900")),
+            listen_host=os.environ.get("LISTEN_HOST", "127.0.0.1").strip() or "127.0.0.1",
             webhook_url=webhook_url,
             webhook_secret=webhook_secret,
             db_path=Path(os.environ.get("DB_PATH", "data/mail2leads.sqlite3")),

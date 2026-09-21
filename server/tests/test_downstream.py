@@ -180,7 +180,7 @@ def test_delivery_is_signed_and_marked_delivered(conn, mailbox):
     lead_id = leads.confirm(conn, _suggestion(conn, mailbox), "Larry")
     t = soon()
     poster = FakePoster()
-    assert outbox.deliver_pending(conn, poster, "s3cret", t) == (1, 0)
+    assert outbox.deliver_pending(conn, mailbox, poster, "s3cret", t) == (1, 0)
     body, headers = poster.calls[0]
     assert outbox.verify("s3cret", body, headers["X-Mail2leads-Signature"])
     assert not outbox.verify("other", body, headers["X-Mail2leads-Signature"])
@@ -189,23 +189,37 @@ def test_delivery_is_signed_and_marked_delivered(conn, mailbox):
     assert headers["X-Mail2leads-Delivery"] == sent["delivery"]
     row = conn.execute("SELECT * FROM outbox").fetchone()
     assert row["delivered_at"] == t.isoformat() and row["attempts"] == 1
-    assert outbox.deliver_pending(conn, poster, "s3cret", t) == (0, 0)  # 不重复送
+    assert outbox.deliver_pending(conn, mailbox, poster, "s3cret", t) == (0, 0)  # 不重复送
+
+
+def test_delivery_never_crosses_mailbox_boundaries(conn, mailbox):
+    """共用一个 SQLite 文件时，每个实例也只能向自己的下游投递。"""
+    other_mailbox = repo.ensure_mailbox(conn, "support@example.test")
+    first = _suggestion(conn, mailbox, message_id="<sales@x>", company="Sales")
+    second = _suggestion(conn, other_mailbox, message_id="<support@x>", company="Support")
+    leads.confirm(conn, first, "Larry")
+    leads.confirm(conn, second, "Larry")
+    poster = FakePoster()
+    assert outbox.deliver_pending(conn, mailbox, poster, "s3cret", soon()) == (1, 0)
+    assert len(poster.calls) == 1
+    assert json.loads(poster.calls[0][0])["lead"]["company"] == "Sales"
+    assert outbox.status(conn, other_mailbox)["pending"] == 1
 
 
 def test_failed_delivery_backs_off_and_stays_visible(conn, mailbox):
     leads.confirm(conn, _suggestion(conn, mailbox), "Larry")
     t = soon()
     poster = FakePoster(status=503)
-    assert outbox.deliver_pending(conn, poster, "s", t) == (0, 1)
+    assert outbox.deliver_pending(conn, mailbox, poster, "s", t) == (0, 1)
     row = conn.execute("SELECT * FROM outbox").fetchone()
     assert row["delivered_at"] is None and row["attempts"] == 1
     assert row["next_at"] == (t + timedelta(seconds=60)).isoformat()
     assert row["last_error"].startswith("HTTP 503")
-    assert outbox.deliver_pending(conn, poster, "s", t + timedelta(seconds=30)) == (
+    assert outbox.deliver_pending(conn, mailbox, poster, "s", t + timedelta(seconds=30)) == (
         0,
         0,
     )  # 没到点
-    assert outbox.deliver_pending(conn, poster, "s", t + timedelta(seconds=61)) == (0, 1)
+    assert outbox.deliver_pending(conn, mailbox, poster, "s", t + timedelta(seconds=61)) == (0, 1)
     assert (
         conn.execute("SELECT next_at FROM outbox").fetchone()[0]
         == (t + timedelta(seconds=61 + 300)).isoformat()
@@ -224,7 +238,7 @@ def test_network_error_is_a_recorded_failure_not_a_crash(conn, mailbox):
         def post(self, body, headers):
             raise ConnectionError("no route")
 
-    assert outbox.deliver_pending(conn, Boom(), "s", t) == (0, 1)
+    assert outbox.deliver_pending(conn, mailbox, Boom(), "s", t) == (0, 1)
     assert "ConnectionError" in conn.execute("SELECT last_error FROM outbox").fetchone()[0]
 
 
@@ -255,9 +269,11 @@ def test_real_http_delivery_end_to_end(conn, mailbox):
         leads.confirm(conn, _suggestion(conn, mailbox), "Larry")
         t = soon()
         url = f"http://127.0.0.1:{server.server_port}/hook"
-        assert outbox.deliver_pending(conn, outbox.HttpPoster(url), "wrong", t) == (0, 1)
+        assert outbox.deliver_pending(conn, mailbox, outbox.HttpPoster(url), "wrong", t) == (0, 1)
         assert received[-1]["ok"] is False
-        assert outbox.deliver_pending(conn, outbox.HttpPoster(url), "s3cret", t + timedelta(61))
+        assert outbox.deliver_pending(
+            conn, mailbox, outbox.HttpPoster(url), "s3cret", t + timedelta(61)
+        )
         assert received[-1] == {"ok": True, "event": "lead.confirmed"}
     finally:
         server.shutdown()

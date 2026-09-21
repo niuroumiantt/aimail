@@ -72,7 +72,7 @@ def _deliver_once(config: Config, mailbox_id: int) -> tuple[int, int]:
     conn = connect(config.db_path)
     try:
         result = outbox.deliver_pending(
-            conn, outbox.HttpPoster(config.webhook_url), config.webhook_secret
+            conn, mailbox_id, outbox.HttpPoster(config.webhook_url), config.webhook_secret
         )
     finally:
         conn.close()
@@ -159,7 +159,7 @@ def main(argv: list[str]) -> int:
         tasks=config.tasks,
         display_name=config.sender_name,
     )
-    uvicorn.run(app, host="0.0.0.0", port=config.port, log_level="info")
+    uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")
     return 0
 
 

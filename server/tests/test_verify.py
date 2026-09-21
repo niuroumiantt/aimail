@@ -30,3 +30,10 @@ def test_clean_summary_passes():
 
 def test_empty_quote_is_ignored():
     assert unverified_numbers(["", "48"], "48 units") == ()
+
+
+def test_numeric_substrings_and_whitespace_do_not_pass_verification():
+    assert unverified_numbers(["32", "1000"], "We need 132 units; reference 10 00 only.") == (
+        "32",
+        "1000",
+    )

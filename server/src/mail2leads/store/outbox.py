@@ -85,13 +85,18 @@ def backoff(attempts: int) -> int:
 
 
 def deliver_pending(
-    conn: sqlite3.Connection, poster: Poster, secret: str, now: datetime | None = None
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    poster: Poster,
+    secret: str,
+    now: datetime | None = None,
 ) -> tuple[int, int]:
     """投递到期的事件。返回 (送到的, 失败的)。失败只记原因和下次时间,永不丢事件。"""
     now = now or datetime.now(UTC)
     rows = conn.execute(
-        "SELECT * FROM outbox WHERE delivered_at IS NULL AND next_at <= ? ORDER BY id LIMIT ?",
-        (_iso(now), BATCH),
+        "SELECT * FROM outbox WHERE mailbox_id = ? AND delivered_at IS NULL AND next_at <= ? "
+        "ORDER BY id LIMIT ?",
+        (mailbox_id, _iso(now), BATCH),
     ).fetchall()
     delivered = failed = 0
     for row in rows:

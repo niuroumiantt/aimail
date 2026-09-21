@@ -253,7 +253,10 @@ export function apiSource(): DataSource {
   };
 }
 
-/** VITE_DATA_SOURCE=api 时走服务端;其余(开发、在线预览)走样本。 */
+/** 开发和设计预览用样本；生产构建默认连本服务 API，只有显式 fixture 才保留样本。 */
 export function chooseSource(): Promise<DataSource> {
-  return import.meta.env.VITE_DATA_SOURCE === "api" ? Promise.resolve(apiSource()) : fixtureSource();
+  const source = import.meta.env.VITE_DATA_SOURCE;
+  return source === "fixture" || (!source && !import.meta.env.PROD)
+    ? fixtureSource()
+    : Promise.resolve(apiSource());
 }

@@ -130,6 +130,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [source, refresh],
   );
 
+  const send = useCallback(
+    async (threadId: string, request: SendRequest): Promise<string> => {
+      if (!source) return "还没加载完";
+      try {
+        await source.send(threadId, request, user);
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+      // A successful send must stay successful even when a later refresh is unavailable.
+      try {
+        await refresh(source);
+        await openThread(threadId);
+      } catch {
+        /* 下一次打开页面会重新拉取；不能诱导用户重复发送。 */
+      }
+      return "";
+    },
+    [source, user, refresh, openThread],
+  );
+
   const value = useMemo<State>(
     () => ({
       loading,
@@ -152,13 +172,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!source) throw new Error("还没加载完");
         return source.makeDraft(id, user);
       },
-      send: (id, request) => act((src) => src.send(id, request, user)),
+      send,
       attachmentText: async (id) => {
         if (!source) throw new Error("还没加载完");
         return source.attachmentText(id);
       },
     }),
-    [loading, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, user, setUser, act, source],
+    [loading, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, user, setUser, act, source, send],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

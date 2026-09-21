@@ -27,6 +27,10 @@ cd web && pnpm build && cd ..
 WEB_DIST=web/dist uv run python -m mail2leads serve   # http://localhost:8900
 ```
 
+`pnpm build` 的生产产物默认连接同一服务的 API；开发服务器默认显示虚构样本，
+需要接本地 API 时用 `VITE_DATA_SOURCE=api pnpm dev`。服务默认只监听 `127.0.0.1`，
+用 Tailscale Serve 或反向代理公开；容器环境已显式监听 `0.0.0.0`。
+
 收信的顺序是刻意的:原文先落库(一个字节不改,数据库触发器拒绝改删),再解析、切引用、归并线程。
 IMAP 连接显式校验证书——`imaplib` 默认不校验。
 

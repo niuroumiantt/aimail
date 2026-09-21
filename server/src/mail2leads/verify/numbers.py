@@ -9,10 +9,26 @@ import re
 
 
 def _normalize(text: str) -> str:
-    return re.sub(r"[\s,，]", "", text)
+    """Normalise only thousands separators.
+
+    Removing every whitespace previously turned unrelated text such as ``10 00`` into a number and
+    allowed ``32`` to match inside ``132``.  Whitespace is meaningful in prose; commas are not for
+    the quantities we verify here.
+    """
+    return re.sub(r"[,，]", "", text)
 
 
 def unverified_numbers(quoted: list[str], source: str) -> tuple[str, ...]:
     """返回原文里找不到的引用值。空元组 = 通过。"""
     haystack = _normalize(source)
-    return tuple(n for n in quoted if n and _normalize(n) not in haystack)
+    missing = []
+    for value in quoted:
+        needle = _normalize(value)
+        if not needle:
+            continue
+        # A numeric value must not be a substring of another numeric value (32 != 132).
+        boundary = r"(?<!\d)" if needle[0].isdigit() else ""
+        tail = r"(?!\d)" if needle[-1].isdigit() else ""
+        if not re.search(boundary + re.escape(needle) + tail, haystack, re.IGNORECASE):
+            missing.append(value)
+    return tuple(missing)
