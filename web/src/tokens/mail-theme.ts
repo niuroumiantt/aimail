@@ -10,7 +10,8 @@ export function mailTheme(dark: boolean): ThemeConfig {
       colorLinkHover: dark ? "#c9d8ff" : "#24459f",
       colorBgContainer: dark ? "#1a2230" : "#ffffff",
       fontSize: 13, controlHeight: 30, controlHeightSM: 26,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      // 和 theme.css 的 --font-sans 同一套字(ADR-0007);antd 把这串原样写进 font-family。
+      fontFamily: "var(--font-sans)",
       motion: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     },
     components: {

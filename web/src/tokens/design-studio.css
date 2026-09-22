@@ -6,7 +6,7 @@
   --ds-accent: #345b4c; --ds-accent-ink: #345b4c; --ds-on-accent: #fffefa;
   --ds-tint: #e8eee5; --ds-warning: #916525; --ds-warning-bg: #f8f1e2;
   --ds-selection: #ecf0e7; --ds-shadow: 0 4px 28px #303c2510;
-  --ds-radius: 10px; --ds-row-space: 18px; --ds-body-font: "IBM Plex Sans", "PingFang SC", sans-serif;
+  --ds-radius: 10px; --ds-row-space: 18px; --ds-body-font: var(--font-sans);
   color: var(--ds-ink); font-family: var(--ds-body-font); font-size: 13px; line-height: 1.5;
   background: var(--ds-paper); color-scheme: light; min-width: 0;
 }
@@ -16,7 +16,7 @@
   --ds-strong-line:#c3cedd; --ds-accent:#3059ae; --ds-accent-ink:#3059ae;
   --ds-on-accent:#ffffff; --ds-tint:#e9effb; --ds-selection:#eaf0fc;
   --ds-warning:#8c6424; --ds-warning-bg:#faf4e7; --ds-radius:5px;
-  --ds-shadow:0 3px 18px #172f5810; --ds-body-font:"IBM Plex Sans", "PingFang SC", sans-serif;
+  --ds-shadow:0 3px 18px #172f5810; --ds-body-font:var(--font-sans);
 }
 .ds[data-skin="mineral"] {
   --ds-shell:#edf2ef; --ds-sidebar:#e6eeea; --ds-list:#f4f8f5; --ds-paper:#fcfefb;

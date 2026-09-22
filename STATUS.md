@@ -23,6 +23,7 @@
 | web 工具链:构建、测试、lint 可跑 | ✅ | shell renders the product name |
 | 读数卡:四种状态,署名可见,可疑摘要压在警告下并调暗 | ✅ | shows who produced the reading, puts the warning above a summary with unverified numbers and dims it, renders the failure state instead of an empty summary, labels a non-inquiry as such, says plainly when there is no reading yet |
 | 主题:亮 / 暗 / 跟随系统,显式选择盖过系统偏好 | ✅ | theme toggle stamps data-theme on the root and clears it for system |
+| 字体:全站统一的自托管 Inter + Noto Sans SC,包与清单一致,主题与包同一字体栈,不从 Google Fonts 取字 | ✅ | font package matches its manifest byte for byte, theme and font package declare the same stack and nothing loads from Google Fonts |
 | 头像:同一个人永远同一色,中日韩名取首字 | ✅ | gives the same person the same tint every time, uses the first character for CJK names |
 | 空状态:淡铺骨架 + 一句话 + 动作 | ✅ | empty state renders its action |
 | 收信:原文落库后不可改不可删(数据库触发器) | ✅ | test_message_update_is_rejected, test_message_delete_is_rejected, test_attachment_is_immutable, test_raw_bytes_are_kept_verbatim |

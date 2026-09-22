@@ -1,0 +1,88 @@
+{
+  "version": "2026.09.22.1",
+  "inter": "Inter 4.1",
+  "noto_sans_sc": "Noto Sans SC 2.004",
+  "first_slice_chars": 1500,
+  "files": {
+    "LICENSE-Inter.txt": {
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+      "bytes": 4380
+    },
+    "LICENSE-NotoSansSC.txt": {
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+      "bytes": 4301
+    },
+    "fonts.css": {
+      "sha256": "66b1fa12a7ceb6532eddc218589e5d24797a113e88301b4f44b609d6c3c80600",
+      "bytes": 81679
+    },
+    "inter-variable-italic.woff2": {
+      "sha256": "e564f652916db6c139570fefb9524a77c4d48f30c92928de9db19b6b5c7a262a",
+      "bytes": 387976
+    },
+    "inter-variable.woff2": {
+      "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+      "bytes": 352240
+    },
+    "noto-sans-sc-1.woff2": {
+      "sha256": "5ef843022a47e73a0cfcdb3fcf8f9e8ae399effac8814f908ccd4153dbd7243d",
+      "bytes": 428584,
+      "chars": 1795,
+      "note": "仓库文本最常用 1500 字 + 中文标点与全角字符"
+    },
+    "noto-sans-sc-10.woff2": {
+      "sha256": "03b331ae4d7d6be147e3e5cc00505ca12c894b46d6c0d160e68da526dddfd036",
+      "bytes": 931240,
+      "chars": 2792,
+      "note": "生僻字, 只有页面真用到才下载"
+    },
+    "noto-sans-sc-2.woff2": {
+      "sha256": "39105a102f58149297ea281679c809a759b25626b24eabba2b37870b9269baed",
+      "bytes": 657760,
+      "chars": 2270,
+      "note": "GB2312 一级字里其余的"
+    },
+    "noto-sans-sc-3.woff2": {
+      "sha256": "2e511c97d7a2017930378ea373e9ff51653bbbeffb27f1dbc77482eb7b1ec27f",
+      "bytes": 912172,
+      "chars": 2996,
+      "note": "GB2312 二级字"
+    },
+    "noto-sans-sc-4.woff2": {
+      "sha256": "40351714087b47739a585645a950cee6fdfb3d4a9765ebb92e794efacdbeb758",
+      "bytes": 916328,
+      "chars": 3000,
+      "note": "生僻字, 只有页面真用到才下载"
+    },
+    "noto-sans-sc-5.woff2": {
+      "sha256": "259c5a77d2ef0de235606c89536e42f6fb52820843bdec069b82c5ee69523a9f",
+      "bytes": 969296,
+      "chars": 3000,
+      "note": "生僻字, 只有页面真用到才下载"
+    },
+    "noto-sans-sc-6.woff2": {
+      "sha256": "ac9f6c19a2a058f42f217103636729f242e6f63c9dc80f39d6bc72192c1464ea",
+      "bytes": 896092,
+      "chars": 3000,
+      "note": "生僻字, 只有页面真用到才下载"
+    },
+    "noto-sans-sc-7.woff2": {
+      "sha256": "1048dd8bf9cfb198d9b7d2ae2936b6e0c157f56d6ed12865aeeae204fd79d643",
+      "bytes": 895928,
+      "chars": 3000,
+      "note": "生僻字, 只有页面真用到才下载"
+    },
+    "noto-sans-sc-8.woff2": {
+      "sha256": "688f5ce38adc6550dac3916a9f60a5cf20a123a2e92ff2606f4d0a9289804ce6",
+      "bytes": 974760,
+      "chars": 3000,
+      "note": "生僻字, 只有页面真用到才下载"
+    },
+    "noto-sans-sc-9.woff2": {
+      "sha256": "dba077d3439bf4f444b54527880019a2c07e2173490746c065bf93af1cd55c66",
+      "bytes": 905912,
+      "chars": 3000,
+      "note": "生僻字, 只有页面真用到才下载"
+    }
+  }
+}
