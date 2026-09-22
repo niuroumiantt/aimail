@@ -10,5 +10,6 @@ export default defineConfig({
   base: "./",
   define: { "import.meta.env.VITE_DATA_SOURCE": JSON.stringify("fixture") },
   resolve: { alias: { "@": new URL("./src", import.meta.url).pathname } },
-  build: { outDir: "dist-preview", emptyOutDir: true },
+  // 字体包有 9 MB,内联进单文件预览没有意义:预览看版式,字体落到系统回退。
+  build: { outDir: "dist-preview", emptyOutDir: true, assetsInlineLimit: (file) => !file.endsWith(".woff2") },
 });

@@ -185,7 +185,7 @@ export function Kit() {
         </div>
       </Section>
 
-      <Section title="字" note="IBM Plex Sans 正文,Plex Mono 给型号与数字;中文落到系统苹方。">
+      <Section title="字" note="拉丁与数字 Inter,汉字 Noto Sans SC,自托管、按字频切片(ADR-0007);型号与数字用等宽栈加 tabular-nums。">
         <Card className="grid gap-2 p-4">
           <p className="text-2xl font-semibold tracking-tight text-ink">询盘工作台 Inquiry desk</p>
           <p className="text-base text-ink">Aurora Compute 要 48 台 2U 服务器,CIF 赫尔辛基。</p>

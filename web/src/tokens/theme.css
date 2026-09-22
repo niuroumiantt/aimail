@@ -66,12 +66,13 @@
   --shadow-md: 0 4px 12px rgba(26, 33, 30, 0.08), 0 1px 2px rgba(26, 33, 30, 0.05);
   --shadow-lg: 0 12px 32px rgba(26, 33, 30, 0.14), 0 2px 6px rgba(26, 33, 30, 0.06);
 
-  /* 字体:IBM Plex 有工业感和好数字,和"服务器硬件贸易"对得上;中文落到系统苹方 */
+  /* 字体:全站统一的自托管字体包(src/fonts/,ADR-0007):拉丁与数字 Inter,汉字 Noto Sans SC。
+     这两行必须和 src/fonts/package/fonts.css 里的 --font-sans / --font-mono 一字不差,
+     Tailwind 的 @theme 会在 :root 再声明一次,两处不一致就看加载顺序,那是隐患。 */
   --font-sans:
-    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB",
-    "Noto Sans SC", "Microsoft YaHei", sans-serif;
-  --font-mono:
-    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, "PingFang SC", "Noto Sans SC", monospace;
+    "Inter", "Noto Sans SC", system-ui, -apple-system, "PingFang SC", "HarmonyOS Sans SC",
+    "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans SC", monospace;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;

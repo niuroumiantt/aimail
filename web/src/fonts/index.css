@@ -1,0 +1,6 @@
+/* 来源: 站长自己的 infra 仓库 design/fonts 字体包 (Inter 4.1 + Noto Sans SC 2.004, 都是 SIL OFL 1.1)
+   package/ 目录由 infra 的 scripts/sync_fonts.py 原样同步, 不手改; manifest.json 记每个文件的 sha256。
+   为什么自托管: mail.glocalstorage.cn 在大陆, Google Fonts 到不了, 之前的 IBM Plex 实际上从没加载过;
+   为什么这两款: 站长 2026-09-22 决定所有网页统一字体, 同一段中英混排在 Mac、Windows、Linux 和手机上长得一样。
+   宪法第八条: 借, 带署名, 变成我们的 —— 换字体只改 infra 那份再同步, 组件不动。 */
+@import "./package/fonts.css";

@@ -1,6 +1,6 @@
 # 0004 设计令牌、字体、图标与组件展示
 
-日期:2026-09-19 · 状态:已采纳 · 依据:docs/design/landscape.md
+日期:2026-09-19 · 状态:已采纳;其中「字体」一节被 [0007](0007-shared-self-hosted-fonts.md) 取代 · 依据:docs/design/landscape.md
 
 ## 决定
 

@@ -25,8 +25,8 @@
 
 ## 字
 
-- 正文 IBM Plex Sans 400 / 500 / 600;中文落到 PingFang SC → Noto Sans SC
-- 型号、数量、价格、时间 IBM Plex Mono,`tabular-nums`
+- 正文 Inter(拉丁与数字)+ Noto Sans SC(汉字),自托管、按字频切片,来自 infra 字体包(`web/src/fonts/`,ADR-0007 取代 0004 的字体一节)
+- 型号、数量、价格、时间用等宽栈 `--font-mono`,`tabular-nums`
 - 字阶:2xs 11 · xs 12 · sm 14(正文)· base 16 · 2xl 24;标题 `text-balance`
 
 ## 圆角、阴影
