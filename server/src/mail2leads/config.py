@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 
@@ -38,6 +38,11 @@ class Config:
     mailbox_owner_email: str = ""
     mailbox_owner_access: tuple[str, ...] = ()
     mailbox_tasks: dict[str, frozenset[str]] | None = None
+    shared_mailbox: str = ""
+    shared_imap_user: str = ""
+    shared_imap_password: str = ""
+    shared_imap_inbox: str = "INBOX"
+    shared_imap_sent: str = ""
 
     @classmethod
     def from_env(cls) -> Config:
@@ -87,6 +92,29 @@ class Config:
                 if x.strip()
             ),
             mailbox_tasks=parse_mailbox_tasks(os.environ.get("MAILBOX_TASKS", "")),
+            shared_mailbox=os.environ.get("SHARED_MAILBOX", "").strip().lower(),
+            shared_imap_user=os.environ.get("SHARED_IMAP_USER", "").strip(),
+            shared_imap_password=os.environ.get("SHARED_IMAP_PASSWORD", "").strip(),
+            shared_imap_inbox=os.environ.get("SHARED_IMAP_INBOX", "INBOX").strip(),
+            shared_imap_sent=os.environ.get("SHARED_IMAP_SENT", "").strip(),
+        )
+
+    def shared_config(self) -> Config | None:
+        if not self.shared_mailbox:
+            return None
+        if not self.shared_imap_user or not self.shared_imap_password:
+            raise RuntimeError("配置 SHARED_MAILBOX 后必须同时配置共享邮箱 IMAP 用户名和授权码")
+        return replace(
+            self,
+            mailbox=self.shared_mailbox,
+            imap_user=self.shared_imap_user,
+            imap_password=self.shared_imap_password,
+            imap_inbox=self.shared_imap_inbox,
+            imap_sent=self.shared_imap_sent,
+            tasks=(self.mailbox_tasks or {}).get(self.shared_mailbox, frozenset({"read"})),
+            shared_mailbox="",
+            shared_imap_user="",
+            shared_imap_password="",
         )
 
 

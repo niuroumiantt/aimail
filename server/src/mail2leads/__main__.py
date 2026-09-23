@@ -126,6 +126,16 @@ def _poll_forever(config: Config, mailbox_id: int) -> None:
         time.sleep(config.poll_seconds)
 
 
+def _poll_ingest_only(config: Config, mailbox_id: int) -> None:
+    """共享收件箱只收信；开发信调度与 SMTP 身份始终属于主邮箱。"""
+    while True:
+        try:
+            _ingest_all(config, mailbox_id)
+        except Exception:  # noqa: BLE001
+            log.exception("共享邮箱收信失败,%d 秒后重试", config.poll_seconds)
+        time.sleep(config.poll_seconds)
+
+
 def main(argv: list[str]) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     command = argv[1] if len(argv) > 1 else "serve"
@@ -133,6 +143,10 @@ def main(argv: list[str]) -> int:
     config.db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = connect(config.db_path)
     mailbox_id = repo.ensure_mailbox(conn, config.mailbox)
+    shared_config = config.shared_config()
+    shared_mailbox_id = (
+        repo.ensure_mailbox(conn, shared_config.mailbox, "Sales") if shared_config else None
+    )
     outreach.init(conn)
     if config.outreach_enabled and (
         not outreach.EMAIL.fullmatch(config.mailbox) or not config.imap_inbox
@@ -148,6 +162,8 @@ def main(argv: list[str]) -> int:
     if command == "ingest":
         conn.close()
         _ingest_all(config, mailbox_id)
+        if shared_config and shared_mailbox_id is not None:
+            _ingest_all(shared_config, shared_mailbox_id)
         return 0
     if command == "read":
         conn.close()
@@ -178,6 +194,13 @@ def main(argv: list[str]) -> int:
     threading.Thread(
         target=_poll_forever, args=(config, mailbox_id), daemon=True, name="ingest"
     ).start()
+    if shared_config and shared_mailbox_id is not None:
+        threading.Thread(
+            target=_poll_ingest_only,
+            args=(shared_config, shared_mailbox_id),
+            daemon=True,
+            name="shared-ingest",
+        ).start()
     if config.webhook_url:
         threading.Thread(
             target=_deliver_forever, args=(config, mailbox_id), daemon=True, name="deliver"
@@ -206,6 +229,11 @@ def main(argv: list[str]) -> int:
         if config.mailbox_owner_email and config.mailbox_owner_access
         else None,
         mailbox_tasks=config.mailbox_tasks,
+        sync_mailboxes={
+            shared_config.mailbox: lambda: _ingest_all(shared_config, shared_mailbox_id)
+        }
+        if shared_config and shared_mailbox_id is not None
+        else None,
     )
     uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")
     return 0
