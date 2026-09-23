@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { fullTime } from "@/lib/text";
 import { Pill, type Tone } from "./pill";
 import { Tip } from "./tip";
+import { Button } from "./button";
 
 /** 署名:谁算的、哪个版本、什么时候。没有署名的读数不渲染——宪法第三条。 */
 function Signature({ a }: { a: Attribution }) {
@@ -78,11 +79,12 @@ function Alarm({ numbers }: { numbers: string[] }) {
 const ICON = { size: 14, strokeWidth: 2 } as const;
 
 /** AI 读数卡。四种状态:没有 / 失败 / 不是询盘 / 正常(含数字核对不过的"可疑"态)。 */
-export function ReadingCard({ reading }: { reading?: Reading }) {
+export function ReadingCard({ reading, onAnalyze, analyzing = false, error = "" }: { reading?: Reading; onAnalyze?: () => Promise<void>; analyzing?: boolean; error?: string }) {
   if (!reading) {
     return (
-      <Frame icon={<Sparkles {...ICON} />} tone="neutral" title="还没有读数" testId="reading-none">
+      <Frame icon={<Sparkles {...ICON} />} tone="neutral" title="还没有读数" aside={onAnalyze && <Button size="sm" variant="outline" disabled={analyzing} onClick={() => void onAnalyze()}>{analyzing ? "正在阅读…" : "分析这封信"}</Button>} testId="reading-none">
         <p className="text-sm text-ink-2">模型还没处理这封信。</p>
+        {error && <p role="alert" className="text-xs text-danger-text">{error}</p>}
       </Frame>
     );
   }

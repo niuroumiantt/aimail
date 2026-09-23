@@ -7,17 +7,21 @@ export function AppShell({
   list,
   detail,
   main,
+  assistant,
+  assistantOpen = false,
   showDetail = false,
 }: {
   sidebar: ReactNode;
   list?: ReactNode;
   detail?: ReactNode;
   main?: ReactNode;
+  assistant?: ReactNode;
+  assistantOpen?: boolean;
   showDetail?: boolean;
 }) {
   return (
     <div className="flex h-full min-h-0 w-full bg-canvas">
-      <div className="hidden md:flex">{sidebar}</div>
+      <div className={cn("hidden md:flex", assistantOpen && "md:hidden 2xl:flex")}>{sidebar}</div>
       {main ? (
         <main className="min-w-0 flex-1 overflow-y-auto">{main}</main>
       ) : (
@@ -34,6 +38,7 @@ export function AppShell({
           <main className={cn("min-w-0 flex-1 flex-col md:flex", showDetail ? "flex" : "hidden")}>
             {detail}
           </main>
+          {assistant}
         </>
       )}
     </div>

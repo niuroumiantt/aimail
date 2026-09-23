@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AppShell } from "@/components/app-shell";
+import { AiReadingPanel } from "@/components/ai-reading-panel";
 import { FOLDER_ORDER, type FolderKey } from "@/components/folders";
 import { InboxEmpty } from "@/components/inbox-empty";
 import type { ReplyHandlers } from "@/components/reply-composer";
@@ -24,10 +25,15 @@ function countBy(threads: Thread[]): Record<FolderKey, number> {
 export default function InboxPage() {
   const { id } = useParams();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing } =
+  const { threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, assistant, askAssistant, clearAssistant } =
     useData();
+  const loadAssistant = useCallback(() => assistant(), [assistant]);
+  const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
+  const clearAssistantTurns = useCallback(() => clearAssistant(), [clearAssistant]);
   // 列表只有摘要行;信件与客户历史在详情里。列表刷新(发信、确认之后)时详情也跟着刷
   useEffect(() => {
     if (id) void openThread(id);
@@ -53,11 +59,16 @@ export default function InboxPage() {
             backSearch={search}
             reply={reply}
             onAttachment={attachmentText}
+            assistantOpen={assistantOpen}
+            onAssistant={() => setAssistantOpen((value) => !value)}
+            onAnalyze={() => analyzeThread(selected.id)}
           />
         ) : (
           <InboxEmpty count={visible.length} />
         )
       }
+      assistant={<AiReadingPanel open={assistantOpen} mailbox={mailbox.address} load={loadAssistant} ask={submitAssistant} clear={clearAssistantTurns} onClose={() => setAssistantOpen(false)} onCitation={(threadId) => { navigate(`/t/${threadId}`); void openThread(threadId); }} />}
+      assistantOpen={assistantOpen}
       showDetail={Boolean(selected)}
     />
   );

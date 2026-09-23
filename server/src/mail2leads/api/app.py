@@ -11,18 +11,23 @@ import json
 import secrets
 import sqlite3
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from mail2leads import backends
 from mail2leads import send as send_mod
 from mail2leads.config import DEFAULT_TASKS
 from mail2leads.ingest import attachments
-from mail2leads.store import history, leads, outbox, repo
+from mail2leads.store import assistant, history, leads, outbox, repo
+from mail2leads.tasks import ask_mailbox
 from mail2leads.tasks import draft as draft_mod
+from mail2leads.tasks.read import read_message
 
 
 def who(request: Request, require_oa_auth: bool = False) -> str:
@@ -128,6 +133,10 @@ class SendBody(BaseModel):
     subject: str
     body: str
     draft_id: str | None = None
+
+
+class AssistantQuestion(BaseModel):
+    question: str
 
 
 def _draft_out(row: sqlite3.Row | None) -> dict | None:
@@ -351,6 +360,127 @@ def create_app(
         if row is None:
             raise HTTPException(404, "没有这条线程")
         return _thread_out(conn, row, with_messages=True)
+
+    @app.post("/api/threads/{thread_id}/analyze")
+    def analyze_thread(thread_id: int, request: Request) -> dict:
+        selected = _mailbox_row(request)
+        row = repo.get_thread(conn, thread_id, int(selected["id"]))
+        if row is None:
+            raise HTTPException(404, "没有这条线程")
+        ready, reason = backends.ready()
+        if not ready:
+            raise HTTPException(503, f"AI 尚未配置：{reason}")
+        messages = repo.thread_messages(conn, thread_id)
+        source = next((item for item in reversed(messages) if item["direction"] == "in"), None)
+        if source is None:
+            raise HTTPException(422, "这个话题没有可分析的来信")
+        read_message(conn, int(source["id"]), tasks=_mailbox_tasks(selected["address"]))
+        refreshed = repo.get_thread(conn, thread_id, int(selected["id"]))
+        assert refreshed is not None
+        return _thread_out(conn, refreshed, with_messages=True)
+
+    def _assistant_status(selected: sqlite3.Row) -> dict:
+        ready, reason = backends.ready()
+        return {
+            "configured": ready,
+            "reason": reason,
+            "model": backends.describe() if ready else "",
+            "mailbox": selected["address"],
+            "turns": assistant.conversation(conn, int(selected["id"])),
+        }
+
+    @app.get("/api/assistant")
+    def assistant_history(request: Request) -> dict:
+        return _assistant_status(_mailbox_row(request))
+
+    @app.post("/api/assistant/clear")
+    def assistant_clear(request: Request) -> dict:
+        selected = _mailbox_row(request)
+        actor = _person(request)
+        assistant.append(conn, int(selected["id"]), "clear", "", actor, {"retained": True})
+        return _assistant_status(selected)
+
+    @app.post("/api/assistant")
+    def assistant_ask(body: AssistantQuestion, request: Request) -> dict:
+        selected = _mailbox_row(request)
+        actor = _person(request)
+        question = body.question.strip()
+        if not question:
+            raise HTTPException(422, "请输入问题")
+        if len(question) > 2000:
+            raise HTTPException(422, "问题不能超过 2000 字")
+        ready, reason = backends.ready()
+        if not ready:
+            raise HTTPException(503, f"AI 尚未配置：{reason}")
+        mailbox_id_for_assistant = int(selected["id"])
+        previous = assistant.conversation(conn, mailbox_id_for_assistant)[-2:]
+        history_payload = [
+            {"question": item["question"], "findings": item.get("findings", [])}
+            for item in previous
+            if item["status"] == "done"
+        ]
+        rows = conn.execute(
+            "SELECT id,thread_id,subject,from_email,sent_at,body_new FROM message "
+            "WHERE mailbox_id=? ORDER BY sent_at DESC,id DESC",
+            (mailbox_id_for_assistant,),
+        ).fetchall()
+        included = rows[:60]
+        budget = min(3000, 48000 // max(len(included), 1))
+        sources = [
+            {
+                "id": row["id"],
+                "thread_id": row["thread_id"],
+                "subject": row["subject"],
+                "sent_at": row["sent_at"],
+                "text": (row["subject"] + "\n" + row["from_email"] + "\n" + row["body_new"])[
+                    :budget
+                ],
+            }
+            for row in included
+        ]
+        truncated = sum(
+            len(row["subject"] + row["from_email"] + row["body_new"]) + 2 > budget
+            for row in included
+        )
+        turn_id = str(uuid4())
+        assistant.append(
+            conn,
+            mailbox_id_for_assistant,
+            "question",
+            turn_id,
+            actor,
+            {"question": question, "actor": actor},
+        )
+        try:
+            result = {
+                "status": "done",
+                "findings": ask_mailbox.ask(question, sources, history_payload),
+                "model": backends.describe(),
+                "task_version": ask_mailbox.TASK_VERSION,
+                "produced_at": datetime.now(UTC).isoformat(),
+                "scope": {
+                    "total": len(rows),
+                    "included": len(sources),
+                    "truncated": truncated,
+                    "attachments": False,
+                },
+            }
+            assistant.append(conn, mailbox_id_for_assistant, "answer", turn_id, actor, result)
+        except Exception as exc:
+            assistant.append(
+                conn,
+                mailbox_id_for_assistant,
+                "failure",
+                turn_id,
+                actor,
+                {
+                    "status": "failed",
+                    "error": "分析失败或引用未通过核对，请重试。",
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise HTTPException(502, "分析失败或引用未通过核对，请重试。") from exc
+        return _assistant_status(selected)
 
     @app.get("/api/attachments/{attachment_id}/text")
     def attachment_text(attachment_id: int, request: Request) -> dict:

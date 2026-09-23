@@ -4,6 +4,7 @@
 import { replySubject } from "@/lib/text";
 import type {
   AttachmentText,
+  AssistantState,
   Lead,
   MailboxInfo,
   MailboxAccess,
@@ -41,6 +42,10 @@ export interface DataSource {
   mailbox(): Promise<MailboxInfo>;
   mailboxes(): Promise<MailboxAccess>;
   selectMailbox(address: string): void;
+  analyzeThread(threadId: string): Promise<Thread>;
+  assistant(): Promise<AssistantState>;
+  askAssistant(question: string, user: string): Promise<AssistantState>;
+  clearAssistant(user: string): Promise<AssistantState>;
 }
 
 /** 样本附件的文字。真系统里是 pypdf / openpyxl 读出来落库的。 */
@@ -210,6 +215,10 @@ export async function fixtureSource(): Promise<DataSource> {
       address: "sales@glocalstorage.example", display_name: "Sales", tasks: ["read", "leads", "draft"],
     }] }),
     selectMailbox: () => {},
+    analyzeThread: async (id) => threads.find((t) => t.id === id)!,
+    assistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
+    askAssistant: async () => { throw new Error("设计样本不调用真实模型"); },
+    clearAssistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
   };
 }
 
@@ -269,6 +278,10 @@ export function apiSource(): DataSource {
     mailbox: () => api<MailboxInfo>("/api/mailbox"),
     mailboxes: () => call<MailboxAccess>("/api/mailboxes"),
     selectMailbox: (address) => { selected = address; localStorage.setItem("mailbox-address", address); },
+    analyzeThread: (id) => api<Thread>(`/api/threads/${id}/analyze`, { method: "POST" }),
+    assistant: () => api<AssistantState>("/api/assistant"),
+    askAssistant: (question, user) => api<AssistantState>("/api/assistant", asPerson(user, { question }, "POST")),
+    clearAssistant: (user) => api<AssistantState>("/api/assistant/clear", asPerson(user)),
   };
 }
 

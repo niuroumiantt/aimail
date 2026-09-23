@@ -155,6 +155,19 @@ CREATE TABLE IF NOT EXISTS reply_draft (
 );
 CREATE INDEX IF NOT EXISTS draft_by_thread ON reply_draft (thread_id, produced_at DESC);
 
+-- 邮箱 AI 助手审计。问题、回答、失败与清屏都只追加；按邮箱隔离。
+CREATE TABLE IF NOT EXISTS mailbox_assistant_event (
+  id INTEGER PRIMARY KEY,
+  mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+  at TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('question', 'answer', 'failure', 'clear')),
+  turn_id TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL,
+  payload TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mailbox_assistant_recent
+  ON mailbox_assistant_event (mailbox_id, id);
+
 -- 人发出去的信(宪法第二条):sent_by 非空;正文同时以 direction='out' 落进 message 表,线程里能看到。
 CREATE TABLE IF NOT EXISTS outbound (
   id INTEGER PRIMARY KEY,
@@ -183,4 +196,14 @@ END;
 CREATE TRIGGER IF NOT EXISTS attachment_no_delete BEFORE DELETE ON attachment
 BEGIN
   SELECT RAISE(ABORT, '原文不可变:attachment 不允许 DELETE');
+END;
+CREATE TRIGGER IF NOT EXISTS mailbox_assistant_no_update
+BEFORE UPDATE ON mailbox_assistant_event
+BEGIN
+  SELECT RAISE(ABORT, '审计不可变:mailbox_assistant_event 不允许 UPDATE');
+END;
+CREATE TRIGGER IF NOT EXISTS mailbox_assistant_no_delete
+BEFORE DELETE ON mailbox_assistant_event
+BEGIN
+  SELECT RAISE(ABORT, '审计不可变:mailbox_assistant_event 不允许 DELETE');
 END;

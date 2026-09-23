@@ -73,6 +73,35 @@ export type MailboxAccess = {
   items: MailboxInfo[];
 };
 
+export type AssistantFinding = {
+  text: string;
+  quote: string;
+  source_id: number;
+  thread_id: number;
+  subject: string;
+  unverified: string[];
+};
+
+export type AssistantTurn = {
+  id: string;
+  question: string;
+  status: "running" | "done" | "failed";
+  error?: string;
+  findings?: AssistantFinding[];
+  model?: string;
+  task_version?: string;
+  produced_at?: string;
+  scope?: { total: number; included: number; truncated: number; attachments?: boolean };
+};
+
+export type AssistantState = {
+  configured: boolean;
+  reason: string;
+  model: string;
+  mailbox: string;
+  turns: AssistantTurn[];
+};
+
 export type Message = {
   id: string;
   direction: "in" | "out";
