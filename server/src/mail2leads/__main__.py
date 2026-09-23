@@ -203,7 +203,8 @@ def main(argv: list[str]) -> int:
         outreach_enabled=config.outreach_enabled,
         outreach_approval_proxy_key=config.outreach_approval_proxy_key,
         mailbox_access={config.mailbox_owner_email: config.mailbox_owner_access}
-        if config.mailbox_owner_email and config.mailbox_owner_access else None,
+        if config.mailbox_owner_email and config.mailbox_owner_access
+        else None,
         mailbox_tasks=config.mailbox_tasks,
     )
     uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")

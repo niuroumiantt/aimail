@@ -82,7 +82,8 @@ class Config:
             outreach_approval_proxy_key=os.environ.get("OUTREACH_APPROVAL_PROXY_KEY", ""),
             mailbox_owner_email=os.environ.get("MAILBOX_OWNER_EMAIL", "").strip().lower(),
             mailbox_owner_access=tuple(
-                x.strip().lower() for x in os.environ.get("MAILBOX_OWNER_ACCESS", "").split(",")
+                x.strip().lower()
+                for x in os.environ.get("MAILBOX_OWNER_ACCESS", "").split(",")
                 if x.strip()
             ),
             mailbox_tasks=parse_mailbox_tasks(os.environ.get("MAILBOX_TASKS", "")),

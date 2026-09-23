@@ -86,9 +86,10 @@ def test_oa_auth_mode_accepts_only_the_portal_identity(conn, mailbox):
         == 401
     )
     assert (
-        client.post("/api/leads/suggestions/1/dismiss", headers={
-            "X-OA-User": "Alice", "X-OA-Email": "sales@example.test"
-        }).status_code
+        client.post(
+            "/api/leads/suggestions/1/dismiss",
+            headers={"X-OA-User": "Alice", "X-OA-Email": "sales@example.test"},
+        ).status_code
         == 404
     )
 
@@ -98,18 +99,27 @@ def test_owner_can_switch_mailboxes_but_other_users_cannot(conn, mailbox):
 
     def _seed(mid, subject):
         return store_raw(
-            conn, mid, make_raw(message_id=f"<{subject}@x>", subject=subject, body=subject),
-            "in", NOW,
+            conn,
+            mid,
+            make_raw(message_id=f"<{subject}@x>", subject=subject, body=subject),
+            "in",
+            NOW,
         )
 
     _seed(mailbox, "Sales RFQ")
     _seed(other, "Private note")
-    client = TestClient(create_app(
-        conn, other, require_oa_auth=True,
-        mailbox_access={"larry@example.test": ("sales@example.test", "larry@example.test")},
-        mailbox_tasks={"sales@example.test": frozenset({"read", "leads"}),
-                       "larry@example.test": frozenset({"read"})},
-    ))
+    client = TestClient(
+        create_app(
+            conn,
+            other,
+            require_oa_auth=True,
+            mailbox_access={"larry@example.test": ("sales@example.test", "larry@example.test")},
+            mailbox_tasks={
+                "sales@example.test": frozenset({"read", "leads"}),
+                "larry@example.test": frozenset({"read"}),
+            },
+        )
+    )
     owner = {"X-OA-Email": "larry@example.test", "X-OA-User": "Larry"}
     boxes = client.get("/api/mailboxes", headers=owner).json()
     assert [x["address"] for x in boxes["items"]] == ["sales@example.test", "larry@example.test"]

@@ -302,8 +302,11 @@ def create_app(
         return {
             "default": current["address"],
             "items": [
-                {"address": row["address"], "display_name": row["display_name"],
-                 "tasks": sorted(_mailbox_tasks(row["address"]))}
+                {
+                    "address": row["address"],
+                    "display_name": row["display_name"],
+                    "tasks": sorted(_mailbox_tasks(row["address"])),
+                }
                 for row in rows
             ],
         }
@@ -408,8 +411,11 @@ def create_app(
     def api_leads_csv(request: Request) -> Response:
         selected = _mailbox_row(request)
         items = [leads.lead_v1(conn, r) for r in leads.list_leads(conn, int(selected["id"]))]
-        return Response(leads_csv(items), media_type="text/csv; charset=utf-8",
-                        headers={"Content-Disposition": 'attachment; filename="leads.csv"'})
+        return Response(
+            leads_csv(items),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="leads.csv"'},
+        )
 
     @app.get("/api/outbox")
     def api_outbox(request: Request) -> dict:
