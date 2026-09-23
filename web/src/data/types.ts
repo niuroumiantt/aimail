@@ -68,6 +68,11 @@ export type MailboxInfo = {
   tasks: TaskName[];
 };
 
+export type MailboxAccess = {
+  default: string;
+  items: MailboxInfo[];
+};
+
 export type Message = {
   id: string;
   direction: "in" | "out";

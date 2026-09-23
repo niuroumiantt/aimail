@@ -6,6 +6,7 @@ import type {
   AttachmentText,
   Lead,
   MailboxInfo,
+  MailboxAccess,
   OutboxStatus,
   LeadSuggestion,
   LeadStatus,
@@ -38,6 +39,8 @@ export interface DataSource {
   outbox(): Promise<OutboxStatus>;
   /** 伺候的是哪个邮箱、开了哪些任务 */
   mailbox(): Promise<MailboxInfo>;
+  mailboxes(): Promise<MailboxAccess>;
+  selectMailbox(address: string): void;
 }
 
 /** 样本附件的文字。真系统里是 pypdf / openpyxl 读出来落库的。 */
@@ -203,6 +206,10 @@ export async function fixtureSource(): Promise<DataSource> {
       display_name: "Sales",
       tasks: ["read", "leads", "draft"],
     }),
+    mailboxes: async () => ({ default: "sales@glocalstorage.example", items: [{
+      address: "sales@glocalstorage.example", display_name: "Sales", tasks: ["read", "leads", "draft"],
+    }] }),
+    selectMailbox: () => {},
   };
 }
 
@@ -228,32 +235,40 @@ const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH"): Requ
 });
 
 export function apiSource(): DataSource {
+  let selected = localStorage.getItem("mailbox-address") ?? "";
+  const api = <T,>(path: string, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if (selected) headers.set("X-Mailbox-Address", selected);
+    return call<T>(path, { ...init, headers });
+  };
   return {
-    sync: () => call("/api/sync", { method: "POST" }),
-    threads: () => call<Thread[]>("/api/threads"),
-    thread: (id) => call<Thread>(`/api/threads/${id}`),
-    suggestions: () => call<LeadSuggestion[]>("/api/leads/suggestions"),
-    failedSuggestions: async () => (await call<{ count: number }>("/api/leads/failed")).count,
-    leads: () => call<Lead[]>("/api/leads"),
+    sync: () => api("/api/sync", { method: "POST" }),
+    threads: () => api<Thread[]>("/api/threads"),
+    thread: (id) => api<Thread>(`/api/threads/${id}`),
+    suggestions: () => api<LeadSuggestion[]>("/api/leads/suggestions"),
+    failedSuggestions: async () => (await api<{ count: number }>("/api/leads/failed")).count,
+    leads: () => api<Lead[]>("/api/leads"),
     confirm: async (id, user) => {
-      await call(`/api/leads/suggestions/${id}/confirm`, asPerson(user));
+      await api(`/api/leads/suggestions/${id}/confirm`, asPerson(user));
     },
     dismiss: async (id, user) => {
-      await call(`/api/leads/suggestions/${id}/dismiss`, asPerson(user));
+      await api(`/api/leads/suggestions/${id}/dismiss`, asPerson(user));
     },
     updateLead: async (id, patch, user) => {
-      await call(`/api/leads/${id}`, asPerson(user, patch));
+      await api(`/api/leads/${id}`, asPerson(user, patch));
     },
-    latestDraft: async (id) => (await call<{ draft: ReplyDraft | null }>(`/api/threads/${id}/draft`)).draft,
-    makeDraft: async (id, user) => (await call<{ draft: ReplyDraft }>(`/api/threads/${id}/draft`, asPerson(user))).draft,
+    latestDraft: async (id) => (await api<{ draft: ReplyDraft | null }>(`/api/threads/${id}/draft`)).draft,
+    makeDraft: async (id, user) => (await api<{ draft: ReplyDraft }>(`/api/threads/${id}/draft`, asPerson(user))).draft,
     send: async (id, request, user) => {
       // 令牌在按下「发送」的那一刻才签,签给这个人、这条线程,用一次作废
-      const { token } = await call<{ token: string }>(`/api/threads/${id}/send-token`, asPerson(user));
-      await call(`/api/threads/${id}/send`, asPerson(user, { ...request, token }, "POST"));
+      const { token } = await api<{ token: string }>(`/api/threads/${id}/send-token`, asPerson(user));
+      await api(`/api/threads/${id}/send`, asPerson(user, { ...request, token }, "POST"));
     },
-    attachmentText: (id) => call<AttachmentText>(`/api/attachments/${id}/text`),
-    outbox: () => call<OutboxStatus>("/api/outbox"),
-    mailbox: () => call<MailboxInfo>("/api/mailbox"),
+    attachmentText: (id) => api<AttachmentText>(`/api/attachments/${id}/text`),
+    outbox: () => api<OutboxStatus>("/api/outbox"),
+    mailbox: () => api<MailboxInfo>("/api/mailbox"),
+    mailboxes: () => call<MailboxAccess>("/api/mailboxes"),
+    selectMailbox: (address) => { selected = address; localStorage.setItem("mailbox-address", address); },
   };
 }
 

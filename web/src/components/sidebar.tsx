@@ -16,6 +16,8 @@ export function Sidebar({
   activeFolder,
   inInbox,
   mailbox,
+  mailboxes = [],
+  onMailboxChange,
   onSync,
   syncing = false,
 }: {
@@ -24,6 +26,8 @@ export function Sidebar({
   inInbox: boolean;
   /** 伺候的邮箱;没开线索任务就不给线索入口 */
   mailbox: MailboxInfo;
+  mailboxes?: MailboxInfo[];
+  onMailboxChange?: (address: string) => Promise<void>;
   onSync?: () => Promise<string>;
   syncing?: boolean;
 }) {
@@ -49,6 +53,15 @@ export function Sidebar({
           </p>
         </div>
       </div>
+
+      {mailboxes.length > 1 && <label className="grid gap-1 px-2 text-2xs text-ink-3">
+        查看邮箱
+        <select aria-label="查看邮箱" value={mailbox.address}
+          onChange={e => void onMailboxChange?.(e.target.value)}
+          className="h-8 rounded-md border border-line bg-surface px-2 text-xs text-ink">
+          {mailboxes.map(item => <option key={item.address} value={item.address}>{item.address}</option>)}
+        </select>
+      </label>}
 
       <ul className="grid gap-0.5">
         <li>
