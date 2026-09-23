@@ -65,7 +65,7 @@ export function OutreachWorkspace() {
   };
   return <main className="min-h-screen bg-canvas p-6 text-ink">
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-      <div><Link className="text-brand-text" to="/mail">← 邮箱</Link>
+      <div><Link className="text-brand-text" to={import.meta.env.VITE_DATA_SOURCE === "api" ? "/" : "/mail"}>← 邮箱</Link>
         <h1 className="mt-3 text-2xl font-semibold">开发信序列</h1>
         <p className="mt-2 text-sm text-ink-2">首封 + 第 7、14、28、60、90 天 · 每家公司一个公开联系入口</p></div>
       <div className="flex items-center gap-3"><label className="text-sm">本地审核人
