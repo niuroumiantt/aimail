@@ -137,6 +137,9 @@ Linux 主机用 `docker compose up -d --build`(`.env` 同样内容,`PORT` 决定
 
 ## 决定记录
 
+生产入口可达性、重复实现与收口状态见
+[Production convergence audit](docs/production-convergence-audit.md)。
+
 - [0001 不用 Chatwoot 做地基](docs/adr/0001-no-chatwoot-foundation.md)
 - [0002 React + Tailwind v4 + 三条规则](docs/adr/0002-react-tailwind-v4.md)
 - [0003 SQLite 起步](docs/adr/0003-sqlite-first.md)

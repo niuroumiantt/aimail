@@ -118,7 +118,7 @@ export function Sidebar({
       </div>
 
       <div className="mt-auto flex items-center justify-between px-1">
-        <span className="font-mono text-2xs text-ink-3">Spark · fast</span>
+        <span className="font-mono text-2xs text-ink-3">原文保留 · AI 待核对</span>
         <ThemeToggle />
       </div>
     </nav>

@@ -1,4 +1,4 @@
-import { ArrowLeft, Archive, Reply, Tag } from "lucide-react";
+import { ArrowLeft, Archive, Reply, Sparkles, Tag } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { AttachmentText, Thread } from "@/data/types";
@@ -18,14 +18,22 @@ export function ThreadDetail({
   backSearch,
   reply,
   onAttachment,
+  assistantOpen = false,
+  onAssistant,
+  onAnalyze,
 }: {
   thread: Thread;
   backSearch: string;
   reply?: ReplyHandlers;
   /** 点附件时取它的文字;没有就只显示名字 */
   onAttachment?: (attachmentId: string) => Promise<AttachmentText>;
+  assistantOpen?: boolean;
+  onAssistant?: () => void;
+  onAnalyze?: () => Promise<string>;
 }) {
   const [replying, setReplying] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
   return (
     <>
       <header className="flex flex-wrap items-start gap-3 border-b border-line bg-surface px-5 py-4">
@@ -53,6 +61,7 @@ export function ThreadDetail({
             {FOLDER_LABEL[thread.folder]}
           </Pill>
           {thread.history?.length === 0 && <Pill tone="brand">第一次来信</Pill>}
+          {onAssistant && <Button size="sm" variant={assistantOpen ? "soft" : "outline"} aria-pressed={assistantOpen} icon={<Sparkles size={14} />} onClick={onAssistant}>AI 阅读</Button>}
           <Tip label={reply ? "回复这封信" : "回复(要接上服务端)"}>
             <Button
               size="sm"
@@ -77,7 +86,7 @@ export function ThreadDetail({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid max-w-3xl gap-5 px-5 py-5">
           {thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
-          <ReadingCard reading={thread.reading} />
+          <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />
           {thread.messages.map((m) => (
             <MessageView key={m.id} message={m} onAttachment={onAttachment} />
           ))}

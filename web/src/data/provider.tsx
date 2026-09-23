@@ -3,6 +3,7 @@ import { getUser, setUser as persistUser } from "@/lib/user";
 import { chooseSource, type DataSource } from "./source";
 import type {
   AttachmentText,
+  AssistantState,
   Lead,
   MailboxInfo,
   OutboxStatus,
@@ -45,6 +46,10 @@ type State = {
   send: (threadId: string, request: SendRequest) => Promise<string>;
   /** 附件里读出来的文字,点开才取 */
   attachmentText: (attachmentId: string) => Promise<AttachmentText>;
+  analyzeThread: (threadId: string) => Promise<string>;
+  assistant: () => Promise<AssistantState>;
+  askAssistant: (question: string) => Promise<AssistantState>;
+  clearAssistant: () => Promise<AssistantState>;
 };
 
 const NO_OUTBOX: OutboxStatus = { configured: false, pending: 0, failed: 0, delivered: 0, last_error: "" };
@@ -211,6 +216,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       attachmentText: async (id) => {
         if (!source) throw new Error("还没加载完");
         return source.attachmentText(id);
+      },
+      analyzeThread: async (id) => {
+        if (!source) return "还没加载完";
+        try {
+          const thread = await source.analyzeThread(id);
+          setDetails((value) => ({ ...value, [id]: thread }));
+          await refresh(source);
+          return "";
+        } catch (e) {
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      assistant: async () => {
+        if (!source) throw new Error("还没加载完");
+        return source.assistant();
+      },
+      askAssistant: async (question) => {
+        if (!source) throw new Error("还没加载完");
+        return source.askAssistant(question, user);
+      },
+      clearAssistant: async () => {
+        if (!source) throw new Error("还没加载完");
+        return source.clearAssistant(user);
       },
     }),
     [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh],

@@ -18,24 +18,24 @@
   --font-*: initial;
 
   /* 底与面 —— sage */
-  --color-canvas: #f7f9f8; /* sage-2  页面底 */
-  --color-surface: #ffffff; /* 卡片、面板 */
-  --color-surface-2: #eef1f0; /* sage-3  悬停 */
-  --color-surface-3: #e6e9e8; /* sage-4  选中、按下 */
-  --color-line: #d7dad9; /* sage-6  常规边框 */
-  --color-line-2: #cbcfcd; /* sage-7  强边框、焦点环底 */
-  --color-ink: #1a211e; /* sage-12 正文 */
-  --color-ink-2: #5f6563; /* sage-11 次要文字 */
-  --color-ink-3: #868e8b; /* sage-9  只做图标与装饰,不做正文 */
+  --color-canvas: #f4f3ed; /* paper: 长时间阅读的暖中性底 */
+  --color-surface: #fffefa; /* ink: 比纯白更安静 */
+  --color-surface-2: #eeede6;
+  --color-surface-3: #e5e5dc;
+  --color-line: #d9d8ce;
+  --color-line-2: #c9c9bd;
+  --color-ink: #202722;
+  --color-ink-2: #626862;
+  --color-ink-3: #888f88;
 
   /* 品牌 —— teal */
-  --color-brand: #12a594; /* teal-9  实色 */
-  --color-brand-2: #0d9b8a; /* teal-10 实色悬停 */
-  --color-brand-wash: #e0f8f3; /* teal-3  淡底 */
-  --color-brand-wash-2: #ccf3ea; /* teal-4  淡底悬停 */
-  --color-brand-line: #83cdc1; /* teal-7  边框 */
-  --color-brand-text: #008573; /* teal-11 文字 */
-  --color-brand-deep: #0d3d38; /* teal-12 淡底上的深字 */
+  --color-brand: #315f4f; /* mineral green: 不像默认 SaaS 蓝 */
+  --color-brand-2: #264d40;
+  --color-brand-wash: #e5ede7;
+  --color-brand-wash-2: #d8e5dc;
+  --color-brand-line: #a9c0b0;
+  --color-brand-text: #315f4f;
+  --color-brand-deep: #18382e;
   --color-on-brand: #ffffff;
 
   /* 语义 —— grass / amber / tomato。语义色不是品牌色,只表示状态 */
