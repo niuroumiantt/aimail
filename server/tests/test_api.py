@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from conftest import make_raw
 from mail2leads.api.app import create_app
 from mail2leads.ingest.run import store_raw
+from mail2leads.store import repo
 
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 
@@ -85,9 +86,44 @@ def test_oa_auth_mode_accepts_only_the_portal_identity(conn, mailbox):
         == 401
     )
     assert (
-        client.post("/api/leads/suggestions/1/dismiss", headers={"X-OA-User": "Alice"}).status_code
+        client.post("/api/leads/suggestions/1/dismiss", headers={
+            "X-OA-User": "Alice", "X-OA-Email": "sales@example.test"
+        }).status_code
         == 404
     )
+
+
+def test_owner_can_switch_mailboxes_but_other_users_cannot(conn, mailbox):
+    other = repo.ensure_mailbox(conn, "larry@example.test", "Larry")
+
+    def _seed(mid, subject):
+        return store_raw(
+            conn, mid, make_raw(message_id=f"<{subject}@x>", subject=subject, body=subject),
+            "in", NOW,
+        )
+
+    _seed(mailbox, "Sales RFQ")
+    _seed(other, "Private note")
+    client = TestClient(create_app(
+        conn, other, require_oa_auth=True,
+        mailbox_access={"larry@example.test": ("sales@example.test", "larry@example.test")},
+        mailbox_tasks={"sales@example.test": frozenset({"read", "leads"}),
+                       "larry@example.test": frozenset({"read"})},
+    ))
+    owner = {"X-OA-Email": "larry@example.test", "X-OA-User": "Larry"}
+    boxes = client.get("/api/mailboxes", headers=owner).json()
+    assert [x["address"] for x in boxes["items"]] == ["sales@example.test", "larry@example.test"]
+    assert boxes["default"] == "sales@example.test"
+    assert [x["subject"] for x in client.get("/api/threads", headers=owner).json()] == ["Sales RFQ"]
+    private = {**owner, "X-Mailbox-Address": "larry@example.test"}
+    assert [x["subject"] for x in client.get("/api/threads", headers=private).json()] == [
+        "Private note"
+    ]
+    employee = {"X-OA-Email": "sales@example.test", "X-OA-User": "Sales"}
+    forbidden = client.get(
+        "/api/threads", headers={**employee, "X-Mailbox-Address": "larry@example.test"}
+    )
+    assert forbidden.status_code == 403
 
 
 def test_folder_filter(conn, mailbox):

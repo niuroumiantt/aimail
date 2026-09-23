@@ -5,7 +5,7 @@ import { Sidebar } from "@/components/sidebar";
 import { useData } from "@/data/provider";
 
 export default function LeadsPage() {
-  const { threads, suggestions, failed, leads, outbox, mailbox, user, setUser, confirm, dismiss, updateLead, sync, syncing } =
+  const { threads, suggestions, failed, leads, outbox, mailbox, mailboxes, selectMailbox, user, setUser, confirm, dismiss, updateLead, sync, syncing } =
     useData();
   const threadIds = useMemo(() => new Set(threads.map((t) => t.id)), [threads]);
   const counts = useMemo(() => {
@@ -15,7 +15,7 @@ export default function LeadsPage() {
   }, [threads]);
   return (
     <AppShell
-      sidebar={<Sidebar counts={counts} activeFolder="all" inInbox={false} mailbox={mailbox} onSync={sync} syncing={syncing} />}
+      sidebar={<Sidebar counts={counts} activeFolder="all" inInbox={false} mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={selectMailbox} onSync={sync} syncing={syncing} />}
       main={
         <LeadsBoard
           suggestions={suggestions}

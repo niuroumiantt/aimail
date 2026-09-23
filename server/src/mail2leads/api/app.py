@@ -245,53 +245,114 @@ def create_app(
     outreach_import_token: str = "",
     outreach_enabled: bool = False,
     outreach_approval_proxy_key: str = "",
+    mailbox_access: dict[str, tuple[str, ...]] | None = None,
+    mailbox_tasks: dict[str, frozenset[str]] | None = None,
+    sync_mailboxes: dict[str, Callable[[], None]] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
+
+    def _mailbox_row(request: Request) -> sqlite3.Row:
+        default = conn.execute("SELECT * FROM mailbox WHERE id = ?", (mailbox_id,)).fetchone()
+        if default is None:
+            raise HTTPException(503, "邮箱尚未配置")
+        if not require_oa_auth:
+            return default
+        identity = request.headers.get("x-oa-email", "").strip().lower()
+        if not identity:
+            raise HTTPException(401, "登录身份没有邮箱地址")
+        allowed = (mailbox_access or {}).get(identity, (identity,))
+        rows = {
+            row["address"].lower(): row
+            for row in conn.execute("SELECT * FROM mailbox").fetchall()
+            if row["address"].lower() in {address.lower() for address in allowed}
+        }
+        if not rows:
+            raise HTTPException(403, "当前账号没有可访问的邮箱")
+        requested = request.headers.get("x-mailbox-address", "").strip().lower()
+        if requested:
+            if requested not in rows:
+                raise HTTPException(403, "不能访问这个邮箱")
+            return rows[requested]
+        for address in allowed:
+            if address.lower() in rows:
+                return rows[address.lower()]
+        return next(iter(rows.values()))
+
+    def _mailbox_tasks(address: str) -> frozenset[str]:
+        return (mailbox_tasks or {}).get(address.lower(), tasks)
 
     @app.get("/healthz")
     def healthz() -> dict:
         return {"ok": True}
 
+    @app.get("/api/mailboxes")
+    def api_mailboxes(request: Request) -> dict:
+        current = _mailbox_row(request)
+        if not require_oa_auth:
+            rows = [current]
+        else:
+            identity = request.headers.get("x-oa-email", "").strip().lower()
+            allowed = (mailbox_access or {}).get(identity, (identity,))
+            by_address = {
+                row["address"].lower(): row
+                for row in conn.execute("SELECT * FROM mailbox").fetchall()
+            }
+            rows = [by_address[a.lower()] for a in allowed if a.lower() in by_address]
+        return {
+            "default": current["address"],
+            "items": [
+                {"address": row["address"], "display_name": row["display_name"],
+                 "tasks": sorted(_mailbox_tasks(row["address"]))}
+                for row in rows
+            ],
+        }
+
     @app.post("/api/sync")
-    def sync() -> dict:
+    def sync(request: Request) -> dict:
         """立即同步一次；调用方等待完成，成功后便可直接刷新列表。"""
-        if sync_mailbox is None:
+        selected = _mailbox_row(request)
+        syncer = (sync_mailboxes or {}).get(selected["address"].lower())
+        if syncer is None and int(selected["id"]) == mailbox_id:
+            syncer = sync_mailbox
+        if syncer is None:
             raise HTTPException(503, "当前服务没有配置收信")
         try:
-            sync_mailbox()
+            syncer()
         except Exception as exc:  # noqa: BLE001 - 把同步失败明确交给界面
             raise HTTPException(502, f"收信失败：{exc}") from exc
         return {"ok": True}
 
     @app.get("/api/mailbox")
-    def api_mailbox() -> dict:
+    def api_mailbox(request: Request) -> dict:
         """这个服务伺候哪个邮箱、开了哪些任务。界面据此显示地址、藏起没开的入口。"""
-        row = conn.execute("SELECT address, display_name FROM mailbox WHERE id = ?", (mailbox_id,))
-        m = row.fetchone()
+        m = _mailbox_row(request)
         return {
-            "address": m["address"] if m else "",
-            "display_name": display_name or (m["display_name"] if m else ""),
-            "tasks": sorted(tasks),
+            "address": m["address"],
+            "display_name": display_name if int(m["id"]) == mailbox_id else m["display_name"],
+            "tasks": sorted(_mailbox_tasks(m["address"])),
         }
 
     @app.get("/api/threads")
-    def threads(folder: str | None = None) -> list[dict]:
+    def threads(request: Request, folder: str | None = None) -> list[dict]:
+        selected = _mailbox_row(request)
         return [
             _thread_out(conn, row, with_messages=False)
-            for row in repo.list_threads(conn, mailbox_id, folder)
+            for row in repo.list_threads(conn, int(selected["id"]), folder)
         ]
 
     @app.get("/api/threads/{thread_id}")
-    def thread(thread_id: int) -> dict:
-        row = repo.get_thread(conn, thread_id, mailbox_id)
+    def thread(thread_id: int, request: Request) -> dict:
+        selected = _mailbox_row(request)
+        row = repo.get_thread(conn, thread_id, int(selected["id"]))
         if row is None:
             raise HTTPException(404, "没有这条线程")
         return _thread_out(conn, row, with_messages=True)
 
     @app.get("/api/attachments/{attachment_id}/text")
-    def attachment_text(attachment_id: int) -> dict:
-        item = attachments.get_text(conn, mailbox_id, attachment_id)
+    def attachment_text(attachment_id: int, request: Request) -> dict:
+        selected = _mailbox_row(request)
+        item = attachments.get_text(conn, int(selected["id"]), attachment_id)
         if item is None:
             raise HTTPException(404, "没有这个附件")
         return {
@@ -344,25 +405,32 @@ def create_app(
         return _csv_response()
 
     @app.get("/api/leads.csv")
-    def api_leads_csv() -> Response:
-        return _csv_response()
+    def api_leads_csv(request: Request) -> Response:
+        selected = _mailbox_row(request)
+        items = [leads.lead_v1(conn, r) for r in leads.list_leads(conn, int(selected["id"]))]
+        return Response(leads_csv(items), media_type="text/csv; charset=utf-8",
+                        headers={"Content-Disposition": 'attachment; filename="leads.csv"'})
 
     @app.get("/api/outbox")
-    def api_outbox() -> dict:
+    def api_outbox(request: Request) -> dict:
         """推送送到没有。没配 webhook 就是 configured=false,界面什么都不显示。"""
-        return {"configured": webhook_configured, **outbox.status(conn, mailbox_id)}
+        selected = _mailbox_row(request)
+        return {"configured": webhook_configured, **outbox.status(conn, int(selected["id"]))}
 
     @app.get("/api/leads/suggestions")
-    def suggestions() -> list[dict]:
-        return [_suggestion_out(r) for r in leads.open_suggestions(conn, mailbox_id)]
+    def suggestions(request: Request) -> list[dict]:
+        selected = _mailbox_row(request)
+        return [_suggestion_out(r) for r in leads.open_suggestions(conn, int(selected["id"]))]
 
     @app.get("/api/leads/failed")
-    def failed() -> dict:
-        return {"count": leads.failed_suggestions(conn, mailbox_id)}
+    def failed(request: Request) -> dict:
+        selected = _mailbox_row(request)
+        return {"count": leads.failed_suggestions(conn, int(selected["id"]))}
 
     @app.get("/api/leads")
-    def lead_list() -> list[dict]:
-        return [_lead_out(r) for r in leads.list_leads(conn, mailbox_id)]
+    def lead_list(request: Request) -> list[dict]:
+        selected = _mailbox_row(request)
+        return [_lead_out(r) for r in leads.list_leads(conn, int(selected["id"]))]
 
     def _person(request: Request) -> str:
         user = who(request, require_oa_auth)
@@ -373,7 +441,8 @@ def create_app(
     @app.post("/api/leads/suggestions/{suggestion_id}/confirm")
     def confirm(suggestion_id: int, request: Request, decision: Decision | None = None) -> dict:
         user = _person(request)
-        if not leads.suggestion_in(conn, suggestion_id, mailbox_id):
+        selected = _mailbox_row(request)
+        if not leads.suggestion_in(conn, suggestion_id, int(selected["id"])):
             raise HTTPException(404, "建议不存在或已处理")
         try:
             lead_id = leads.confirm(conn, suggestion_id, user, (decision or Decision()).overrides)
@@ -385,7 +454,8 @@ def create_app(
     @app.post("/api/leads/suggestions/{suggestion_id}/dismiss")
     def dismiss(suggestion_id: int, request: Request) -> dict:
         user = _person(request)
-        if not leads.suggestion_in(conn, suggestion_id, mailbox_id):
+        selected = _mailbox_row(request)
+        if not leads.suggestion_in(conn, suggestion_id, int(selected["id"])):
             raise HTTPException(404, "建议不存在或已处理")
         try:
             leads.dismiss(conn, suggestion_id, user)
@@ -393,21 +463,23 @@ def create_app(
             raise HTTPException(404, str(exc)) from exc
         return {"ok": True}
 
-    def _drafting_thread(thread_id: int) -> None:
-        if "draft" not in tasks:
+    def _drafting_thread(thread_id: int, request: Request) -> sqlite3.Row:
+        selected = _mailbox_row(request)
+        if "draft" not in _mailbox_tasks(selected["address"]):
             raise HTTPException(404, "这个邮箱没开起草")
-        if repo.get_thread(conn, thread_id, mailbox_id) is None:
+        if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
             raise HTTPException(404, "没有这条线程")
+        return selected
 
     @app.get("/api/threads/{thread_id}/draft")
-    def get_draft(thread_id: int) -> dict:
-        _drafting_thread(thread_id)
+    def get_draft(thread_id: int, request: Request) -> dict:
+        _drafting_thread(thread_id, request)
         return {"draft": _draft_out(draft_mod.latest_draft(conn, thread_id))}
 
     @app.post("/api/threads/{thread_id}/draft")
     def make_draft(thread_id: int, request: Request) -> dict:
         _person(request)
-        _drafting_thread(thread_id)
+        _drafting_thread(thread_id, request)
         draft_id = draft_mod.make_draft(conn, thread_id)
         row = conn.execute("SELECT * FROM reply_draft WHERE id = ?", (draft_id,)).fetchone()
         return {"draft": _draft_out(row)}
@@ -415,7 +487,8 @@ def create_app(
     @app.post("/api/threads/{thread_id}/send-token")
     def send_token(thread_id: int, request: Request) -> dict:
         """一次性令牌:只签给人,绑定线程,十分钟有效。后台任务没有请求,也就没有令牌。"""
-        if repo.get_thread(conn, thread_id, mailbox_id) is None:
+        selected = _mailbox_row(request)
+        if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
             raise HTTPException(404, "没有这条线程")
         token = tokens.mint(thread_id, _person(request))
         return {"token": token.value, "expires_in": send_mod.TOKEN_TTL_SECONDS}
@@ -423,6 +496,7 @@ def create_app(
     @app.post("/api/threads/{thread_id}/send")
     def send(thread_id: int, request: Request, payload: SendBody) -> dict:
         user = _person(request)
+        selected = _mailbox_row(request)
         if transport is None or not sender:
             raise HTTPException(503, "没有配置 SMTP,发不了")
         try:
@@ -433,7 +507,7 @@ def create_app(
             send_mod.send(
                 conn,
                 token=token,
-                mailbox_id=mailbox_id,
+                mailbox_id=int(selected["id"]),
                 sender=sender,
                 sender_name=sender_name,
                 thread_id=thread_id,
@@ -445,14 +519,15 @@ def create_app(
             )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
-        row = repo.get_thread(conn, thread_id, mailbox_id)
+        row = repo.get_thread(conn, thread_id, int(selected["id"]))
         assert row is not None
         return _thread_out(conn, row, with_messages=True)
 
     @app.patch("/api/leads/{lead_id}")
     def patch_lead(lead_id: int, request: Request, patch: LeadPatch) -> dict:
         user = _person(request)
-        if not leads.lead_in(conn, lead_id, mailbox_id):
+        selected = _mailbox_row(request)
+        if not leads.lead_in(conn, lead_id, int(selected["id"])):
             raise HTTPException(404, "线索不存在")
         try:
             leads.update_lead(conn, lead_id, user, patch.status, patch.next_step)

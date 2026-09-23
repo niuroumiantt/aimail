@@ -27,6 +27,8 @@ type State = {
   leads: Lead[];
   outbox: OutboxStatus;
   mailbox: MailboxInfo;
+  mailboxes: MailboxInfo[];
+  selectMailbox: (address: string) => Promise<void>;
   user: string;
   setUser: (name: string) => void;
   /** 立即收一次信并刷新界面。返回错误文案或空串。 */
@@ -64,6 +66,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [outbox, setOutbox] = useState<OutboxStatus>(NO_OUTBOX);
   const [mailbox, setMailbox] = useState<MailboxInfo>(NO_MAILBOX);
+  const [mailboxes, setMailboxes] = useState<MailboxInfo[]>([]);
   const [user, setUserState] = useState(getUser);
 
   const refresh = useCallback(async (src: DataSource) => {
@@ -89,6 +92,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         const src = await chooseSource();
         if (!alive) return;
+        const access = await src.mailboxes();
+        const stored = localStorage.getItem("mailbox-address") ?? "";
+        const selected = access.items.some(item => item.address === stored) ? stored : access.default;
+        src.selectMailbox(selected);
+        setMailboxes(access.items);
         setSource(src);
         await refresh(src);
       } catch (e) {
@@ -181,6 +189,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       leads,
       outbox,
       mailbox,
+      mailboxes,
+      selectMailbox: async (address) => {
+        if (!source || !mailboxes.some(item => item.address === address)) return;
+        source.selectMailbox(address);
+        setDetails({});
+        await refresh(source);
+      },
       user,
       setUser,
       sync,
@@ -198,7 +213,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.attachmentText(id);
       },
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, user, setUser, sync, act, source, send],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

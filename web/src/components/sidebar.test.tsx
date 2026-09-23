@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import type { MailboxInfo } from "@/data/types";
 import { Sidebar } from "./sidebar";
 import { TipProvider } from "./tip";
@@ -26,4 +26,17 @@ it("shows the mailbox address and hides leads for a mailbox that only reads", ()
 it("keeps the leads entry for a mailbox that suggests leads", () => {
   show({ address: "sales@example.test", display_name: "Sales", tasks: ["read", "leads", "draft"] });
   expect(screen.getByRole("link", { name: /线索/ })).toBeInTheDocument();
+});
+
+it("lets an owner switch between the mailboxes granted by the server", () => {
+  const change = vi.fn();
+  const sales: MailboxInfo = { address: "sales@example.test", display_name: "Sales", tasks: ["read", "leads"] };
+  const larry: MailboxInfo = { address: "larry@example.test", display_name: "Larry", tasks: ["read"] };
+  render(
+    <MemoryRouter><TipProvider><Sidebar counts={counts} activeFolder="all" inInbox
+      mailbox={sales} mailboxes={[sales, larry]} onMailboxChange={async address => { change(address); }} />
+    </TipProvider></MemoryRouter>,
+  );
+  fireEvent.change(screen.getByLabelText("查看邮箱"), { target: { value: "larry@example.test" } });
+  expect(change).toHaveBeenCalledWith("larry@example.test");
 });

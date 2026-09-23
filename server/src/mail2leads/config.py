@@ -35,6 +35,9 @@ class Config:
     outreach_enabled: bool = False
     outreach_daily_cap: int = 20
     outreach_approval_proxy_key: str = ""
+    mailbox_owner_email: str = ""
+    mailbox_owner_access: tuple[str, ...] = ()
+    mailbox_tasks: dict[str, frozenset[str]] | None = None
 
     @classmethod
     def from_env(cls) -> Config:
@@ -77,6 +80,12 @@ class Config:
             outreach_enabled=os.environ.get("OUTREACH_ENABLED", "") == "1",
             outreach_daily_cap=int(os.environ.get("OUTREACH_DAILY_CAP", "20")),
             outreach_approval_proxy_key=os.environ.get("OUTREACH_APPROVAL_PROXY_KEY", ""),
+            mailbox_owner_email=os.environ.get("MAILBOX_OWNER_EMAIL", "").strip().lower(),
+            mailbox_owner_access=tuple(
+                x.strip().lower() for x in os.environ.get("MAILBOX_OWNER_ACCESS", "").split(",")
+                if x.strip()
+            ),
+            mailbox_tasks=parse_mailbox_tasks(os.environ.get("MAILBOX_TASKS", "")),
         )
 
 
@@ -110,3 +119,17 @@ def parse_tasks(raw: str) -> frozenset[str]:
     if unknown:
         raise RuntimeError(f"TASKS 里不认识 {sorted(unknown)};可用:{sorted(ALL_TASKS)}")
     return names | {"read"}
+
+
+def parse_mailbox_tasks(raw: str) -> dict[str, frozenset[str]]:
+    """MAILBOX_TASKS="sales@example.com=read|leads,me@example.com=read"。"""
+    result: dict[str, frozenset[str]] = {}
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise RuntimeError("MAILBOX_TASKS 格式应为 邮箱=read|leads")
+        address, profile = item.split("=", 1)
+        result[address.strip().lower()] = parse_tasks(profile.replace("|", ","))
+    return result
