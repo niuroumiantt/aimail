@@ -9,6 +9,11 @@
 收信、读数、线索建议与确认、起草与回信,链路已通;每一环的验证状态见下。
 能力状态以 [STATUS.md](STATUS.md) 为准,那里只认机器验证,宁可写「未完成」。
 
+开发信候选功能：`/outreach` 管理外部潜客的人工批准序列。
+导入令牌 `OUTREACH_IMPORT_TOKEN` 不能发信；`OUTREACH_ENABLED` 默认关闭，
+开启后也仅执行已确认的首封和 +7/+14/+28/+60/+90 天固定内容。
+规则、上线门槛与已知限制见 [ADR 0008](docs/adr/0008-approved-outreach-sequences.md)。
+
 ```bash
 uv sync                      # Python 3.12,一个 venv
 bash tools/precommit.sh      # 提交前必须整条跑完,跑子集不算;CI 跑的就是它

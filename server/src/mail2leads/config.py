@@ -31,6 +31,10 @@ class Config:
     poll_seconds: int
     web_dist: Path | None
     require_oa_auth: bool
+    outreach_import_token: str = ""
+    outreach_enabled: bool = False
+    outreach_daily_cap: int = 20
+    outreach_approval_proxy_key: str = ""
 
     @classmethod
     def from_env(cls) -> Config:
@@ -69,6 +73,10 @@ class Config:
             poll_seconds=int(os.environ.get("POLL_SECONDS", "60")),
             web_dist=Path(dist) if dist else None,
             require_oa_auth=os.environ.get("REQUIRE_OA_AUTH", "") == "1",
+            outreach_import_token=os.environ.get("OUTREACH_IMPORT_TOKEN", ""),
+            outreach_enabled=os.environ.get("OUTREACH_ENABLED", "") == "1",
+            outreach_daily_cap=int(os.environ.get("OUTREACH_DAILY_CAP", "20")),
+            outreach_approval_proxy_key=os.environ.get("OUTREACH_APPROVAL_PROXY_KEY", ""),
         )
 
 
