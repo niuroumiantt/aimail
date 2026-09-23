@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-from mail2leads import backends
+from mail2leads import backends, outreach
 from mail2leads.config import Config
 from mail2leads.ingest.imap import ImapSource
 from mail2leads.ingest.run import ingest_once
@@ -34,7 +34,11 @@ def _ingest_all(config: Config, mailbox_id: int) -> None:
                 if not folder:
                     continue
                 source = ImapSource(
-                    config.imap_host, config.imap_port, config.imap_user, config.imap_password, folder
+                    config.imap_host,
+                    config.imap_port,
+                    config.imap_user,
+                    config.imap_password,
+                    folder,
                 )
                 try:
                     report = ingest_once(
@@ -100,6 +104,23 @@ def _poll_forever(config: Config, mailbox_id: int) -> None:
     while True:
         try:
             _ingest_all(config, mailbox_id)
+            # No successful fresh sync means no outreach tick. Reader failures do not
+            # hide stored replies: stop checks read the immutable message records.
+            conn = connect(config.db_path)
+            try:
+                outreach.tick(
+                    conn,
+                    mailbox_id,
+                    sender=config.mailbox,
+                    sender_name=config.sender_name,
+                    transport=SmtpTransport(
+                        config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password
+                    ),
+                    enabled=config.outreach_enabled,
+                    daily_cap=config.outreach_daily_cap,
+                )
+            finally:
+                conn.close()
         except Exception:  # noqa: BLE001 —— 收信失败只记日志,下一轮再来;服务本身不能死
             log.exception("收信失败,%d 秒后重试", config.poll_seconds)
         time.sleep(config.poll_seconds)
@@ -112,6 +133,17 @@ def main(argv: list[str]) -> int:
     config.db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = connect(config.db_path)
     mailbox_id = repo.ensure_mailbox(conn, config.mailbox)
+    outreach.init(conn)
+    if config.outreach_enabled and (
+        not outreach.EMAIL.fullmatch(config.mailbox) or not config.imap_inbox
+    ):
+        raise RuntimeError("启用开发信须配置完整发件地址和 INBOX 同步")
+    if (
+        config.outreach_enabled
+        and config.require_oa_auth
+        and len(config.outreach_approval_proxy_key) < 32
+    ):
+        raise RuntimeError("OA 模式启用开发信须配置至少 32 字符的审核代理密钥")
 
     if command == "ingest":
         conn.close()
@@ -141,6 +173,8 @@ def main(argv: list[str]) -> int:
 
     from mail2leads.api.app import create_app
 
+    outreach.recover(conn, mailbox_id)
+
     threading.Thread(
         target=_poll_forever, args=(config, mailbox_id), daemon=True, name="ingest"
     ).start()
@@ -148,7 +182,7 @@ def main(argv: list[str]) -> int:
         threading.Thread(
             target=_deliver_forever, args=(config, mailbox_id), daemon=True, name="deliver"
         ).start()
-    # 发信的口只在这里接上:后台线程没有请求,拿不到令牌,也就发不了(宪法第二条)
+    # 即时回复仍使用一次性令牌；后台序列仅消费已绑定六封完整内容的人工授权。
     transport = SmtpTransport(
         config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password
     )
@@ -165,6 +199,9 @@ def main(argv: list[str]) -> int:
         display_name=config.sender_name,
         sync_mailbox=lambda: _ingest_all(config, mailbox_id),
         require_oa_auth=config.require_oa_auth,
+        outreach_import_token=config.outreach_import_token,
+        outreach_enabled=config.outreach_enabled,
+        outreach_approval_proxy_key=config.outreach_approval_proxy_key,
     )
     uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")
     return 0

@@ -29,7 +29,9 @@ def who(request: Request, require_oa_auth: bool = False) -> str:
     """人的身份。经 tailscale serve 进来时带 Tailscale-User-Login;否则界面自己带 X-User。"""
     if require_oa_auth:
         return request.headers.get("x-oa-user", "").strip()
-    return (request.headers.get("tailscale-user-login") or request.headers.get("x-user") or "").strip()
+    return (
+        request.headers.get("tailscale-user-login") or request.headers.get("x-user") or ""
+    ).strip()
 
 
 def machine(request: Request, tokens: dict[str, str]) -> str:
@@ -240,6 +242,9 @@ def create_app(
     display_name: str = "",
     sync_mailbox: Callable[[], None] | None = None,
     require_oa_auth: bool = False,
+    outreach_import_token: str = "",
+    outreach_enabled: bool = False,
+    outreach_approval_proxy_key: str = "",
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
@@ -457,6 +462,20 @@ def create_app(
             raise HTTPException(422, str(exc)) from exc
         row = conn.execute("SELECT * FROM lead WHERE id = ?", (lead_id,)).fetchone()
         return _lead_out(row)
+
+    from mail2leads.api.outreach import install as install_outreach
+
+    install_outreach(
+        app,
+        conn,
+        mailbox_id,
+        _person,
+        import_token=outreach_import_token,
+        enabled=outreach_enabled,
+        sender=sender,
+        require_proxy=require_oa_auth,
+        approval_proxy_key=outreach_approval_proxy_key,
+    )
 
     if web_dist and (web_dist / "index.html").exists():
         app.mount("/assets", StaticFiles(directory=web_dist / "assets"), name="assets")
