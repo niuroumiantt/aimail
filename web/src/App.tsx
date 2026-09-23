@@ -1,4 +1,4 @@
-import { BrowserRouter, HashRouter, Route, Routes } from "react-router";
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from "react-router";
 import { lazy, Suspense } from "react";
 import { TipProvider } from "@/components/tip";
 import { DataProvider } from "@/data/provider";
@@ -11,6 +11,7 @@ const RealMailbox = lazy(() => import("@/components/real-mailbox").then(module =
 
 /** 在线预览是静态托管,用 hash 路由;正式部署由服务端兜底,用 history 路由。 */
 const Router = import.meta.env.VITE_ROUTER === "hash" ? HashRouter : BrowserRouter;
+const productionData = import.meta.env.VITE_DATA_SOURCE === "api";
 
 export default function App() {
   return (
@@ -18,7 +19,9 @@ export default function App() {
       <TipProvider delayDuration={300}>
         <Routes>
           <Route path="/outreach" element={<OutreachWorkspace />} />
-          <Route path="/mail" element={<Suspense fallback={<p role="status">正在打开真实邮箱…</p>}><RealMailbox /></Suspense>} />
+          <Route path="/mail" element={productionData
+            ? <Navigate replace to="/" />
+            : <Suspense fallback={<p role="status">正在打开真实邮箱…</p>}><RealMailbox /></Suspense>} />
           <Route path="/design" element={<DesignStudio />} />
           <Route path="*" element={
             <DataProvider>
