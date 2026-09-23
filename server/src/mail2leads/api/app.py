@@ -10,11 +10,13 @@ import io
 import json
 import secrets
 import sqlite3
+import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+import anyio
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -260,6 +262,21 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
+    # create_app receives one SQLite connection for the process. FastAPI executes sync
+    # endpoints in a thread pool, so a browser's parallel initial requests can otherwise
+    # use that connection concurrently and trigger sqlite3.InterfaceError. Serialize only
+    # data APIs; static assets and the SPA shell remain concurrent.
+    api_connection_lock = threading.Lock()
+
+    @app.middleware("http")
+    async def serialize_shared_sqlite(request: Request, call_next):
+        if request.url.path.startswith(("/api/", "/v1/")):
+            await anyio.to_thread.run_sync(api_connection_lock.acquire)
+            try:
+                return await call_next(request)
+            finally:
+                api_connection_lock.release()
+        return await call_next(request)
 
     def _mailbox_row(request: Request) -> sqlite3.Row:
         default = conn.execute("SELECT * FROM mailbox WHERE id = ?", (mailbox_id,)).fetchone()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
@@ -140,6 +141,21 @@ def test_folder_filter(conn, mailbox):
     client = _client(conn, mailbox)
     assert client.get("/api/threads?folder=quote").json() == []
     assert len(client.get("/api/threads?folder=inbox").json()) == 1
+
+
+def test_parallel_initial_page_requests_share_sqlite_safely(conn, mailbox):
+    client = _client(conn, mailbox)
+    paths = [
+        "/api/threads",
+        "/api/leads/suggestions",
+        "/api/leads/failed",
+        "/api/leads",
+        "/api/outbox",
+        "/api/mailbox",
+    ]
+    with ThreadPoolExecutor(max_workers=len(paths)) as pool:
+        responses = list(pool.map(client.get, paths))
+    assert [response.status_code for response in responses] == [200] * len(paths)
 
 
 def test_production_assistant_is_mailbox_scoped_and_reports_missing_model(conn, mailbox):
