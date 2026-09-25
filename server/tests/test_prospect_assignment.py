@@ -30,3 +30,12 @@ def test_precontact_assignment_never_sends_and_rejects_previous_sender(conn, mai
     o.approve(conn, mailbox, sid, recipient, STEPS, True, sender=recipient)
     with pytest.raises(ValueError, match="首次批准"):
         o.assign(conn, mailbox, sid, recipient, owner, "offer", owner, 2)
+    assert not o.tick(
+        conn, mailbox, sender=owner, sender_name="Larry", transport=transport, enabled=True
+    )
+    assert o.get(conn, mailbox, sid)["state"] == "active"
+    assert transport.calls == []
+    assert o.tick(
+        conn, mailbox, sender=recipient, sender_name="Cloud", transport=transport, enabled=True
+    )
+    assert transport.calls[0][0] == recipient

@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS prospect_assignment (
  sequence_id TEXT PRIMARY KEY REFERENCES prospect_sequence(id),
  owner TEXT NOT NULL, pending TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS prospect_sender (
+ sequence_id TEXT PRIMARY KEY REFERENCES prospect_sequence(id),
+ address TEXT NOT NULL
+);
 """
 
 
@@ -234,6 +238,7 @@ def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, 
             "approval_hash=? WHERE id=?",
             (actor, stamp(now), digest, sid),
         )
+        conn.execute("INSERT INTO prospect_sender VALUES(?,?)", (sid, sender.casefold()))
         event(conn, sid, "approved", {"actor": actor, "content_hash": digest}, now)
 
 
@@ -330,6 +335,12 @@ def tick(
         selected = None
         for row in rows:
             if get(conn, mailbox_id, row["id"])["state"] != "active":
+                continue
+            bound_sender = conn.execute(
+                "SELECT address FROM prospect_sender WHERE sequence_id=?", (row["id"],)
+            ).fetchone()
+            if bound_sender and bound_sender["address"] != sender.casefold():
+                # Another personal account's scheduler must not send or pause this sequence.
                 continue
             steps = conn.execute(
                 "SELECT * FROM prospect_step WHERE sequence_id=? ORDER BY day", (row["id"],)

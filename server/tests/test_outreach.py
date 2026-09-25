@@ -212,9 +212,22 @@ def test_private_machine_network_cannot_forge_human_proxy_identity(conn, mailbox
     assert client.post(f"/api/prospects/{sid}/approval-token", headers=trusted).status_code == 200
 
 
-def test_changing_sender_invalidates_approved_sequence(conn, mailbox, sequence):
+def test_other_sender_cannot_run_or_pause_bound_sequence(conn, mailbox, sequence):
     o.approve(conn, mailbox, sequence, "owner", STEPS, True, NOW)
     t = Transport()
+    assert not o.tick(
+        conn,
+        mailbox,
+        sender="different@sender.test",
+        sender_name="Supplier",
+        transport=t,
+        enabled=True,
+        now=NOW,
+    )
+    assert o.get(conn, mailbox, sequence)["state"] == "active"
+    assert not t.calls
+    # Pre-migration approvals without the new binding still fail closed on a mismatch.
+    conn.execute("DELETE FROM prospect_sender WHERE sequence_id=?", (sequence,))
     assert not o.tick(
         conn,
         mailbox,
