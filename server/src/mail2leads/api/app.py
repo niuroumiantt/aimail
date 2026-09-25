@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import secrets
 import sqlite3
 import threading
@@ -352,8 +353,9 @@ def create_app(
             raise HTTPException(503, "当前服务没有配置收信")
         try:
             syncer()
-        except Exception as exc:  # noqa: BLE001 - 把同步失败明确交给界面
-            raise HTTPException(502, f"收信失败：{exc}") from exc
+        except Exception:  # noqa: BLE001 - 下游异常可能包含凭据，不回传或记录原文
+            logging.getLogger(__name__).warning("邮箱同步失败，mailbox_id=%d", selected["id"])
+            raise HTTPException(502, "收信失败，请检查邮箱连接配置后重试") from None
         return {"ok": True}
 
     @app.get("/api/mailbox")
