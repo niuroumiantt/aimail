@@ -78,31 +78,27 @@ def _server(tmp_path: Path, rel: str, text: str) -> Path:
 
 
 def test_hostname_outside_backends_is_caught(tmp_path):
-    root = _server(
-        tmp_path, "mail2leads/api/routes.py", 'URL = "https://dgx.tail52686f.ts.net:4000"'
-    )
+    root = _server(tmp_path, "aimail/api/routes.py", 'URL = "https://dgx.tail52686f.ts.net:4000"')
     assert guard_hostnames.check([root])
 
 
 def test_tailnet_ip_outside_backends_is_caught(tmp_path):
-    root = _server(tmp_path, "mail2leads/tasks/x.py", 'HOST = "100.100.1.2"')
+    root = _server(tmp_path, "aimail/tasks/x.py", 'HOST = "100.100.1.2"')
     assert any("tailnet 地址" in p for p in guard_hostnames.check([root]))
 
 
 def test_hostname_inside_backends_is_allowed(tmp_path):
-    root = _server(
-        tmp_path, "mail2leads/backends/spark.py", 'DEFAULT = "http://192.168.50.2:11434"'
-    )
+    root = _server(tmp_path, "aimail/backends/spark.py", 'DEFAULT = "http://192.168.50.2:11434"')
     assert guard_hostnames.check([root]) == []
 
 
 def test_other_repo_name_is_caught(tmp_path):
-    root = _server(tmp_path, "mail2leads/store/x.py", "# 参考 niuroumiantt/infra 的做法")
+    root = _server(tmp_path, "aimail/store/x.py", "# 参考 niuroumiantt/infra 的做法")
     assert any("别的仓库" in p for p in guard_hostnames.check([root]))
 
 
 def test_version_string_is_not_mistaken_for_an_address(tmp_path):
-    root = _server(tmp_path, "mail2leads/api/x.py", 'VERSION = "10.1.2"')
+    root = _server(tmp_path, "aimail/api/x.py", 'VERSION = "10.1.2"')
     assert guard_hostnames.check([root]) == []
 
 

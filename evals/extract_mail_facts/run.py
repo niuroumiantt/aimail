@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from mail2leads.tasks.extract_mail_facts import Extraction, extract, validate
+from aimail.tasks.extract_mail_facts import Extraction, extract, validate
 
 
 def main():

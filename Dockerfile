@@ -23,4 +23,4 @@ USER app
 ENV WEB_DIST=/app/web/dist DB_PATH=/data/mail2leads.sqlite3 LISTEN_HOST=0.0.0.0
 VOLUME /data
 EXPOSE 8900
-CMD ["uv", "run", "--no-sync", "python", "-m", "mail2leads", "serve"]
+CMD ["uv", "run", "--no-sync", "python", "-m", "aimail", "serve"]

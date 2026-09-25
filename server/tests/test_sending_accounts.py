@@ -4,11 +4,11 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail.api.app import create_app
+from aimail.ingest.run import store_raw
+from aimail.send.accounts import SendingAccount, from_env
+from aimail.store import repo
 from conftest import make_raw
-from mail2leads.api.app import create_app
-from mail2leads.ingest.run import store_raw
-from mail2leads.send.accounts import SendingAccount, from_env
-from mail2leads.store import repo
 
 
 class RecordingTransport:
@@ -74,7 +74,7 @@ def test_authenticated_employee_selects_own_transport_not_request_sender(conn):
 
 
 def test_only_accepted_owner_can_reply_to_shared_conversation(conn):
-    from mail2leads.store import followup
+    from aimail.store import followup
 
     box = repo.ensure_mailbox(conn, "sales@glocalstorage.com")
     pk, _ = store_raw(conn, box, make_raw(), "in", datetime.now(UTC))

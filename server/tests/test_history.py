@@ -9,15 +9,15 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import backends
+from aimail.api.app import create_app
+from aimail.ingest.run import store_raw
+from aimail.store import history, repo
+from aimail.tasks import draft as draft_mod
+from aimail.tasks.read import read_message
+from aimail.tasks.summarize import compose_source
+from aimail.verify.numbers import unverified_numbers
 from conftest import make_raw
-from mail2leads import backends
-from mail2leads.api.app import create_app
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import history, repo
-from mail2leads.tasks import draft as draft_mod
-from mail2leads.tasks.read import read_message
-from mail2leads.tasks.summarize import compose_source
-from mail2leads.verify.numbers import unverified_numbers
 
 JUNE = datetime(2026, 6, 2, 9, 0, tzinfo=UTC)
 SEPT = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)

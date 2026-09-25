@@ -3,12 +3,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import outreach as o
+from aimail.api.app import create_app
+from aimail.ingest.run import store_raw
+from aimail.send.accounts import SendingAccount
+from aimail.store import followup, repo
 from conftest import make_raw
-from mail2leads import outreach as o
-from mail2leads.api.app import create_app
-from mail2leads.ingest.run import store_raw
-from mail2leads.send.accounts import SendingAccount
-from mail2leads.store import followup, repo
 from test_outreach import PAYLOAD, STEPS, Transport
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mail2leads.ingest.quote import split
+from aimail.ingest.quote import split
 
 NEW = "Hi,\n\nWe were told this model is EOL. Can you still supply?\n\nRegards,\nDaniel"
 

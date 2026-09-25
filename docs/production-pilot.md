@@ -84,11 +84,11 @@ OA 只读检查依据：`apps/mail/receive.py` 使用只读 IMAP，口令由 `cr
 
 ## 已实现的独立命令行试点
 
-`python -m mail2leads.pilot --mail-config <私有配置路径> --mailbox <明确邮箱> --limit 10`
+`python -m aimail.pilot --mail-config <私有配置路径> --mailbox <明确邮箱> --limit 10`
 
 配置文件作为数据解析，不执行 shell；只读 INBOX，最多最近 30 天/100 封，默认 10 封，每封最大 2 MB。独立数据库 `~/.local/share/mail2leads/pilot/mailbox.sqlite3`，不写 OA 数据、不更新正式同步游标、不启动网页/SMTP/webhook/轮询。超过上限明确计数，不称为已完整读取邮箱。暂不支持跨文件夹覆盖。
 
-`python -m mail2leads.backends.pilot --config <Spark配置路径> [--endpoint <核实后的内网端点>]`
+`python -m aimail.backends.pilot --config <Spark配置路径> [--endpoint <核实后的内网端点>]`
 
 独立读取最新一封已收邮件的正文，复用现有版本化摘要合同、结构化校验和数字核对；暂未覆盖附件或跨邮件综合分析。结果保存到同一私有目录的 latest-reading.json，用量记录到 model-calls.jsonl，包含失败、耗时、实际模型、token 和未计价标记；不是正式管理员账本。无外部模型回退。结构化校验通过不等于语义准确率通过。
 
@@ -100,7 +100,7 @@ OA 只读检查依据：`apps/mail/receive.py` 使用只读 IMAP，口令由 `cr
 
 `tools/configure_local_api.py` 为 mail2leads 申请独立 100,000 点模型受限 Key，
 以 0600 权限保存于 `~/.config/mail2leads/local-api.env`，不在源码或日志回显。
-已有配置拒绝覆盖。执行 `python -m mail2leads.backends.pilot --config <该配置>`
+已有配置拒绝覆盖。执行 `python -m aimail.backends.pilot --config <该配置>`
 经本机 8800 网关而不是直接访问 Ollama；不会调用 Spark 或修改 OA。
 
 openapi 为独立仓库 `~/code/openapi`，持有自己的调用与正文记录数据库。

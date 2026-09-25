@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from aimail.ingest.parse import html_to_text, parse
 from conftest import make_raw
-from mail2leads.ingest.parse import html_to_text, parse
 
 
 def test_plain_text_body_and_headers():

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from mail2leads.verify.numbers import unverified_numbers
+from aimail.verify.numbers import unverified_numbers
 
 
 def test_number_absent_from_source_is_flagged():

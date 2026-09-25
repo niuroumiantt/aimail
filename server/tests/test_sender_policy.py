@@ -5,12 +5,12 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail.api.app import create_app
+from aimail.config import Config
+from aimail.ingest.run import store_raw
+from aimail.send import SmtpTransport, build_message
+from aimail.store import repo
 from conftest import make_raw
-from mail2leads.api.app import create_app
-from mail2leads.config import Config
-from mail2leads.ingest.run import store_raw
-from mail2leads.send import SmtpTransport, build_message
-from mail2leads.store import repo
 
 
 def test_receive_credentials_do_not_enable_sending(monkeypatch):

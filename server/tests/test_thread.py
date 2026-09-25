@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+from aimail.ingest.run import store_raw
+from aimail.ingest.thread import subject_key
 from conftest import make_raw
-from mail2leads.ingest.run import store_raw
-from mail2leads.ingest.thread import subject_key
 
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 

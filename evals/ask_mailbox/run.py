@@ -4,8 +4,8 @@ import json
 import sys
 from pathlib import Path
 
-from mail2leads import backends
-from mail2leads.tasks.ask_mailbox import Answer, ask, validate_answer
+from aimail import backends
+from aimail.tasks.ask_mailbox import Answer, ask, validate_answer
 
 
 def main():

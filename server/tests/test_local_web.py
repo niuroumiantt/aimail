@@ -2,11 +2,11 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
+from aimail.ingest.run import store_raw
+from aimail.local_web import create_local_app
+from aimail.store import repo
+from aimail.store.db import connect
 from conftest import make_raw
-from mail2leads.ingest.run import store_raw
-from mail2leads.local_web import create_local_app
-from mail2leads.store import repo
-from mail2leads.store.db import connect
 
 
 def test_real_mail_read_only_and_origin_guard(tmp_path):

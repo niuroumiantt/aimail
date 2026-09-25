@@ -2,11 +2,11 @@ from datetime import UTC, datetime
 
 import pytest
 
+from aimail.ingest.run import store_raw
+from aimail.send import TokenBox, send
+from aimail.store import repo
+from aimail.store.db import connect
 from conftest import make_raw
-from mail2leads.ingest.run import store_raw
-from mail2leads.send import TokenBox, send
-from mail2leads.store import repo
-from mail2leads.store.db import connect
 
 
 def test_uncertain_delivery_blocks_new_token_after_restart(tmp_path):

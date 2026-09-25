@@ -8,8 +8,8 @@ from email.utils import format_datetime
 
 import pytest
 
-from mail2leads.store import repo
-from mail2leads.store.db import connect
+from aimail.store import repo
+from aimail.store.db import connect
 
 
 @pytest.fixture

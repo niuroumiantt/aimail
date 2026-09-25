@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ssl
 
-from mail2leads.ingest.imap import make_ssl_context
+from aimail.ingest.imap import make_ssl_context
 
 
 def test_ssl_context_verifies_certificate_and_hostname():

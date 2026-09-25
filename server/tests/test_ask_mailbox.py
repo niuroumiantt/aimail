@@ -6,13 +6,13 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import backends
+from aimail.ingest.run import store_raw
+from aimail.local_web import create_local_app
+from aimail.store import repo
+from aimail.store.db import connect
+from aimail.tasks.ask_mailbox import Answer, validate_answer
 from conftest import make_raw
-from mail2leads import backends
-from mail2leads.ingest.run import store_raw
-from mail2leads.local_web import create_local_app
-from mail2leads.store import repo
-from mail2leads.store.db import connect
-from mail2leads.tasks.ask_mailbox import Answer, validate_answer
 
 
 def test_citations_and_numbers():
@@ -48,7 +48,7 @@ def test_ask_cross_topic_and_clear_preserves_audit(tmp_path, monkeypatch):
         assert not history
         return []
 
-    monkeypatch.setattr("mail2leads.tasks.ask_mailbox.ask", answer)
+    monkeypatch.setattr("aimail.tasks.ask_mailbox.ask", answer)
     with TestClient(create_local_app(tmp_path)) as client:
         assert client.post("/mail/assistant", json={"question": " "}).status_code == 422
         assert client.post("/mail/assistant", json={"question": "哪些询价？"}).status_code == 200
@@ -75,7 +75,7 @@ def test_busy_refuses_duplicate_and_clear(tmp_path, monkeypatch):
     store_raw(conn, mailbox, make_raw(), "in", datetime.now(UTC))
     conn.close()
     release = threading.Event()
-    monkeypatch.setattr("mail2leads.tasks.ask_mailbox.ask", lambda *args: release.wait(3) and [])
+    monkeypatch.setattr("aimail.tasks.ask_mailbox.ask", lambda *args: release.wait(3) and [])
     with TestClient(create_local_app(tmp_path)) as client:
         try:
             assert client.post("/mail/assistant", json={"question": "test"}).status_code == 200

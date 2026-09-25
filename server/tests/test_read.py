@@ -7,11 +7,11 @@ from datetime import UTC, datetime
 
 import pytest
 
+from aimail import backends
+from aimail.ingest.run import ingest_once, store_raw
+from aimail.store import repo
+from aimail.tasks.read import read_message, unread_incoming
 from conftest import make_raw
-from mail2leads import backends
-from mail2leads.ingest.run import ingest_once, store_raw
-from mail2leads.store import repo
-from mail2leads.tasks.read import read_message, unread_incoming
 
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 GOOD = {
@@ -153,7 +153,7 @@ def test_unread_incoming_lists_only_messages_without_reading(conn, mailbox, monk
 def test_api_exposes_reading_in_the_web_shape(conn, mailbox, monkeypatch):
     from fastapi.testclient import TestClient
 
-    from mail2leads.api.app import create_app
+    from aimail.api.app import create_app
 
     _answer(monkeypatch, {**GOOD, "quoted_numbers": ["48", "77"]})
     pk = _incoming(conn, mailbox, body="We need 48 units.")

@@ -28,7 +28,7 @@ jobs:
           docker build --platform linux/amd64
           --build-arg VCS_REF=${GITHUB_SHA}
           -t mail2leads:release .
-      - run: docker run --rm mail2leads:release uv run --no-sync python -c "import mail2leads; print('镜像里能 import')"
+      - run: docker run --rm mail2leads:release uv run --no-sync python -c "import aimail; print('aimail 包可导入')"
       - name: Package immutable release for Aliyun
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: python3 tools/package_release.py --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --output release-assets

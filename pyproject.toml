@@ -1,7 +1,7 @@
 [project]
-name = "mail2leads"
+name = "aimail"
 version = "0.0.0"
-description = "把询盘邮件读成销售线索,人确认、人回复"
+description = "AI 邮件阅读与客户沟通工作台"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.141.1",
@@ -25,7 +25,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["server/src/mail2leads"]
+packages = ["server/src/aimail"]
 
 [tool.ruff]
 line-length = 100

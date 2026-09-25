@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
+from aimail import translation_store
+from aimail.ingest.run import store_raw
+from aimail.store import repo
+from aimail.store.db import connect
+from aimail.tasks.translate_mail import Translation, _numbers
 from conftest import make_raw
-from mail2leads import translation_store
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import repo
-from mail2leads.store.db import connect
-from mail2leads.tasks.translate_mail import Translation, _numbers
 
 
 def test_translation_keeps_identifiers_and_failure_is_visible(tmp_path, monkeypatch):

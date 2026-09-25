@@ -15,7 +15,7 @@
 为通过既有依赖发布冷却期检查，锁文件中的 lru-cache 从 11.5.3 调整至
 经 registry 校验完整性的 11.5.2；未关闭供应链策略。
 
-启动（仓库根目录）：`uv run python -m mail2leads.local_web`。
+启动（仓库根目录）：`uv run python -m aimail.local_web`。
 前端在 web 目录用 `npm run dev -- --port 5197` 启动；8910 为只监听本机的试点后端。
 依赖独立的 openapi 网关 http://127.0.0.1:8800；其后台可查看调用内容和实际 token。
 

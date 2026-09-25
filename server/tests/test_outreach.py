@@ -4,10 +4,10 @@ from email.message import EmailMessage
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import outreach as o
+from aimail.api.app import create_app
+from aimail.ingest.run import store_raw
 from conftest import make_raw
-from mail2leads import outreach as o
-from mail2leads.api.app import create_app
-from mail2leads.ingest.run import store_raw
 
 NOW = datetime(2030, 1, 1, 10, 0, tzinfo=UTC)
 PAYLOAD = {

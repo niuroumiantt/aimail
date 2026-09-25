@@ -7,10 +7,10 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
+from aimail.api.app import create_app
+from aimail.ingest.run import store_raw
+from aimail.store import repo
 from conftest import make_raw
-from mail2leads.api.app import create_app
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import repo
 
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 
@@ -182,8 +182,8 @@ def test_production_assistant_is_mailbox_scoped_and_reports_missing_model(conn, 
 
 def test_production_assistant_returns_checked_sources(conn, mailbox, monkeypatch):
     client = _client(conn, mailbox)
-    monkeypatch.setattr("mail2leads.backends.ready", lambda: (True, "ok"))
-    monkeypatch.setattr("mail2leads.backends.describe", lambda *_: "Test model")
+    monkeypatch.setattr("aimail.backends.ready", lambda: (True, "ok"))
+    monkeypatch.setattr("aimail.backends.describe", lambda *_: "Test model")
 
     def answer(question, sources, history):
         assert question == "哪些询价？"
@@ -200,7 +200,7 @@ def test_production_assistant_returns_checked_sources(conn, mailbox, monkeypatch
             }
         ]
 
-    monkeypatch.setattr("mail2leads.tasks.ask_mailbox.ask", answer)
+    monkeypatch.setattr("aimail.tasks.ask_mailbox.ask", answer)
     headers = {"X-User": "Larry"}
     response = client.post("/api/assistant", headers=headers, json={"question": "哪些询价？"})
     assert response.status_code == 200

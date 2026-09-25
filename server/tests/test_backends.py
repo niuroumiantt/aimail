@@ -9,8 +9,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 from pydantic import BaseModel
 
-from mail2leads import backends
-from mail2leads.tasks.summarize import InquirySummary
+from aimail import backends
+from aimail.tasks.summarize import InquirySummary
 
 
 class Tiny(BaseModel):
