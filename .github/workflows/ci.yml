@@ -2,6 +2,12 @@ name: ci
 on:
   push:
     branches: [main]
+    # Documentation-only merges do not need a new identical container image.
+    # Pull requests still run the full verification jobs below.
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
 jobs:
   precommit:
