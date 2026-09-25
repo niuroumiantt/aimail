@@ -94,6 +94,10 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
         output["history"] = []
         return {
             "state": state,
+            "unresolved_send": next((dict(r) for r in conn.execute(
+                "SELECT id,sender,state,created_at FROM reply_attempt "
+                "WHERE thread_id=? AND state IN ('sending','unknown')", (tid,)
+            )), None),
             "last_message_id": conn.execute(
                 "SELECT MAX(id) FROM message WHERE thread_id=?", (tid,)
             ).fetchone()[0],
@@ -184,6 +188,11 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
     @app.post("/api/followups/{tid}/reply-token")
     def reply_token(tid: int, request: Request):
         user, _ = access(request, tid, manage=True)
+        if conn.execute(
+            "SELECT 1 FROM reply_attempt WHERE thread_id=? AND state IN ('sending','unknown')",
+            (tid,),
+        ).fetchone():
+            raise HTTPException(409, "该会话存在待核对发送，请核对个人邮箱或服务商投递记录")
         account = sending_account(request)
         if account.transport is None:
             raise HTTPException(503, "个人发件账号尚未配置")
@@ -193,6 +202,20 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
             "sender": account.address,
             "recipient": repo.get_thread(conn, tid)["contact_email"],
         }
+
+    @app.get("/api/followups/{tid}/unresolved.eml")
+    def unresolved_mail(tid: int, request: Request):
+        access(request, tid, manage=True)
+        attempt = conn.execute(
+            "SELECT raw FROM reply_attempt WHERE thread_id=? AND state IN ('sending','unknown')",
+            (tid,),
+        ).fetchone()
+        if not attempt:
+            raise HTTPException(404, "没有待核对发送")
+        return Response(bytes(attempt["raw"]), media_type="message/rfc822", headers={
+            "Content-Disposition": f'attachment; filename="unresolved-{tid}.eml"',
+            "Cache-Control": "no-store",
+        })
 
     @app.post("/api/followups/{tid}/reply")
     def reply(tid: int, body: Reply, request: Request):

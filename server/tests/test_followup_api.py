@@ -100,6 +100,21 @@ def test_thread_scoped_transfer_exports_attachments_without_granting_mailbox(con
         ).status_code
         == 200
     )
+    conn.execute(
+        "INSERT INTO reply_attempt(thread_id,token_hash,sender,actor,raw,state,created_at) "
+        "VALUES(?,?,?,?,?,'unknown',?)",
+        (tid, "test-token-hash", cloud, cloud, raw, datetime.now(UTC).isoformat()),
+    )
+    pending = app.get(f"/api/followups/{tid}", headers=headers(cloud)).json()["unresolved_send"]
+    assert pending["sender"] == cloud and pending["state"] == "unknown"
+    assert "raw" not in pending and "token_hash" not in pending
+    assert app.post(f"/api/followups/{tid}/reply-token", headers=headers(cloud)).status_code == 409
+    result = app.get(f"/api/followups/{tid}/unresolved.eml", headers=headers(cloud))
+    assert result.content == raw and result.headers["cache-control"] == "no-store"
+    # Pending recipient and former owner cannot download another person's unresolved send.
+    assert app.get(f"/api/followups/{tid}/unresolved.eml", headers=headers(jane)).status_code == 403
+    previous = app.get(f"/api/followups/{tid}/unresolved.eml", headers=headers(larry))
+    assert previous.status_code == 403
 
 
 def test_model_failure_leaves_no_transfer(conn, monkeypatch):

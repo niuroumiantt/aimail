@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 type State = { thread_id: number; owner: string; pending: string; version: number; summary: string; note: string; subject?: string; unread_count?: number };
-type Detail = { state: State | null; last_message_id: number; thread: { subject: string; messages: {id:string;from_email:string;sent_at:string;body:string;quoted:string|null}[] }; history: { id: number; actor: string; action: string; at: string }[] };
+type Detail = { state: State | null; unresolved_send: {id:number;sender:string;state:string;created_at:string}|null; last_message_id: number; thread: { subject: string; messages: {id:string;from_email:string;sent_at:string;body:string;quoted:string|null}[] }; history: { id: number; actor: string; action: string; at: string }[] };
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, { method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json", "X-Mailbox-Address": localStorage.getItem("mailbox-address") ?? "" }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(typeof error.detail === "string" ? error.detail : "跟进服务未启用或请求失败"); }
@@ -23,7 +23,8 @@ function FollowupView() {
   const [reply, setReply] = useState('');
   const [preview, setPreview] = useState<{token:string;sender:string;recipient:string;body:string;subject:string} | null>(null);
   const [sendResult, setSendResult] = useState('');
-  const [uncertain, setUncertain] = useState(false);
+  const [localUncertain, setUncertain] = useState(false);
+  const uncertain = localUncertain || !!detail?.unresolved_send;
   const refresh = useCallback(async () => {
     try { setList(await api('/api/followups')); setDetail(id ? await api(`/api/followups/${id}`) : null); setError(''); }
     catch(e) { setError((e as Error).message); setDetail(null); }
@@ -72,6 +73,7 @@ function FollowupView() {
     {detail && <section className="space-y-4"><h2>{detail.thread.subject}</h2><p>当前负责人：{state?.owner ?? list.identity}；待接手：{state?.pending || '无'}</p>
       {summary && <article className="border border-line p-4"><h3>AI 阶段总结 · 需结合原文核对</h3>{([['stage','当前阶段'],['needs','客户需求'],['commitments','已作承诺'],['open_questions','待解决事项'],['next_steps','建议下一步'],['model','模型'],['source_ids','引用邮件']] as const).map(([key,label]) => <p className="my-2 whitespace-pre-wrap" key={key}>{label}：{String(summary[key] ?? '')}</p>)}</article>}
       {state?.note && <p>交接说明：{state.note}</p>}
+      {detail.unresolved_send && <aside role="alert" className="border border-line p-4"><h3>发送结果待核对，已暂停重复发送</h3><p>{detail.unresolved_send.created_at} · {detail.unresolved_send.sender}</p><p>请核对个人邮箱或邮件服务商的投递记录。没有找到“已发送”副本不能证明未发送；不要直接重发。</p>{(!state || state.owner === list.identity) && <a href={`/api/followups/${id}/unresolved.eml`}>下载待核对原邮件（含 Message-ID）</a>}</aside>}
       <section className="space-y-3"><h3>邮件往来原文</h3>{detail.thread.messages.map(message => <article key={message.id} className="border border-line p-4"><p>{message.from_email} · {message.sent_at}</p><p className="whitespace-pre-wrap">{message.body}</p>{message.quoted && <details><summary>引用历史</summary><p className="whitespace-pre-wrap">{message.quoted}</p></details>}</article>)}<button disabled={busy} onClick={() => void markRead()}>将当前显示的邮件标为已读</button></section>
       <a href={`/api/followups/${id}/history.zip`}>下载完整邮件历史及附件（原始邮件压缩包）</a><p>仅交接当前会话；下载不会发送邮件。</p>
       {state?.pending === list.identity && <button disabled={busy} onClick={() => void act('accept')}>确认接手</button>}
