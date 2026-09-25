@@ -147,3 +147,11 @@ mail2leads:candidate-6bf69a8，镜像 ID 1a9d5a2d1315。独立容器采用 --net
 两次 integrity_check / foreign_key_check 均通过，三项原始记录数量不变。
 两个验证容器均无网络、已自动移除；只修改隔离副本，生产数据库未升级。
 这是同机可恢复备份和旧版读取兼容演练，不是完整业务回滚或异地备份验收。
+
+2026-09-25 10:44 CST：阿里云实测 Ubuntu 26.04.1，已按 Tailscale 官方 Linux 安装方式
+从官方签名 apt 源安装 Tailscale 1.102.4（仅新增 tailscale/keyring 两包，没有重启容器）。
+尚未执行入网认证、尚未更改 ACL/DNS/路由，不能报告 Spark 已可达。
+浏览器 Tailscale 管理页要求登录，已请求用户使用原管理账号登录；页面保留在任务中。
+后续先核对原网络规则，再为阿里云设置仅访问模型网关的权限；不得默认赋予员工全网权限。
+官方安装说明：https://tailscale.com/docs/install/linux 。独立镜像、数据演练已完成，
+等待登录期间继续准备发布核对和归属文档，不重复安装或重启 Tailscale。
