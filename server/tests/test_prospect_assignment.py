@@ -1,8 +1,12 @@
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import make_raw
 from mail2leads import outreach as o
 from mail2leads.api.app import create_app
+from mail2leads.ingest.run import store_raw
 from mail2leads.send.accounts import SendingAccount
 from test_outreach import PAYLOAD, STEPS, Transport
 
@@ -55,6 +59,8 @@ def test_precontact_assignment_never_sends_and_rejects_previous_sender(conn, mai
     owner, recipient = "larry@example.test", "cloud@example.test"
     offered = o.assign(conn, mailbox, sid, owner, owner, "offer", recipient, 0)
     assert offered == {"owner": owner, "pending": recipient, "version": 1}
+    with pytest.raises(ValueError, match="完成或取消"):
+        o.approve(conn, mailbox, sid, owner, STEPS, True, sender=owner)
     with pytest.raises(PermissionError):
         o.assign(conn, mailbox, sid, "other@example.test", owner, "accept", "", 1)
     accepted = o.assign(conn, mailbox, sid, recipient, owner, "accept", "", 1)
@@ -80,7 +86,21 @@ def test_precontact_assignment_never_sends_and_rejects_previous_sender(conn, mai
     )
     assert o.get(conn, mailbox, sid)["state"] == "active"
     assert transport.calls == []
+    old, _ = store_raw(
+        conn,
+        mailbox,
+        make_raw(
+            from_=owner, to=PAYLOAD["email"], subject=STEPS[0]["subject"], message_id="<old@test>"
+        ),
+        "out",
+        datetime.now(UTC),
+    )
+    old_thread = conn.execute("SELECT thread_id FROM message WHERE id=?", (old,)).fetchone()[0]
     assert o.tick(
         conn, mailbox, sender=recipient, sender_name="Cloud", transport=transport, enabled=True
     )
     assert transport.calls[0][0] == recipient
+    inherited = conn.execute("SELECT * FROM followup").fetchone()
+    assert inherited["owner"] == recipient and inherited["pending"] == ""
+    assert inherited["thread_id"] != old_thread
+    assert conn.execute("SELECT action FROM followup_event").fetchone()[0] == "prospect_assigned"

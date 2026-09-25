@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from mail2leads.ingest.run import store_raw
 from mail2leads.send import build_message
+from mail2leads.store import followup
 
 CADENCE = [0, 7, 14, 28, 60, 90]
 EMAIL = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}")
@@ -57,6 +58,7 @@ def stamp(now=None):
 
 def init(conn):
     conn.executescript(SCHEMA)
+    followup.init(conn)
 
 
 @contextmanager
@@ -218,8 +220,10 @@ def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, 
     with transaction(conn):
         row = get(conn, mailbox_id, sid)
         assigned = conn.execute(
-            "SELECT owner FROM prospect_assignment WHERE sequence_id=?", (sid,)
+            "SELECT owner,pending FROM prospect_assignment WHERE sequence_id=?", (sid,)
         ).fetchone()
+        if assigned and assigned["pending"]:
+            raise ValueError("请先完成或取消潜客交接，再批准发送")
         if assigned and assigned["owner"].casefold() != sender.casefold():
             raise PermissionError("发件身份不是当前潜客负责人")
         if row["state"] != "draft":
@@ -402,13 +406,38 @@ def tick(
         result = transport.deliver(sender, [row["email"]], raw)
         if result != "ok":
             raise RuntimeError("transport_not_accepted")
-        pk, _ = store_raw(conn, mailbox_id, raw, "out", now)
+        assignment = conn.execute(
+            "SELECT owner FROM prospect_assignment WHERE sequence_id=?", (row["id"],)
+        ).fetchone()
+        pk, _ = store_raw(
+            conn,
+            mailbox_id,
+            raw,
+            "out",
+            now,
+            new_thread=bool(assignment and step["day"] == 0),
+        )
         if pk is None:
             raise RuntimeError("message_not_persisted")
         with transaction(conn):
             thread_id = conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[
                 0
             ]
+            if assignment and step["day"] == 0:
+                conn.execute(
+                    "INSERT INTO followup VALUES(?,?,'',1,'{}',?,?)",
+                    (thread_id, assignment["owner"], "从已接手潜客继承负责人", stamp(now)),
+                )
+                conn.execute(
+                    "INSERT INTO followup_event(thread_id,version,actor,action,payload,at) "
+                    "VALUES(?,1,?,'prospect_assigned',?,?)",
+                    (
+                        thread_id,
+                        assignment["owner"],
+                        json.dumps({"sequence_id": row["id"]}),
+                        stamp(now),
+                    ),
+                )
             conn.execute(
                 "INSERT INTO outbound(mailbox_id,thread_id,message_pk,sent_by,sent_at,"
                 "transport_result) VALUES(?,?,?,?,?,?)",
