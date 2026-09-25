@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +8,7 @@ from mail2leads import outreach as o
 from mail2leads.api.app import create_app
 from mail2leads.ingest.run import store_raw
 from mail2leads.send.accounts import SendingAccount
+from mail2leads.store import followup
 from test_outreach import PAYLOAD, STEPS, Transport
 
 
@@ -104,3 +105,17 @@ def test_precontact_assignment_never_sends_and_rejects_previous_sender(conn, mai
     assert inherited["owner"] == recipient and inherited["pending"] == ""
     assert inherited["thread_id"] != old_thread
     assert conn.execute("SELECT action FROM followup_event").fetchone()[0] == "prospect_assigned"
+    followup.transfer(conn, inherited["thread_id"], recipient, owner, 1, {}, "handoff")
+    assert o.get(conn, mailbox, sid)["state"] == "paused"
+    followup.decide(conn, inherited["thread_id"], recipient, 2, "cancel")
+    assert o.get(conn, mailbox, sid)["state"] == "paused"  # Cancel does not reauthorize sending.
+    assert not o.tick(
+        conn,
+        mailbox,
+        sender=recipient,
+        sender_name="Cloud",
+        transport=transport,
+        enabled=True,
+        now=datetime.now(UTC) + timedelta(days=8),
+    )
+    assert len(transport.calls) == 1

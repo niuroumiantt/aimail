@@ -40,6 +40,31 @@ def get(conn, thread_id):
     return dict(row) if row else None
 
 
+def _pause_outreach(conn, thread_id, actor, at):
+    """Same transaction as the handoff; cancellation never silently restarts mail."""
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='prospect_sequence'"
+    ).fetchone():
+        return
+    sequences = conn.execute(
+        "SELECT DISTINCT s.id FROM prospect_sequence s "
+        "JOIN prospect_step p ON p.sequence_id=s.id "
+        "JOIN message m ON m.message_id=p.message_id AND m.mailbox_id=s.mailbox_id "
+        "WHERE m.thread_id=? AND s.state='active'",
+        (thread_id,),
+    ).fetchall()
+    for sequence in sequences:
+        conn.execute(
+            "UPDATE prospect_sequence SET state='paused',stop_reason='paused' WHERE id=?",
+            (sequence["id"],),
+        )
+        conn.execute(
+            "INSERT INTO prospect_event(sequence_id,type,occurred_at,detail) "
+            "VALUES(?,'paused',?,?)",
+            (sequence["id"], at, json.dumps({"actor": actor, "reason": "conversation_handoff"})),
+        )
+
+
 def transfer(conn, thread_id, actor, recipient, version, summary, note):
     if actor == recipient:
         raise ValueError("接收人不能是自己")
@@ -71,6 +96,7 @@ def transfer(conn, thread_id, actor, recipient, version, summary, note):
                 at,
             ),
         )
+        _pause_outreach(conn, thread_id, actor, at)
         conn.commit()
     except Exception:
         conn.rollback()
