@@ -11,10 +11,19 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
 
 export function FollowupWorkspace() {
   const { id } = useParams();
+  return <FollowupView key={id ?? 'list'} />;
+}
+
+function FollowupView() {
+  const { id } = useParams();
   const [list, setList] = useState<{ items: State[]; members: string[]; identity: string }>({items:[],members:[],identity:''});
   const [detail, setDetail] = useState<Detail | null>(null);
   const [recipient, setRecipient] = useState(''); const [note, setNote] = useState('');
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [reply, setReply] = useState('');
+  const [preview, setPreview] = useState<{token:string;sender:string;recipient:string;body:string;subject:string} | null>(null);
+  const [sendResult, setSendResult] = useState('');
+  const [uncertain, setUncertain] = useState(false);
   const refresh = useCallback(async () => {
     try { setList(await api('/api/followups')); setDetail(id ? await api(`/api/followups/${id}`) : null); setError(''); }
     catch(e) { setError((e as Error).message); setDetail(null); }
@@ -27,6 +36,26 @@ export function FollowupWorkspace() {
     catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   const state = detail?.state;
+  async function prepareReply() {
+    if (!id || !detail || !reply.trim()) return;
+    setBusy(true); setError('');
+    try {
+      const info = await api<{token:string;sender:string;recipient:string}>(`/api/followups/${id}/reply-token`, {});
+      setPreview({...info, body:reply, subject:`Re: ${detail.thread.subject}`});
+    } catch(e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  async function sendReply() {
+    if (!id || !preview) return;
+    setBusy(true); setError('');
+    try {
+      await api(`/api/followups/${id}/reply`, preview);
+      setReply(''); setPreview(null); setSendResult('邮件已提交发送，请在历史中核对；不代表客户已收到。');
+      await refresh();
+    } catch {
+      setUncertain(true); setPreview(null);
+      setError('发送结果需核对，请检查个人邮箱已发送记录，暂勿重复发送。');
+    } finally { setBusy(false); }
+  }
   const summary = state ? JSON.parse(state.summary) as Record<string,unknown> : null;
   return <main className="mx-auto max-w-5xl space-y-5 p-6 text-ink">
     <header className="flex gap-6"><Link to="/">返回邮箱</Link><Link to="/followups">我的跟进</Link><button onClick={() => void refresh()}>刷新</button></header>
@@ -40,6 +69,7 @@ export function FollowupWorkspace() {
       <a href={`/api/followups/${id}/history.zip`}>下载完整邮件历史及附件（原始邮件压缩包）</a><p>仅交接当前会话；下载不会发送邮件。</p>
       {state?.pending === list.identity && <button disabled={busy} onClick={() => void act('accept')}>确认接手</button>}
       {state?.pending && state.owner === list.identity && <button disabled={busy} onClick={() => void act('cancel')}>取消交接</button>}
+      {(!state || state.owner === list.identity) && <section className="space-y-3 border border-line p-4"><h3>用我的个人邮箱回复</h3><textarea className="block w-full border border-line p-2" aria-label="回复正文" value={reply} maxLength={100000} disabled={busy || uncertain || !!preview} onChange={e => setReply(e.target.value)} /><button disabled={busy || uncertain || !reply.trim() || !!preview} onClick={() => void prepareReply()}>核对发件身份与内容</button>{preview && <div><p>发件人：{preview.sender}</p><p>收件人：{preview.recipient}</p><p>主题：{preview.subject}</p><pre className="whitespace-pre-wrap">{preview.body}</pre><button disabled={busy} onClick={() => void sendReply()}>确认发送这封邮件</button><button disabled={busy} onClick={() => setPreview(null)}>返回修改</button></div>}{sendResult && <p role="status">{sendResult}</p>}</section>}
       {(!state || (state.owner === list.identity && !state.pending)) && <div className="space-y-3 border border-line p-4"><label>交给销售 <select aria-label="接收销售" value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">请选择</option>{list.members.filter(x => x !== list.identity).map(x => <option key={x}>{x}</option>)}</select></label><textarea className="block w-full border border-line p-2" aria-label="交接说明" value={note} onChange={e => setNote(e.target.value)} maxLength={4000}/><button disabled={busy || !recipient} onClick={() => void act('offer')}>{busy ? '正在处理…' : '生成 AI 总结并提交交接'}</button></div>}
       <h3>交接记录</h3><ul>{detail.history.map(e => <li key={e.id}>{e.at} · {e.actor} · {({offer:'发起交接',accept:'确认接手',cancel:'取消交接'} as Record<string,string>)[e.action] ?? e.action}</li>)}</ul>
     </section>}

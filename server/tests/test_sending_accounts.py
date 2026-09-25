@@ -102,3 +102,20 @@ def test_only_accepted_owner_can_reply_to_shared_conversation(conn):
     assert app.post(f"/api/followups/{tid}/reply", headers=headers, json=payload).status_code == 403
     assert ct.sent == [cloud]
     assert app.get("/api/threads", headers=headers).status_code == 403
+    original = {"X-OA-User": "admin", "X-OA-Email": larry}
+    assert app.get(f"/api/threads/{tid}", headers=original).status_code == 200
+    assert app.post(f"/api/threads/{tid}/send-token", headers=original).status_code == 403
+    # A token minted before transfer cannot bypass the current-owner check either.
+    assert (
+        app.post(
+            f"/api/threads/{tid}/send",
+            headers=original,
+            json={
+                "token": "stale-token",
+                "to": ["customer@example.test"],
+                "subject": "Re: RFQ",
+                "body": "Hello",
+            },
+        ).status_code
+        == 403
+    )

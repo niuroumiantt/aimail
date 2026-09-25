@@ -27,7 +27,7 @@ from mail2leads import send as send_mod
 from mail2leads.config import DEFAULT_TASKS
 from mail2leads.ingest import attachments
 from mail2leads.send.accounts import SendingAccount
-from mail2leads.store import assistant, history, leads, outbox, repo
+from mail2leads.store import assistant, followup, history, leads, outbox, repo
 from mail2leads.tasks import ask_mailbox
 from mail2leads.tasks import draft as draft_mod
 from mail2leads.tasks.read import read_message
@@ -264,6 +264,7 @@ def create_app(
     sending_accounts: dict[str, SendingAccount] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
+    followup.init(conn)
     tokens = send_mod.TokenBox()
     # create_app receives one SQLite connection for the process. FastAPI executes sync
     # endpoints in a thread pool, so a browser's parallel initial requests can otherwise
@@ -647,6 +648,7 @@ def create_app(
         if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
             raise HTTPException(404, "没有这条线程")
         _authorize_sender(request)
+        _authorize_followup_owner(request, thread_id)
         token = tokens.mint(thread_id, _person(request))
         return {"token": token.value, "expires_in": send_mod.TOKEN_TTL_SECONDS}
 
@@ -657,6 +659,7 @@ def create_app(
         if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
             raise HTTPException(404, "没有这条线程")
         account = _authorize_sender(request)
+        _authorize_followup_owner(request, thread_id)
         if account.transport is None or not account.address:
             raise HTTPException(503, "没有配置 SMTP,发不了")
         try:
@@ -682,6 +685,14 @@ def create_app(
         row = repo.get_thread(conn, thread_id, int(selected["id"]))
         assert row is not None
         return _thread_out(conn, row, with_messages=True)
+
+    def _authorize_followup_owner(request: Request, thread_id: int) -> None:
+        state = followup.get(conn, thread_id)
+        if state and (
+            not require_oa_auth
+            or state["owner"] != request.headers.get("x-oa-email", "").strip().casefold()
+        ):
+            raise HTTPException(403, "会话已交接，只能由当前负责人回复")
 
     def _authorize_sender(request: Request) -> SendingAccount:
         identity = request.headers.get("x-oa-email", "").strip().casefold()

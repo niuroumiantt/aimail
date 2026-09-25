@@ -159,7 +159,11 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
         if account.transport is None:
             raise HTTPException(503, "个人发件账号尚未配置")
         token = tokens.mint(tid, user)
-        return {"token": token.value, "sender": account.address}
+        return {
+            "token": token.value,
+            "sender": account.address,
+            "recipient": repo.get_thread(conn, tid)["contact_email"],
+        }
 
     @app.post("/api/followups/{tid}/reply")
     def reply(tid: int, body: Reply, request: Request):
