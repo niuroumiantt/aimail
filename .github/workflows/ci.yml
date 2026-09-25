@@ -45,6 +45,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [precommit, docker]
     runs-on: ubuntu-latest
+    concurrency:
+      group: aimail-release-${{ github.sha }}
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -65,11 +68,23 @@ jobs:
             draft="$(python3 -c 'import json,sys; print(str(json.load(sys.stdin)["isDraft"]).lower())' <<<"$release")"
             author="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["author"]["login"])' <<<"$release")"
             target="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["targetCommitish"])' <<<"$release")"
-            if [[ "$draft" != true || "$author" != 'github-actions[bot]' || "$target" != "$GITHUB_SHA" ]]; then
-              echo "An immutable or foreign release already exists for $tag" >&2
+            if [[ "$author" != 'github-actions[bot]' || "$target" != "$GITHUB_SHA" ]]; then
+              echo "A foreign release already exists for $tag" >&2
               exit 1
             fi
-            gh release delete "$tag" --cleanup-tag --yes
+            if [[ "$draft" == true ]]; then
+              gh release delete "$tag" --cleanup-tag --yes
+            else
+              assets="$(gh release view "$tag" --json assets)"
+              python3 -c 'import json,sys; names={a["name"] for a in json.load(sys.stdin)["assets"]}; required={"aimail-image.tar.gz","aimail-image.tar.gz.sha256","release.json"}; sys.exit(0 if required <= names else 1)' <<<"$assets"
+              ref="$(gh api "repos/niuroumiantt/mail2leads/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
+              if [[ "$ref" != "commit ${GITHUB_SHA}" ]]; then
+                echo "Existing release tag does not point at the tested source commit" >&2
+                exit 1
+              fi
+              echo "Immutable release already published for ${GITHUB_SHA}"
+              exit 0
+            fi
           fi
           gh release create "$tag" release-assets/aimail-image.tar.gz release-assets/aimail-image.tar.gz.sha256 release-assets/release.json \
             --target "$GITHUB_SHA" --draft --title "aimail ${GITHUB_SHA}" \
