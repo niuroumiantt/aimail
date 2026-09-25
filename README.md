@@ -125,8 +125,8 @@ leadsgen 必须接管正式客户档案。当前交付方向是 leadsgen → aim
 Mac mini 上一条命令,装成 launchd 常驻,以后更新再跑一遍就是升级:
 
 ```bash
-git clone git@github.com:niuroumiantt/mail2leads.git ~/mail2leads
-cd ~/mail2leads && bash deploy/install_mini.sh          # 实例名默认 sales
+git clone git@github.com:niuroumiantt/aimail.git ~/code/aimail
+cd ~/code/aimail && bash deploy/install_mini.sh          # 实例名默认 sales
 ```
 
 第一次会生成 `~/.config/mail2leads/sales.env`(0600),按 `.env.example` 填好再跑一次:

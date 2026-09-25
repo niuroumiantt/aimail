@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 在 Mac mini 上装成 launchd 常驻服务。幂等:更新代码后再跑一遍就是升级。
 #
-#   git clone git@github.com:niuroumiantt/mail2leads.git ~/mail2leads
-#   cd ~/mail2leads && bash deploy/install_mini.sh            # 第一个邮箱,实例名 sales
+#   git clone git@github.com:niuroumiantt/aimail.git ~/code/aimail
+#   cd ~/code/aimail && bash deploy/install_mini.sh            # 第一个邮箱,实例名 sales
 #   bash deploy/install_mini.sh support                       # 第二个邮箱:自己的 env、库、端口、服务
 #
 # 第一次跑会生成 ~/.config/mail2leads/<实例名>.env(0600),填好 IMAP、模型、PORT、TASKS 再跑第二次。

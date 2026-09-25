@@ -1,6 +1,6 @@
 # aimail 交付里程碑
 
-2026-09-25 16:42 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
+2026-09-25 17:04 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
 
 | 里程碑 | 验收要求 | 当前状态 |
 | --- | --- | --- |
@@ -8,7 +8,7 @@
 | M2 随时交接 | AI 总结、原邮件附件、接手/再转交、接手人续跟进 | PR #22 功能代码已包含在当前部署；自动化测试覆盖权限、发送未决保护和交接。生产页面真人交接、摘要、附件及接手人续跟进尚未验收。 |
 | M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | Leadsgen 接口只读访问及跨仓模拟回执通过；真实人员分配、接手和完整往返流程待验收。 |
 | M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云已运行 main `f5047ccf593b09d23f46311367e9760cc1d3d6ea`；容器健康端点 200、`aimail` 包导入、SQLite integrity/foreign-key、HTTPS 及匿名 API OIDC 302 均通过。真实页面以 Larry 登录并显示现存邮件；此次没有发送邮件。Aliyun `tag:aimail` 已入 tailnet，Spark LiteLLM `:4000` 健康、Ollama `:11434` 被拒；推理待 `fast` 专用虚拟密钥和验收。 |
-| M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | Python 包已改名并部署；GitHub 仓库、Compose 服务、`/srv/mail2leads-data` 仍使用旧名。OA 邮件表为空且 worker 未运行，但源码仍有引用，未删除。 |
+| M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | GitHub 仓库已改名为 `niuroumiantt/aimail`，当前发布器与 infra 登记正在分 PR 收口；Compose 服务、镜像 tag 与 `/srv/mail2leads-data` 仍保留兼容旧名，后续须单独备份迁移。OA 邮件表为空且 worker 未运行，但源码仍有引用，未删除。 |
 | M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #223–#227 已合并；PR #226 记录持久 DNS 修复，#227 更新六机实测并修复刷新器保留标签/DNS 的缺陷。图已记录当前 Aimail image SHA。员工业务验收及完整命名/路径迁移仍未完成。 |
 
 ## 当前生产事实（2026-09-25 16:42 CST）
@@ -18,6 +18,7 @@
 - 邮箱身份策略为共享 sales 收件、个人 Larry 发件。IMAP 和 SMTP 凭据已通过协议认证测试；测试没有选择邮件文件夹、抓取邮件或发送邮件。生产自动开发信开关仍为关闭。
 - GitHub Release 下载与离线镜像导入不需要 Docker Hub 账号。生产服务器使用 GitHub Actions 生成的固定 SHA 镜像，不从 Docker Hub 拉取。DNS 修复后的本次 87 MB Release 下载用了 18 分 33 秒；自动化成功，但跨境下载是部署延迟。
 - `mail.glocalstorage.cn` 在现有浏览器 OIDC 会话中识别出 Larry，并加载个人邮箱的 173 个邮件会话；这只验收登录和现存数据可见，不代表实时同步、回复、转交或第二员工权限已验收。Aliyun 已加入现有 tailnet，ACL 仅允许访问 Spark LiteLLM HTTPS `:4000`；实际推理仍需一个 `fast` 范围的 LiteLLM 虚拟密钥，不复用管理密钥。
+- GitHub 仓库已在 2026-09-25 从 `niuroumiantt/mail2leads` 改名为 `niuroumiantt/aimail`，旧地址由 GitHub 重定向。新 release 生成器、OCI 来源标签和 CI 发布校验正在更新到规范仓库名；生产发布器会在切换期同时接受新旧 provenance，Compose 服务和数据路径另行迁移，避免混在一次改名里。
 - 2026-09-25 15:37 CST，从 Aliyun `100.83.13.53` 经 Tailscale Serve HTTPS 检查 Spark LiteLLM `/health/liveliness` 返回 200；直连 Spark Ollama `:11434` 被 ACL 阻断。该项由 infra PR #225 记录并合并；它只证明网络和网关健康，不代表模型推理已验收。
 - 当前生产容器、TLS/OIDC 外网入口、SMTP/IMAP 身份认证已验证；客户沟通、AI 分析、线索分配/转交、多员工权限仍不能标记为业务验收完成。
 

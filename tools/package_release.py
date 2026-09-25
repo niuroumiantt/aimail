@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPOSITORY = "niuroumiantt/mail2leads"
+REPOSITORY = "niuroumiantt/aimail"
 IMAGE = "mail2leads:release"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 

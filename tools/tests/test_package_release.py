@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from package_release import package
+from package_release import REPOSITORY, package
 
 SHA = "a" * 40
 IMAGE = {
@@ -17,7 +17,7 @@ IMAGE = {
     "Architecture": "amd64",
     "Config": {
         "Labels": {
-            "org.opencontainers.image.source": "https://github.com/niuroumiantt/mail2leads",
+            "org.opencontainers.image.source": "https://github.com/niuroumiantt/aimail",
             "org.opencontainers.image.revision": SHA,
         }
     },
@@ -38,6 +38,14 @@ class Process:
 
 
 class PackageReleaseTests(unittest.TestCase):
+    def test_release_workflow_and_docker_source_use_canonical_repository(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        dockerfile = (root / "Dockerfile").read_text()
+        self.assertIn(f"repos/{REPOSITORY}/git/ref/tags/", workflow)
+        self.assertNotIn("repos/niuroumiantt/mail2leads/", workflow)
+        self.assertIn(f"https://github.com/{REPOSITORY}", dockerfile)
+
     def test_packages_image_and_binds_archive_to_source_sha(self):
         with (
             tempfile.TemporaryDirectory() as directory,
@@ -49,6 +57,7 @@ class PackageReleaseTests(unittest.TestCase):
             with gzip.open(archive, "rb") as saved:
                 self.assertEqual(saved.read(), b"docker image archive")
             self.assertEqual(manifest["source_sha"], SHA)
+            self.assertEqual(manifest["repository"], "niuroumiantt/aimail")
             self.assertEqual(manifest["archive"]["image_id"], IMAGE["Id"])
             archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
             self.assertEqual(manifest["archive"]["sha256"], archive_hash)
