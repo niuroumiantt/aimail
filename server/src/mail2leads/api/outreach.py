@@ -21,6 +21,12 @@ class Stop(BaseModel):
     reason: str = "paused"
 
 
+class Assignment(BaseModel):
+    action: str = Field(max_length=16)
+    recipient: str = Field(default="", max_length=320)
+    version: int = Field(ge=0)
+
+
 def install(
     app,
     conn,
@@ -32,10 +38,12 @@ def install(
     sender="",
     require_proxy=False,
     approval_proxy_key="",
+    members=(),
 ):
     outreach.init(conn)
     path = conn.execute("PRAGMA database_list").fetchone()["file"]
     tokens = TokenBox()
+    members = frozenset(m.strip().casefold() for m in members if m.strip())
 
     @contextmanager
     def database():
@@ -136,6 +144,32 @@ def install(
             raise HTTPException(404, str(exc)) from exc
         token = tokens.mint(sid, actor)
         return {"token": token.value}
+
+    @app.post("/api/prospects/{sid}/assignment")
+    def assignment(sid: str, body: Assignment, request: Request):
+        identity(request)
+        actor = request.headers.get("x-oa-email", "").strip().casefold()
+        recipient = body.recipient.strip().casefold()
+        if not require_proxy or actor not in members or sender.casefold() not in members:
+            raise HTTPException(403, "潜客分配需要已登记员工及可信身份代理")
+        if body.action == "offer" and recipient not in members:
+            raise HTTPException(422, "接收人不是已登记员工")
+        try:
+            with database() as c:
+                return outreach.assign(
+                    c,
+                    mailbox_id,
+                    sid,
+                    actor,
+                    sender.casefold(),
+                    body.action,
+                    recipient,
+                    body.version,
+                )
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
 
     @app.post("/api/prospects/{sid}/approve")
     def approve(sid: str, body: Approval, request: Request):

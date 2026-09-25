@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS prospect_event (
  id INTEGER PRIMARY KEY, sequence_id TEXT NOT NULL REFERENCES prospect_sequence(id),
  type TEXT NOT NULL, occurred_at TEXT NOT NULL, detail TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS prospect_assignment (
+ sequence_id TEXT PRIMARY KEY REFERENCES prospect_sequence(id),
+ owner TEXT NOT NULL, pending TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL
+);
 """
 
 
@@ -141,6 +145,54 @@ def get(conn, mailbox_id, sid):
     return row
 
 
+def assign(conn, mailbox_id, sid, actor, default_owner, action, recipient, version):
+    """Pre-contact handoff only. Assignment never approves content or schedules mail."""
+    with transaction(conn):
+        sequence = get(conn, mailbox_id, sid)
+        if sequence["state"] != "draft":
+            raise ValueError("仅可在首次批准发送前分配；已联系客户请使用邮件会话交接")
+        current = conn.execute(
+            "SELECT * FROM prospect_assignment WHERE sequence_id=?", (sid,)
+        ).fetchone()
+        owner = current["owner"] if current else default_owner
+        pending = current["pending"] if current else ""
+        old_version = current["version"] if current else 0
+        if version != old_version:
+            raise ValueError("分配记录已变化，请刷新")
+        if action == "offer":
+            if actor != owner or pending or not recipient or recipient == actor:
+                raise PermissionError("无权分配或已有待接手记录")
+            pending = recipient
+        elif action == "accept":
+            if not pending or actor != pending:
+                raise PermissionError("只有指定接收人可以接手")
+            owner, pending = actor, ""
+        elif action == "cancel":
+            if actor != owner or not pending:
+                raise PermissionError("只有负责人可以取消待接手记录")
+            pending = ""
+        else:
+            raise ValueError("未知分配动作")
+        conn.execute(
+            "INSERT INTO prospect_assignment VALUES(?,?,?,?) ON CONFLICT(sequence_id) "
+            "DO UPDATE SET owner=excluded.owner,pending=excluded.pending,version=excluded.version",
+            (sid, owner, pending, version + 1),
+        )
+        event(
+            conn,
+            sid,
+            "assignment",
+            {
+                "actor": actor,
+                "action": action,
+                "owner": owner,
+                "pending": pending,
+                "version": version + 1,
+            },
+        )
+    return {"owner": owner, "pending": pending, "version": version + 1}
+
+
 def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, sender=""):
     sender = (
         sender
@@ -161,6 +213,11 @@ def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, 
             raise ValueError("标题不能包含换行")
     with transaction(conn):
         row = get(conn, mailbox_id, sid)
+        assigned = conn.execute(
+            "SELECT owner FROM prospect_assignment WHERE sequence_id=?", (sid,)
+        ).fetchone()
+        if assigned and assigned["owner"].casefold() != sender.casefold():
+            raise PermissionError("发件身份不是当前潜客负责人")
         if row["state"] != "draft":
             raise ValueError("已批准或停止的序列不可覆盖或重复启用")
         approval = json.dumps(
@@ -395,6 +452,11 @@ def listing(conn, mailbox_id):
     result = []
     for row in rows:
         item = dict(row)
+        assignment = conn.execute(
+            "SELECT owner,pending,version FROM prospect_assignment WHERE sequence_id=?",
+            (row["id"],),
+        ).fetchone()
+        item["assignment"] = dict(assignment) if assignment else None
         item["payload"] = json.loads(item["payload"])
         item["steps"] = [
             dict(s)

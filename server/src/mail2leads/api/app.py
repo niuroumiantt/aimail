@@ -744,6 +744,7 @@ def create_app(
         sender=sender,
         require_proxy=require_oa_auth,
         approval_proxy_key=outreach_approval_proxy_key,
+        members=followup_members,
     )
 
     if require_oa_auth and followup_members:
