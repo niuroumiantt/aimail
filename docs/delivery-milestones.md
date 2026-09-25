@@ -1,17 +1,17 @@
 # aimail 交付里程碑
 
-2026-09-25 18:53 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
+2026-09-25 19:09 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
 
 | 里程碑 | 验收要求 | 当前状态 |
 | --- | --- | --- |
 | M1 身份与发件 | sales 只收信；各员工使用自己的 SMTP | 浏览器 OIDC 会话识别为 `larry@glocalstorage.com`，个人邮箱列表显示 173 个会话；共享 `sales@` 与个人邮箱分别登记。已有 IMAP/SMTP 凭据认证通过；sales 不在发件名单，自动开发信关闭。第二位员工及真实收发验收待完成。 |
 | M2 随时交接 | AI 总结、原邮件附件、接手/再转交、接手人续跟进 | PR #22 与 PR #33 功能均已部署；PR #33 增加服务商证据核对未决发送、仅负责人操作及 SQLite 事务迁移。新版本部署内置健康和数据库检查通过。生产页面真人交接、摘要、附件及接手人续跟进尚未验收。 |
-| M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | Leadsgen 接口只读访问及跨仓模拟回执通过；真实人员分配、接手和完整往返流程待验收。 |
+| M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | 阿里云生产配置已在 leadsgen→Aimail 内网桥接中验证：目标 `mail2leads` 与令牌匹配；空负载按字段错误返回 409，没有创建记录。只读核对发现 1 条 leadsgen `accepted` 回执能匹配 Aimail 内的 1 条 `draft` 记录（创建于 2026-09-23），对应发送步骤为 0。证明至少一条既有交接到达 Aimail，不代表新线索现场交接或人工跟进已验收；sales 来信分配、员工接手和完整往返仍待验收。 |
 | M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云运行 main `6dea865f359da48e36cff82b57117f541a1127b7`（PR #33）。2026-09-25 18:51 CST 部署完成；发布器生成并校验 SQLite 备份，新容器健康检查通过。部署后复核：容器 `/healthz` 200、SQLite `integrity_check=ok`、`foreign_key_check` 无记录、匿名 API OIDC 302；没有发送邮件。浏览器已用 Larry 登录并显示现存邮件；人工核对流程的真实页面操作仍待验收。Aliyun `tag:aimail` 已入 tailnet，LiteLLM `:4000` 返回 200、Ollama `:11434` 被拒；推理待 `fast` 专用虚拟密钥和验收。 |
 | M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | GitHub repo、Python 包、OCI 来源、Release 清单、CI 校验及 infra 登记均使用 `aimail`。AWS 和 Aliyun 旧源码 checkout 已归档，Aliyun 两个未提交文件保留在 root-only 归档；m5 `~/code/mail2leads` 因仍被进程/工作树引用，尚未移动。Compose 服务、容器、镜像前缀及 `/srv/mail2leads-data` 仍使用旧运行名，需单独备份迁移。OA 邮件表为空、生产无 `oa-worker`；OA 源码中的邮件实现未删除。 |
 | M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #223–#230 已合并；最新 Aimail 部署已前进至 `6dea865f`，生产图仍记录旧 SHA `0b4f997f`，需再刷新账本。员工业务验收、模型推理和完整运行时命名迁移仍未完成。 |
 
-## 当前生产事实（2026-09-25 18:53 CST）
+## 当前生产事实（2026-09-25 19:09 CST）
 
 - 阿里云 `aimail-deploy.timer` 已启用并 active，每 15 分钟检查 GitHub main，只更新 aimail。当前版本无变化时 7 秒返回 `Up to date`，不会重复扫描镜像归档。
 - 当前运行镜像为 `mail2leads:aimail-6dea865f359da48e36cff82b57117f541a1127b7`。PR #33 已部署，发布器日志确认切换前 SQLite 备份已生成并通过完整性校验。部署后内部容器 `/healthz` 为 200、SQLite 完整性为 `ok`、外键检查无记录，匿名业务 API 按策略 302 到统一身份认证。公网 `/healthz` 由登录代理保护，因此公网检查也会返回 302。
@@ -21,6 +21,7 @@
 - GitHub 仓库已在 2026-09-25 从 `niuroumiantt/mail2leads` 改名为 `niuroumiantt/aimail`，旧地址由 GitHub 重定向。Aimail PR #30/#31 更新 Release 生成、OCI 来源标签、CI 校验和文档-only 发布行为；PR #33 上线人工核对未决发送。infra PR #228–#230 更新发布器与生产登记；新 SHA `6dea865f` 尚未写回 infra 图册。阿里云继续兼容旧镜像名和数据路径；Compose 服务、镜像前缀及数据目录仍留待独立备份迁移。AWS 与 Aliyun 旧源码 checkout 已归档，Aliyun 两个本地改动保存在 root-only 归档中；m5 常驻 checkout 因仍有活跃进程/工作树，尚未物理改名。
 - 2026-09-25 18:12 CST，从 Aliyun `100.83.13.53` 复测 Spark LiteLLM `/health/liveliness` 返回 200；直连 Spark Ollama `:11434` 仍按 ACL 超时拒绝。Tailscale 登录已完成，无需站长再改网络控制台；它只证明网络和网关健康，不代表模型推理已验收。
 - 当前生产容器、TLS/OIDC 外网入口、SMTP/IMAP 身份认证已验证；客户沟通、AI 分析、线索分配/转交、多员工权限仍不能标记为业务验收完成。
+- 2026-09-25 19:08 CST 只读核对了生产 leadsgen→Aimail 接口：双方专用令牌配置且匹配，leadsgen 容器按其生产 URL 请求 Aimail 得到预期字段校验响应 409；空测试数据在事务前被拒，未写生产记录。生产账本中有 1 个 `accepted` 回执与 Aimail 的 1 条草稿以回执编号匹配，未发现已发送步骤；该既有记录在 2026-09-23 创建。没有读取客户姓名、地址或正文，也没有调用发件流程。
 
 ## 需要站长提供的验收输入
 
@@ -189,6 +190,11 @@ sent 或 not_sent，必须提供服务商记录依据；sent 会把原 RFC822 �
 代码仍在未合并分支，尚未生产部署或浏览器实测，没有发送邮件。
 
 2026-09-25 18:51 CST：PR #33（`6dea865f`）通过 CI、Docker 镜像构建及 Release 发布，并由阿里云 `aimail-deploy.service` 部署。发布器确认切换前备份 SQLite 并验证；部署后复核新容器 `/healthz` 200、SQLite 完整性 `ok`、外键检查为空、匿名业务 API 跳转 OIDC（302）。发布耗时约 7 分 40 秒，主要是跨境下载。没有触发 SMTP；真人使用新的“记录核对结果（不发送邮件）”界面仍需浏览器验收。infra 生产图尚未刷新到新 SHA。
+
+2026-09-25 19:08 CST：在阿里云以 production `LEADSGEN_MAIL_URL` 和 `LEADSGEN_MAIL_TOKEN`
+做只读安全烟测：有效令牌请求 `/v1/prospects/import` 的无效空载荷返回预期 409，不写数据库。
+分别只读查询两库并以回执编号匹配，确认现有 1 条 accepted leadsgen handoff 对应 Aimail
+1 条 draft prospect，已发送步骤为 0。未发送邮件、未创建测试客户或修改生产数据。真实新线索现场交接及员工审阅仍待业务验收。
 
 2026-09-25 10:12 UTC：用户在 Tailscale 控制台完成阿里云设备登录。阿里云 `mainland-qingdao`
 已显示 tailnet 地址 `100.83.13.53`；本机复测 LiteLLM HTTPS `:4000` 返回 200，Ollama
