@@ -259,6 +259,7 @@ def create_app(
     mailbox_access: dict[str, tuple[str, ...]] | None = None,
     mailbox_tasks: dict[str, frozenset[str]] | None = None,
     sync_mailboxes: dict[str, Callable[[], None]] | None = None,
+    followup_members: tuple[str, ...] = (),
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
@@ -643,6 +644,7 @@ def create_app(
         selected = _mailbox_row(request)
         if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
             raise HTTPException(404, "没有这条线程")
+        _authorize_sender(request)
         token = tokens.mint(thread_id, _person(request))
         return {"token": token.value, "expires_in": send_mod.TOKEN_TTL_SECONDS}
 
@@ -650,6 +652,9 @@ def create_app(
     def send(thread_id: int, request: Request, payload: SendBody) -> dict:
         user = _person(request)
         selected = _mailbox_row(request)
+        if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
+            raise HTTPException(404, "没有这条线程")
+        _authorize_sender(request)
         if transport is None or not sender:
             raise HTTPException(503, "没有配置 SMTP,发不了")
         try:
@@ -675,6 +680,18 @@ def create_app(
         row = repo.get_thread(conn, thread_id, int(selected["id"]))
         assert row is not None
         return _thread_out(conn, row, with_messages=True)
+
+    def _authorize_sender(request: Request) -> None:
+        try:
+            send_mod.validate_sender(sender)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        if (
+            require_oa_auth
+            and request.headers.get("x-oa-email", "").strip().casefold()
+            != sender.strip().casefold()
+        ):
+            raise HTTPException(403, "当前账号未获授权使用这个发件邮箱")
 
     @app.patch("/api/leads/{lead_id}")
     def patch_lead(lead_id: int, request: Request, patch: LeadPatch) -> dict:
@@ -704,6 +721,11 @@ def create_app(
         require_proxy=require_oa_auth,
         approval_proxy_key=outreach_approval_proxy_key,
     )
+
+    if require_oa_auth and followup_members:
+        from mail2leads.api.followup import install as install_followup
+
+        install_followup(app, conn, _person, _mailbox_row, _thread_out, followup_members)
 
     if web_dist and (web_dist / "index.html").exists():
         app.mount("/assets", StaticFiles(directory=web_dist / "assets"), name="assets")

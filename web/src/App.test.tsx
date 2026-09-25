@@ -6,7 +6,7 @@ afterEach(() => window.history.pushState({}, "", "/"));
 
 it("shell renders the product name", async () => {
   render(<App />);
-  expect(await screen.findByRole("heading", { name: "mail2leads" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "aimail" })).toBeInTheDocument();
 });
 
 it("thread page shows the messages from the detail which the list does not carry", async () => {

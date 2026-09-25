@@ -23,6 +23,12 @@ from mail2leads.ingest.run import store_raw
 TOKEN_TTL_SECONDS = 600
 
 
+def validate_sender(sender: str) -> None:
+    """The company public sales address is receive-only, on every send path."""
+    if sender.strip().casefold() == "sales@glocalstorage.com":
+        raise PermissionError("sales@glocalstorage.com 只收信，请使用个人邮箱发送")
+
+
 @dataclass(frozen=True)
 class SendToken:
     value: str
@@ -75,6 +81,11 @@ class SmtpTransport:
     def deliver(self, sender: str, recipients: list[str], raw: bytes) -> str:
         import smtplib
 
+        validate_sender(sender)
+        if not all((self.host, self.user, self.password)):
+            raise PermissionError("发信需要明确配置个人邮箱 SMTP")
+        if sender.strip().casefold() != self.user.strip().casefold():
+            raise PermissionError("发件地址与 SMTP 账号不一致")
         context = ssl.create_default_context()
         if self.port == 465:
             server = smtplib.SMTP_SSL(self.host, self.port, context=context, timeout=30)
@@ -98,6 +109,7 @@ def build_message(
     references: str,
     now: datetime,
 ) -> tuple[EmailMessage, str]:
+    validate_sender(sender)
     msg = EmailMessage()
     domain = sender.split("@")[-1] or "mail2leads.local"
     message_id = f"<{uuid.uuid4()}@{domain}>"

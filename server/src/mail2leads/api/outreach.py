@@ -7,7 +7,7 @@ from fastapi import HTTPException, Request
 from pydantic import BaseModel, Field
 
 from mail2leads import outreach
-from mail2leads.send import TokenBox
+from mail2leads.send import TokenBox, validate_sender
 from mail2leads.store.db import connect
 
 
@@ -66,6 +66,16 @@ def install(
 
     def human(request):
         actor = identity(request)
+        try:
+            validate_sender(sender)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        if (
+            require_proxy
+            and request.headers.get("x-oa-email", "").strip().casefold()
+            != sender.strip().casefold()
+        ):
+            raise HTTPException(403, "当前账号未获授权使用这个发件邮箱")
         origin = request.headers.get("origin")
         host = request.headers.get("host", "")
         if request.headers.get("x-outreach-action") != "confirm-v1" or (
