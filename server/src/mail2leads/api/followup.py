@@ -8,6 +8,7 @@ from fastapi import HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from mail2leads import backends
+from mail2leads import send as send_mod
 from mail2leads.store import followup, repo
 
 
@@ -21,6 +22,12 @@ class Decision(BaseModel):
     version: int = Field(ge=1)
 
 
+class Reply(BaseModel):
+    token: str = Field(max_length=200)
+    subject: str = Field(min_length=1, max_length=1000)
+    body: str = Field(min_length=1, max_length=100000)
+
+
 class Summary(BaseModel):
     stage: str = Field(max_length=2000)
     needs: str = Field(max_length=4000)
@@ -30,8 +37,9 @@ class Summary(BaseModel):
     source_ids: list[int] = Field(min_length=1)
 
 
-def install(app, conn, person, mailbox_row, thread_output, members):
+def install(app, conn, person, mailbox_row, thread_output, members, sending_account):
     followup.init(conn)
+    tokens = send_mod.TokenBox()
     members = frozenset(address.strip().lower() for address in members if address.strip())
 
     def actor(request):
@@ -143,6 +151,45 @@ def install(app, conn, person, mailbox_row, thread_output, members):
             return followup.transfer(conn, tid, user, recipient, body.version, summary, body.note)
         except (PermissionError, ValueError):
             raise HTTPException(409, "交接状态已变化，请刷新") from None
+
+    @app.post("/api/followups/{tid}/reply-token")
+    def reply_token(tid: int, request: Request):
+        user, _ = access(request, tid, manage=True)
+        account = sending_account(request)
+        if account.transport is None:
+            raise HTTPException(503, "个人发件账号尚未配置")
+        token = tokens.mint(tid, user)
+        return {"token": token.value, "sender": account.address}
+
+    @app.post("/api/followups/{tid}/reply")
+    def reply(tid: int, body: Reply, request: Request):
+        user, _ = access(request, tid, manage=True)
+        account = sending_account(request)
+        row = repo.get_thread(conn, tid)
+        if account.transport is None:
+            raise HTTPException(503, "个人发件账号尚未配置")
+        try:
+            token = tokens.consume(body.token, tid, user)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        try:
+            send_mod.send(
+                conn,
+                token=token,
+                mailbox_id=row["mailbox_id"],
+                sender=account.address,
+                sender_name=account.display_name,
+                thread_id=tid,
+                to=[row["contact_email"]],
+                subject=body.subject,
+                body=body.body,
+                transport=account.transport,
+            )
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return {"ok": True, "sender": account.address}
 
     @app.post("/api/followups/{tid}/{action}")
     def decide(tid: int, action: str, body: Decision, request: Request):

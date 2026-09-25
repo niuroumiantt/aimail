@@ -17,6 +17,7 @@ from mail2leads.config import Config
 from mail2leads.ingest.imap import ImapSource
 from mail2leads.ingest.run import ingest_once
 from mail2leads.send import SmtpTransport
+from mail2leads.send.accounts import from_env as sending_accounts_from_env
 from mail2leads.store import outbox, repo
 from mail2leads.store.db import connect
 from mail2leads.tasks.read import read_message, unread_incoming
@@ -223,6 +224,7 @@ def main(argv: list[str]) -> int:
         sync_mailbox=lambda: _ingest_all(config, mailbox_id),
         require_oa_auth=config.require_oa_auth,
         followup_members=config.followup_members,
+        sending_accounts=sending_accounts_from_env(),
         outreach_import_token=config.outreach_import_token,
         outreach_enabled=config.outreach_enabled,
         outreach_approval_proxy_key=config.outreach_approval_proxy_key,

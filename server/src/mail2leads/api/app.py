@@ -26,6 +26,7 @@ from mail2leads import backends
 from mail2leads import send as send_mod
 from mail2leads.config import DEFAULT_TASKS
 from mail2leads.ingest import attachments
+from mail2leads.send.accounts import SendingAccount
 from mail2leads.store import assistant, history, leads, outbox, repo
 from mail2leads.tasks import ask_mailbox
 from mail2leads.tasks import draft as draft_mod
@@ -260,6 +261,7 @@ def create_app(
     mailbox_tasks: dict[str, frozenset[str]] | None = None,
     sync_mailboxes: dict[str, Callable[[], None]] | None = None,
     followup_members: tuple[str, ...] = (),
+    sending_accounts: dict[str, SendingAccount] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="mail2leads")
     tokens = send_mod.TokenBox()
@@ -654,8 +656,8 @@ def create_app(
         selected = _mailbox_row(request)
         if repo.get_thread(conn, thread_id, int(selected["id"])) is None:
             raise HTTPException(404, "没有这条线程")
-        _authorize_sender(request)
-        if transport is None or not sender:
+        account = _authorize_sender(request)
+        if account.transport is None or not account.address:
             raise HTTPException(503, "没有配置 SMTP,发不了")
         try:
             token = tokens.consume(payload.token, thread_id, user)
@@ -666,13 +668,13 @@ def create_app(
                 conn,
                 token=token,
                 mailbox_id=int(selected["id"]),
-                sender=sender,
-                sender_name=sender_name,
+                sender=account.address,
+                sender_name=account.display_name,
                 thread_id=thread_id,
                 to=payload.to,
                 subject=payload.subject,
                 body=payload.body,
-                transport=transport,
+                transport=account.transport,
                 draft_id=int(payload.draft_id) if payload.draft_id else None,
             )
         except ValueError as exc:
@@ -681,7 +683,17 @@ def create_app(
         assert row is not None
         return _thread_out(conn, row, with_messages=True)
 
-    def _authorize_sender(request: Request) -> None:
+    def _authorize_sender(request: Request) -> SendingAccount:
+        identity = request.headers.get("x-oa-email", "").strip().casefold()
+        if require_oa_auth and sending_accounts and identity in sending_accounts:
+            account = sending_accounts[identity]
+            if account.address.casefold() != identity:
+                raise HTTPException(403, "发件身份不匹配")
+            try:
+                send_mod.validate_sender(account.address)
+            except PermissionError as exc:
+                raise HTTPException(403, str(exc)) from exc
+            return account
         try:
             send_mod.validate_sender(sender)
         except PermissionError as exc:
@@ -692,6 +704,7 @@ def create_app(
             != sender.strip().casefold()
         ):
             raise HTTPException(403, "当前账号未获授权使用这个发件邮箱")
+        return SendingAccount(sender, sender_name, transport)
 
     @app.patch("/api/leads/{lead_id}")
     def patch_lead(lead_id: int, request: Request, patch: LeadPatch) -> dict:
@@ -725,7 +738,9 @@ def create_app(
     if require_oa_auth and followup_members:
         from mail2leads.api.followup import install as install_followup
 
-        install_followup(app, conn, _person, _mailbox_row, _thread_out, followup_members)
+        install_followup(
+            app, conn, _person, _mailbox_row, _thread_out, followup_members, _authorize_sender
+        )
 
     if web_dist and (web_dist / "index.html").exists():
         app.mount("/assets", StaticFiles(directory=web_dist / "assets"), name="assets")
