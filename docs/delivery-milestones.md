@@ -120,3 +120,13 @@ imap_inbox、imap_sent、imap_password_env。密码只从所引用环境变量�
 会跳过该账号发送；个人邮箱中关联会话的回复也计入停发判断。完整 precommit 通过
 （231 后端、58 前端），补测跨邮箱回复触发停发规则通过。未配置任何真实新员工密码，
 没有开启生产发送。下一步实测已有身份名单及登录权限，准备候选部署和模型网络接入。
+
+2026-09-25 10:33 CST：PR22 对 6bf69a8 的完整 CI 与 Docker 构建均成功。读取身份中心
+确认有效员工仅 admin / larry@glocalstorage.com（不含 AnonymousUser）。已向用户请求
+第二位真实验收员工的姓名和邮箱，不请求在聊天提供密码。
+已用 VITE_DATA_SOURCE=api 构建候选前端，源码固定 6bf69a8，打包 9.3 MiB。
+阿里云候选镜像构建流水正在上传 /tmp/aimail-candidate-6bf69a8.tgz；会话 48223
+仍运行，远端曾观测到 1.3 MiB，禁止重复启动同一上传/构建。上传后命令自动构建
+mail2leads:candidate-6bf69a8，以现有生产镜像为本地依赖层，覆盖源码及前端；
+--network=none 且 --pull=false。尚未构建完成、未启动候选、未挂载生产数据。
+下一次先等待会话 48223，然后用 --network=none、无生产卷的候选容器验证导入和路由。
