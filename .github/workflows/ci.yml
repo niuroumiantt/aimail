@@ -19,9 +19,79 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - run: bash tools/precommit.sh
   docker:
-    # Mac mini 走 launchd 不用它;这里只证明 Dockerfile 能建出来,不推镜像
+    # Pull requests get build-and-import coverage; main also exports this tested image.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t mail2leads:ci .
-      - run: docker run --rm mail2leads:ci uv run --no-sync python -c "import mail2leads; print('镜像里能 import')"
+      - name: Build linux/amd64 image with source provenance
+        run: >-
+          docker build --platform linux/amd64
+          --build-arg VCS_REF=${GITHUB_SHA}
+          -t mail2leads:release .
+      - run: docker run --rm mail2leads:release uv run --no-sync python -c "import mail2leads; print('镜像里能 import')"
+      - name: Package immutable release for Aliyun
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python3 tools/package_release.py --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --output release-assets
+      - name: Transfer release assets to publisher job
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aimail-release-${{ github.sha }}
+          path: release-assets/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [precommit, docker]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: aimail-release-${{ github.sha }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: aimail-release-${{ github.sha }}
+          path: release-assets
+      - name: Publish SHA-addressed release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="aimail-${GITHUB_SHA}"
+          (cd release-assets && sha256sum -c aimail-image.tar.gz.sha256)
+          if gh release view "$tag" >/dev/null 2>&1; then
+            release="$(gh release view "$tag" --json isDraft,author,targetCommitish)"
+            draft="$(python3 -c 'import json,sys; print(str(json.load(sys.stdin)["isDraft"]).lower())' <<<"$release")"
+            author="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["author"]["login"])' <<<"$release")"
+            target="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["targetCommitish"])' <<<"$release")"
+            if [[ "$author" != 'github-actions[bot]' || "$target" != "$GITHUB_SHA" ]]; then
+              echo "A foreign release already exists for $tag" >&2
+              exit 1
+            fi
+            if [[ "$draft" == true ]]; then
+              gh release delete "$tag" --cleanup-tag --yes
+            else
+              assets="$(gh release view "$tag" --json assets)"
+              python3 -c 'import json,sys; names={a["name"] for a in json.load(sys.stdin)["assets"]}; required={"aimail-image.tar.gz","aimail-image.tar.gz.sha256","release.json"}; sys.exit(0 if required <= names else 1)' <<<"$assets"
+              ref="$(gh api "repos/niuroumiantt/mail2leads/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
+              if [[ "$ref" != "commit ${GITHUB_SHA}" ]]; then
+                echo "Existing release tag does not point at the tested source commit" >&2
+                exit 1
+              fi
+              echo "Immutable release already published for ${GITHUB_SHA}"
+              exit 0
+            fi
+          fi
+          gh release create "$tag" release-assets/aimail-image.tar.gz release-assets/aimail-image.tar.gz.sha256 release-assets/release.json \
+            --target "$GITHUB_SHA" --draft --title "aimail ${GITHUB_SHA}" \
+            --notes "Automated linux/amd64 image built and tested by CI for ${GITHUB_SHA}."
+          ref="$(gh api "repos/niuroumiantt/mail2leads/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
+          if [[ "$ref" != "commit ${GITHUB_SHA}" ]]; then
+            echo "Release tag does not point at the tested source commit" >&2
+            exit 1
+          fi
+          gh release edit "$tag" --draft=false
