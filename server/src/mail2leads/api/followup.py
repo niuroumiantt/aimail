@@ -22,6 +22,10 @@ class Decision(BaseModel):
     version: int = Field(ge=1)
 
 
+class ReadReceipt(BaseModel):
+    last_message_id: int = Field(ge=1)
+
+
 class Reply(BaseModel):
     token: str = Field(max_length=200)
     subject: str = Field(min_length=1, max_length=1000)
@@ -70,9 +74,13 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
             "items": [
                 dict(r)
                 for r in conn.execute(
-                    "SELECT f.*,t.subject FROM followup f JOIN thread t ON t.id=f.thread_id "
-                    "WHERE f.owner=? OR f.pending=? ORDER BY f.updated_at DESC",
-                    (user, user),
+                    "SELECT f.*,t.subject,t.last_at,"
+                    "(SELECT count(*) FROM message m WHERE m.thread_id=t.id "
+                    "AND m.direction='in' AND m.id>COALESCE(r.last_message_id,0)) AS unread_count "
+                    "FROM followup f JOIN thread t ON t.id=f.thread_id "
+                    "LEFT JOIN followup_read r ON r.thread_id=t.id AND r.actor=? "
+                    "WHERE f.owner=? OR f.pending=? ORDER BY t.last_at DESC,f.updated_at DESC",
+                    (user, user, user),
                 )
             ],
         }
@@ -81,9 +89,15 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
     def detail(tid: int, request: Request):
         _, state = access(request, tid)
         row = repo.get_thread(conn, tid)
+        output = thread_output(conn, row, with_messages=True)
+        # Mailbox-level customer history may contain unassigned conversations.
+        output["history"] = []
         return {
             "state": state,
-            "thread": thread_output(conn, row, with_messages=True),
+            "last_message_id": conn.execute(
+                "SELECT MAX(id) FROM message WHERE thread_id=?", (tid,)
+            ).fetchone()[0],
+            "thread": output,
             "history": [
                 dict(r)
                 for r in conn.execute(
@@ -91,6 +105,21 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
                 )
             ],
         }
+
+    @app.post("/api/followups/{tid}/read")
+    def mark_read(tid: int, body: ReadReceipt, request: Request):
+        user, _ = access(request, tid)
+        if not conn.execute(
+            "SELECT 1 FROM message WHERE id=? AND thread_id=?", (body.last_message_id, tid)
+        ).fetchone():
+            raise HTTPException(422, "读取位置不属于当前会话")
+        conn.execute(
+            "INSERT INTO followup_read VALUES(?,?,?) "
+            "ON CONFLICT(thread_id,actor) DO UPDATE SET "
+            "last_message_id=MAX(followup_read.last_message_id,excluded.last_message_id)",
+            (tid, user, body.last_message_id),
+        )
+        return {"ok": True}
 
     @app.get("/api/followups/{tid}/history.zip")
     def download(tid: int, request: Request):

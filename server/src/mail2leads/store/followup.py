@@ -26,6 +26,12 @@ def init(conn: sqlite3.Connection) -> None:
       at TEXT NOT NULL,
       UNIQUE(thread_id,version)
     );
+    CREATE TABLE IF NOT EXISTS followup_read (
+      thread_id INTEGER NOT NULL REFERENCES thread(id),
+      actor TEXT NOT NULL,
+      last_message_id INTEGER NOT NULL REFERENCES message(id),
+      PRIMARY KEY(thread_id,actor)
+    );
     """)
 
 
