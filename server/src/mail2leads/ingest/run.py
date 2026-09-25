@@ -45,7 +45,13 @@ def _fallback(raw: bytes) -> Parsed:
 
 
 def store_raw(
-    conn: sqlite3.Connection, mailbox_id: int, raw: bytes, direction: str, now: datetime
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    raw: bytes,
+    direction: str,
+    now: datetime,
+    *,
+    new_thread: bool = False,
 ) -> tuple[int | None, bool]:
     """落一封。返回 (message 主键或 None, 是否解析失败)。已存在的返回 (None, False)。"""
     if repo.raw_seen(conn, hashlib.sha256(raw).hexdigest()):
@@ -66,7 +72,9 @@ def store_raw(
 
     conn.execute("BEGIN")
     try:
-        thread_id = thread.choose_thread(conn, mailbox_id, parsed, direction, now)
+        thread_id = (
+            None if new_thread else thread.choose_thread(conn, mailbox_id, parsed, direction, now)
+        )
         if thread_id is None:
             thread_id = repo.create_thread(
                 conn,

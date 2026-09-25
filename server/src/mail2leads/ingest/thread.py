@@ -37,7 +37,41 @@ def choose_thread(
             found = repo.thread_of_message_id(conn, mailbox_id, mid)
             if found is not None:
                 return found
+    if direction == "in":
+        found = _assigned_reply(conn, mailbox_id, parsed)
+        if found is not None:
+            return found
     since = (now - WINDOW).isoformat()
     return repo.find_thread_by_key(
         conn, mailbox_id, subject_key(parsed.subject), contact_of(parsed, direction), since
     )
+
+
+def _assigned_reply(conn: sqlite3.Connection, mailbox_id: int, parsed: Parsed) -> int | None:
+    """Correlate a customer's reply to an accepted owner's recorded outbound.
+
+    Headers alone do not grant access: require a recorded send, matching customer,
+    and an accepted assignment to this receiving mailbox. Never merge by subject
+    across mailboxes. Ambiguous references remain separate for human review.
+    """
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='followup'"
+    ).fetchone():
+        return None
+    candidates = set()
+    for mid in {parsed.in_reply_to, *parsed.references} - {""}:
+        rows = conn.execute(
+            "SELECT DISTINCT t.id FROM outbound o "
+            "JOIN message m ON m.id=o.message_pk "
+            "JOIN thread t ON t.id=o.thread_id "
+            "JOIN followup f ON f.thread_id=t.id "
+            "JOIN mailbox receiving ON receiving.id=? "
+            "WHERE m.message_id=? AND m.direction='out' "
+            "AND lower(m.from_email)=lower(receiving.address) "
+            "AND lower(o.sent_by)=lower(receiving.address) "
+            "AND lower(f.owner)=lower(receiving.address) "
+            "AND lower(t.contact_email)=lower(?)",
+            (mailbox_id, mid, parsed.from_email),
+        ).fetchall()
+        candidates.update(int(row[0]) for row in rows)
+    return next(iter(candidates)) if len(candidates) == 1 else None

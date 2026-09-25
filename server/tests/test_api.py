@@ -222,3 +222,17 @@ def test_spa_fallback_serves_index_and_assets(conn, mailbox, tmp_path):
     assert client.get("/assets/app.js").text == "console.log(1)"
     assert client.get("/api/threads/9999").status_code == 404
     assert client.get("/healthz").json() == {"ok": True}
+
+
+def test_sync_failure_never_exposes_provider_exception(conn, mailbox, caplog):
+    def fail():
+        raise ConnectionError("imap://user:private-password@internal-host AUTH private-token")
+
+    client = TestClient(create_app(conn, mailbox, sync_mailbox=fail))
+    response = client.post("/api/sync")
+    assert response.status_code == 502
+    assert "收信失败" in response.json()["detail"]
+    for secret in ("private-password", "private-token", "internal-host"):
+        assert secret not in response.text
+        assert secret not in caplog.text
+    assert "邮箱同步失败" in caplog.text

@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from mail2leads.ingest.run import store_raw
 from mail2leads.send import build_message
+from mail2leads.store import followup
 
 CADENCE = [0, 7, 14, 28, 60, 90]
 EMAIL = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}")
@@ -40,6 +41,14 @@ CREATE TABLE IF NOT EXISTS prospect_event (
  id INTEGER PRIMARY KEY, sequence_id TEXT NOT NULL REFERENCES prospect_sequence(id),
  type TEXT NOT NULL, occurred_at TEXT NOT NULL, detail TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS prospect_assignment (
+ sequence_id TEXT PRIMARY KEY REFERENCES prospect_sequence(id),
+ owner TEXT NOT NULL, pending TEXT NOT NULL DEFAULT '', version INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS prospect_sender (
+ sequence_id TEXT PRIMARY KEY REFERENCES prospect_sequence(id),
+ address TEXT NOT NULL
+);
 """
 
 
@@ -49,6 +58,7 @@ def stamp(now=None):
 
 def init(conn):
     conn.executescript(SCHEMA)
+    followup.init(conn)
 
 
 @contextmanager
@@ -141,6 +151,54 @@ def get(conn, mailbox_id, sid):
     return row
 
 
+def assign(conn, mailbox_id, sid, actor, default_owner, action, recipient, version):
+    """Pre-contact handoff only. Assignment never approves content or schedules mail."""
+    with transaction(conn):
+        sequence = get(conn, mailbox_id, sid)
+        if sequence["state"] != "draft":
+            raise ValueError("仅可在首次批准发送前分配；已联系客户请使用邮件会话交接")
+        current = conn.execute(
+            "SELECT * FROM prospect_assignment WHERE sequence_id=?", (sid,)
+        ).fetchone()
+        owner = current["owner"] if current else default_owner
+        pending = current["pending"] if current else ""
+        old_version = current["version"] if current else 0
+        if version != old_version:
+            raise ValueError("分配记录已变化，请刷新")
+        if action == "offer":
+            if actor != owner or pending or not recipient or recipient == actor:
+                raise PermissionError("无权分配或已有待接手记录")
+            pending = recipient
+        elif action == "accept":
+            if not pending or actor != pending:
+                raise PermissionError("只有指定接收人可以接手")
+            owner, pending = actor, ""
+        elif action == "cancel":
+            if actor != owner or not pending:
+                raise PermissionError("只有负责人可以取消待接手记录")
+            pending = ""
+        else:
+            raise ValueError("未知分配动作")
+        conn.execute(
+            "INSERT INTO prospect_assignment VALUES(?,?,?,?) ON CONFLICT(sequence_id) "
+            "DO UPDATE SET owner=excluded.owner,pending=excluded.pending,version=excluded.version",
+            (sid, owner, pending, version + 1),
+        )
+        event(
+            conn,
+            sid,
+            "assignment",
+            {
+                "actor": actor,
+                "action": action,
+                "owner": owner,
+                "pending": pending,
+                "version": version + 1,
+            },
+        )
+    return {"owner": owner, "pending": pending, "version": version + 1}
+
+
 def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, sender=""):
     sender = (
         sender
@@ -161,6 +219,13 @@ def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, 
             raise ValueError("标题不能包含换行")
     with transaction(conn):
         row = get(conn, mailbox_id, sid)
+        assigned = conn.execute(
+            "SELECT owner,pending FROM prospect_assignment WHERE sequence_id=?", (sid,)
+        ).fetchone()
+        if assigned and assigned["pending"]:
+            raise ValueError("请先完成或取消潜客交接，再批准发送")
+        if assigned and assigned["owner"].casefold() != sender.casefold():
+            raise PermissionError("发件身份不是当前潜客负责人")
         if row["state"] != "draft":
             raise ValueError("已批准或停止的序列不可覆盖或重复启用")
         approval = json.dumps(
@@ -177,6 +242,7 @@ def approve(conn, mailbox_id, sid, actor, steps, policy_confirmed, now=None, *, 
             "approval_hash=? WHERE id=?",
             (actor, stamp(now), digest, sid),
         )
+        conn.execute("INSERT INTO prospect_sender VALUES(?,?)", (sid, sender.casefold()))
         event(conn, sid, "approved", {"actor": actor, "content_hash": digest}, now)
 
 
@@ -219,8 +285,10 @@ def inbound_reason(conn, row):
     }
     messages = conn.execute(
         "SELECT from_email,in_reply_to,refs,raw FROM message "
-        "WHERE mailbox_id=? AND direction='in' AND received_at>=?",
-        (row["mailbox_id"], row["created_at"][:19]),
+        "WHERE (mailbox_id=? OR thread_id IN ("
+        "SELECT m.thread_id FROM message m JOIN prospect_step p ON p.message_id=m.message_id "
+        "WHERE p.sequence_id=? AND m.mailbox_id=?)) AND direction='in' AND received_at>=?",
+        (row["mailbox_id"], row["id"], row["mailbox_id"], row["created_at"][:19]),
     )
     for message in messages:
         parsed = BytesParser(policy=policy.default).parsebytes(message["raw"])
@@ -273,6 +341,12 @@ def tick(
         selected = None
         for row in rows:
             if get(conn, mailbox_id, row["id"])["state"] != "active":
+                continue
+            bound_sender = conn.execute(
+                "SELECT address FROM prospect_sender WHERE sequence_id=?", (row["id"],)
+            ).fetchone()
+            if bound_sender and bound_sender["address"] != sender.casefold():
+                # Another personal account's scheduler must not send or pause this sequence.
                 continue
             steps = conn.execute(
                 "SELECT * FROM prospect_step WHERE sequence_id=? ORDER BY day", (row["id"],)
@@ -334,17 +408,42 @@ def tick(
         result = transport.deliver(sender, [row["email"]], raw)
         if result != "ok":
             raise RuntimeError("transport_not_accepted")
-        pk, _ = store_raw(conn, mailbox_id, raw, "out", now)
+        assignment = conn.execute(
+            "SELECT owner FROM prospect_assignment WHERE sequence_id=?", (row["id"],)
+        ).fetchone()
+        pk, _ = store_raw(
+            conn,
+            mailbox_id,
+            raw,
+            "out",
+            now,
+            new_thread=bool(assignment and step["day"] == 0),
+        )
         if pk is None:
             raise RuntimeError("message_not_persisted")
         with transaction(conn):
             thread_id = conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[
                 0
             ]
+            if assignment and step["day"] == 0:
+                conn.execute(
+                    "INSERT INTO followup VALUES(?,?,'',1,'{}',?,?)",
+                    (thread_id, assignment["owner"], "从已接手潜客继承负责人", stamp(now)),
+                )
+                conn.execute(
+                    "INSERT INTO followup_event(thread_id,version,actor,action,payload,at) "
+                    "VALUES(?,1,?,'prospect_assigned',?,?)",
+                    (
+                        thread_id,
+                        assignment["owner"],
+                        json.dumps({"sequence_id": row["id"]}),
+                        stamp(now),
+                    ),
+                )
             conn.execute(
                 "INSERT INTO outbound(mailbox_id,thread_id,message_pk,sent_by,sent_at,"
                 "transport_result) VALUES(?,?,?,?,?,?)",
-                (mailbox_id, thread_id, pk, row["approved_by"], stamp(now), "ok"),
+                (mailbox_id, thread_id, pk, sender, stamp(now), "ok"),
             )
             conn.execute(
                 "UPDATE prospect_step SET state='smtp_accepted',sent_at=? "
@@ -395,6 +494,11 @@ def listing(conn, mailbox_id):
     result = []
     for row in rows:
         item = dict(row)
+        assignment = conn.execute(
+            "SELECT owner,pending,version FROM prospect_assignment WHERE sequence_id=?",
+            (row["id"],),
+        ).fetchone()
+        item["assignment"] = dict(assignment) if assignment else None
         item["payload"] = json.loads(item["payload"])
         item["steps"] = [
             dict(s)

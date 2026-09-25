@@ -1,8 +1,15 @@
-# mail2leads
+# aimail
 
-把 sales@ 收到的询盘邮件读成销售线索，人确认、人回复。
+公司的 AI 邮件沟通与销售交接工作台。leadsgen 交付待联系对象，或客户向 sales@ 来信；
+aimail 阅读、翻译、总结并分配负责人，由获授权的个人邮箱联系客户。
 
-独立项目，独立宪法（[CONSTITUTION.md](CONSTITUTION.md)）。只向 Spark 借算力，不受任何别的仓库指挥。
+aimail 是公司 OA 办公体系中的邮件应用，独立仓库承载研发；统一身份由
+login.glocalstorage.cn 提供，部署由 infra 管理。产品规则见 [CONSTITUTION.md](CONSTITUTION.md)。
+CRM、报价和合同不在本轮范围；leadsgen 负责发现和交接客户，不承担完整 CRM。
+
+产品名已经确定为 aimail；GitHub 仓库、Python 包、运行容器及数据目录暂仍为 mail2leads。
+不要根据页面标题直接改生产路径。职责以 [范围定义](docs/aimail-scope.md) 为准，
+当前版本、测试、候选部署与剩余验收见 [交付记录](docs/delivery-milestones.md)。
 
 ## 现在能跑什么
 
@@ -96,14 +103,19 @@ uv run python evals/draft_reply/run.py evals/draft_reply/dataset.jsonl
 
 ## 下游(M8)
 
-OA、PO、合同这类系统只通过 `/v1/leads` 拿线索,拿到的只有人确认过的事实,模型的建议永远不出门。
+以下是保留的既有事实导出接口，不代表 OA、CRM、报价或合同已经接入，也不规定
+leadsgen 必须接管正式客户档案。当前交付方向是 leadsgen → aimail → 个人邮箱沟通与销售交接。
+`/v1/leads` 导出人确认过的邮件事实；既有记录保留，不在命名迁移中删除。
 机器用 Bearer 令牌(`API_TOKENS`),**只能读**;写线索的接口只认人。线索每次变化还会 POST 到 `WEBHOOK_URL`
 (HMAC-SHA256 签名、失败按退避重试、永不丢,送没送到线索页上看得见)。接口形状钉死在测试里,改字段先写 ADR。
 细节见 [docs/api/v1.md](docs/api/v1.md),接线样例 `examples/pull_leads.py`(只用标准库)。
 
 ## 第二个邮箱(M9)
 
-一个实例伺候一个邮箱:自己的 env、库、端口、launchd 服务,`bash deploy/install_mini.sh support` 一条命令。
+历史本地试点使用一个实例一个邮箱。阿里云候选版本在同一实例内支持公共收件箱和
+显式登记的个人账号，并通过会话级交接共享相关历史，不授予整个来源邮箱。
+个人 SMTP、IMAP 和已登记员工必须分别核对；具体配置及验收见交付记录。
+以下独立实例方式保留供本地试点使用：自己的 env、库、端口、launchd 服务。
 `TASKS` 定这个邮箱开哪些任务——`read`(读数,必开)、`leads`(提线索建议)、`draft`(起草回信);个人邮箱通常只写 `read`,
 界面就不给线索入口、回信框里没有 AI 起草。零 schema 变更:所有表从第一天就带 `mailbox_id`,
 两个实例可以共用一个库,凭 id 也拿不到对方的线程、草稿、令牌、建议、线索、附件,推送的账也分开(有测试守着)。
