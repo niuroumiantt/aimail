@@ -5,6 +5,24 @@ import { OutreachWorkspace } from "./outreach-workspace";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("hands off a prospect without requesting an approval or sending mail", async () => {
+  const requests: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, options?: RequestInit) => {
+    requests.push(path);
+    if (path.endsWith("/assignment")) {
+      expect(JSON.parse(options?.body as string)).toEqual({action:"offer",recipient:"cloud@example.test",version:0});
+    }
+    return new Response(JSON.stringify({enabled:false, sender:"larry@example.test", identity:"larry@example.test",
+      assignment_members:["larry@example.test","cloud@example.test"], items:[{id:"p1",email:"customer@example.test",state:"draft",payload:{company:"Prospect",country:"US",tier:"1D"},steps:[]}]}));
+  }));
+  render(<MemoryRouter><OutreachWorkspace /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", {name:/Prospect/}));
+  fireEvent.change(screen.getByLabelText("潜客接收人"), {target:{value:"cloud@example.test"}});
+  fireEvent.click(screen.getByRole("button", {name:"提交潜客交接"}));
+  await waitFor(() => expect(requests).toContain("/api/prospects/p1/assignment"));
+  expect(requests.every(path => path === "/api/prospects" || path.endsWith("/assignment"))).toBe(true);
+});
+
 it("requires six complete messages and explicit confirmation before approving outreach", async () => {
   const requests: { path: string; body?: string }[] = [];
   vi.stubGlobal("fetch", vi.fn(async (path: string, options?: RequestInit) => {

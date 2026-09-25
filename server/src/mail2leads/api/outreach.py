@@ -132,6 +132,8 @@ def install(
                 "enabled": enabled,
                 "cadence_days": outreach.CADENCE,
                 "sender": sender,
+                "identity": request.headers.get("x-oa-email", "").strip().casefold(),
+                "assignment_members": sorted(members) if require_proxy else [],
             }
 
     @app.post("/api/prospects/{sid}/approval-token")
