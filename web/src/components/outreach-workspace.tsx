@@ -28,6 +28,7 @@ export function OutreachWorkspace() {
   const [items, setItems] = useState<Prospect[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [sender, setSender] = useState("");
+  const [defaultOwner, setDefaultOwner] = useState("");
   const [identity, setIdentity] = useState("");
   const [members, setMembers] = useState<string[]>([]);
   const [recipient, setRecipient] = useState("");
@@ -40,9 +41,10 @@ export function OutreachWorkspace() {
   const current = items.find(p => p.id === selected);
   const refresh = useCallback(async () => {
     try {
-      const data = await api<{ items: Prospect[]; enabled: boolean; sender: string; identity?:string; assignment_members?:string[] }>("/api/prospects");
+      const data = await api<{ items: Prospect[]; enabled: boolean; sender: string; default_owner?:string; identity?:string; assignment_members?:string[] }>("/api/prospects");
       setItems(data.items); setEnabled(data.enabled); setSender(data.sender); setError("");
       setIdentity(data.identity ?? ""); setMembers(data.assignment_members ?? []);
+      setDefaultOwner(data.default_owner ?? data.sender);
     } catch (e) { setError((e as Error).message); }
   }, []);
   useEffect(() => { const first = setTimeout(() => void refresh(), 0);
@@ -74,7 +76,7 @@ export function OutreachWorkspace() {
     try { await api(`/api/prospects/${current.id}/assignment`, {action,recipient,version:current.assignment?.version ?? 0}); setRecipient(""); await refresh(); }
     catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   };
-  const owner = current?.assignment?.owner ?? sender;
+  const owner = current?.assignment?.owner ?? defaultOwner;
   const mayApprove = !identity || (identity === owner && identity === sender);
   return <main className="min-h-screen bg-canvas p-6 text-ink">
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4">

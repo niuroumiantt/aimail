@@ -39,6 +39,7 @@ def install(
     require_proxy=False,
     approval_proxy_key="",
     members=(),
+    sending_account=None,
 ):
     outreach.init(conn)
     path = conn.execute("PRAGMA database_list").fetchone()["file"]
@@ -72,16 +73,30 @@ def install(
             raise HTTPException(403, "开发信审核必须经过已配置的可信登录代理")
         return actor
 
+    def personal_sender(request):
+        return sending_account(request).address if require_proxy and sending_account else sender
+
+    def owns(c, sid, request):
+        outreach.get(c, mailbox_id, sid)
+        if not require_proxy:
+            return
+        row = c.execute(
+            "SELECT owner FROM prospect_assignment WHERE sequence_id=?", (sid,)
+        ).fetchone()
+        owner = row["owner"] if row else sender
+        if owner.casefold() != request.headers.get("x-oa-email", "").strip().casefold():
+            raise HTTPException(403, "只有当前负责人可以操作此潜客")
+
     def human(request):
         actor = identity(request)
         try:
-            validate_sender(sender)
+            validate_sender(personal_sender(request))
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from exc
         if (
             require_proxy
             and request.headers.get("x-oa-email", "").strip().casefold()
-            != sender.strip().casefold()
+            != personal_sender(request).strip().casefold()
         ):
             raise HTTPException(403, "当前账号未获授权使用这个发件邮箱")
         origin = request.headers.get("origin")
@@ -126,12 +141,26 @@ def install(
     @app.get("/api/prospects")
     def prospects(request: Request):
         identity(request)
+        try:
+            current_sender = personal_sender(request)
+        except HTTPException:
+            current_sender = ""
         with database() as c:
+            items = outreach.listing(c, mailbox_id)
+            user = request.headers.get("x-oa-email", "").strip().casefold()
+            if require_proxy and user != sender.casefold():
+                items = [
+                    item
+                    for item in items
+                    if item["assignment"]
+                    and user in {item["assignment"]["owner"], item["assignment"]["pending"]}
+                ]
             return {
-                "items": outreach.listing(c, mailbox_id),
+                "items": items,
                 "enabled": enabled,
                 "cadence_days": outreach.CADENCE,
-                "sender": sender,
+                "sender": current_sender,
+                "default_owner": sender,
                 "identity": request.headers.get("x-oa-email", "").strip().casefold(),
                 "assignment_members": sorted(members) if require_proxy else [],
             }
@@ -141,7 +170,7 @@ def install(
         actor = human(request)
         try:
             with database() as c:
-                outreach.get(c, mailbox_id, sid)
+                owns(c, sid, request)
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from exc
         token = tokens.mint(sid, actor)
@@ -179,8 +208,15 @@ def install(
         try:
             tokens.consume(body.token, sid, actor)
             with database() as c:
+                owns(c, sid, request)
                 outreach.approve(
-                    c, mailbox_id, sid, actor, body.steps, body.policy_confirmed, sender=sender
+                    c,
+                    mailbox_id,
+                    sid,
+                    actor,
+                    body.steps,
+                    body.policy_confirmed,
+                    sender=personal_sender(request),
                 )
         except PermissionError as exc:
             raise HTTPException(403, str(exc)) from exc
@@ -193,6 +229,7 @@ def install(
         actor = human(request)
         try:
             with database() as c, outreach.transaction(c):
+                owns(c, sid, request)
                 outreach.stop(c, mailbox_id, sid, body.reason, actor)
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
