@@ -116,7 +116,7 @@ export function DesignStudio() {
 
       <div className={`ds-app ds-resizable ${assistantOpen ? "ds-with-assistant" : ""} ${listHidden ? "ds-list-hidden" : ""}`} style={{ "--ds-nav-width": `${widths.nav}px`, "--ds-list-width": `${widths.list}px`, "--ds-assistant-width": `${widths.assistant}px` } as CSSProperties}>
         <aside className="ds-sidebar">
-          <div className="ds-brand"><span className="ds-brandmark"><Layers size={20} /></span><span>mail2leads<span className="ds-brand-caption">A quieter way to work.</span></span></div>
+          <div className="ds-brand"><span className="ds-brandmark"><Layers size={20} /></span><span>aimail<span className="ds-brand-caption">A quieter way to work.</span></span></div>
           <div className="ds-workspace"><span className="ds-workspace-icon">G</span><div>Glocal Trading<small>sales@ · 设计示例</small></div><ChevronDown size={13} /></div>
           <div className="ds-nav-label">工作空间</div>
           <button className={`ds-nav ${assistantOpen ? "is-active" : ""}`} onClick={() => setAssistantOpen(!assistantOpen)} aria-expanded={assistantOpen}><Sparkles size={17} />问邮箱</button>
