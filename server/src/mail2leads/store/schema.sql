@@ -23,6 +23,20 @@ CREATE TABLE IF NOT EXISTS thread (
 CREATE INDEX IF NOT EXISTS thread_recent ON thread (mailbox_id, last_at DESC);
 CREATE INDEX IF NOT EXISTS thread_key ON thread (mailbox_id, subject_key, contact_email);
 
+-- Persist before SMTP: uncertain sends must survive restarts and block blind retries.
+CREATE TABLE IF NOT EXISTS reply_attempt (
+  id INTEGER PRIMARY KEY,
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  token_hash TEXT NOT NULL UNIQUE,
+  sender TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  raw BLOB NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('sending','unknown','recorded')),
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS reply_unresolved ON reply_attempt(thread_id)
+  WHERE state IN ('sending','unknown');
+
 CREATE TABLE IF NOT EXISTS message (
   id INTEGER PRIMARY KEY,
   mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 import sqlite3
 import ssl
@@ -162,7 +163,32 @@ def send(
         now=now,
     )
     raw = msg.as_bytes()
-    result = transport.deliver(sender, to, raw)
+    if conn.in_transaction:
+        raise ValueError("发信前必须先提交业务事务")
+    try:
+        attempt = conn.execute(
+            "INSERT INTO reply_attempt(thread_id,token_hash,sender,actor,raw,state,created_at) "
+            "VALUES(?,?,?,?,?,'sending',?)",
+            (
+                thread_id,
+                hashlib.sha256(token.value.encode()).hexdigest(),
+                sender,
+                token.user,
+                raw,
+                now.isoformat(),
+            ),
+        ).lastrowid
+        conn.commit()
+    except sqlite3.IntegrityError:
+        raise ValueError("该会话有待核对的发送记录或令牌已用过，请勿重复发送") from None
+    try:
+        result = transport.deliver(sender, to, raw)
+        if result != "ok":
+            raise ValueError("transport not fully accepted")
+    except Exception:
+        conn.execute("UPDATE reply_attempt SET state='unknown' WHERE id=?", (attempt,))
+        conn.commit()
+        raise ValueError("发送结果待核对，请检查已发送邮件，禁止自动重试") from None
     pk, _ = store_raw(conn, mailbox_id, raw, "out", now)
     if pk is None:
         raise RuntimeError("发出去的信没能落库(重复的 Message-ID?)")
@@ -180,4 +206,6 @@ def send(
             result,
         ),
     )
+    conn.execute("UPDATE reply_attempt SET state='recorded' WHERE id=?", (attempt,))
+    conn.commit()
     return int(cur.lastrowid)
