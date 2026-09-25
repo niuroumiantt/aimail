@@ -89,9 +89,12 @@ jobs:
           gh release create "$tag" release-assets/aimail-image.tar.gz release-assets/aimail-image.tar.gz.sha256 release-assets/release.json \
             --target "$GITHUB_SHA" --draft --title "aimail ${GITHUB_SHA}" \
             --notes "Automated linux/amd64 image built and tested by CI for ${GITHUB_SHA}."
+          # GitHub does not create the git tag ref for a draft release. Publish
+          # the verified draft first, then assert the resulting ref points at
+          # the exact commit whose image passed CI.
+          gh release edit "$tag" --draft=false
           ref="$(gh api "repos/niuroumiantt/mail2leads/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
           if [[ "$ref" != "commit ${GITHUB_SHA}" ]]; then
             echo "Release tag does not point at the tested source commit" >&2
             exit 1
           fi
-          gh release edit "$tag" --draft=false
