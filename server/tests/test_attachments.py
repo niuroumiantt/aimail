@@ -11,14 +11,14 @@ from datetime import UTC, datetime
 import openpyxl
 from fastapi.testclient import TestClient
 
+from aimail import backends
+from aimail.api.app import create_app
+from aimail.ingest import attachments
+from aimail.ingest.run import ingest_once, store_raw
+from aimail.store import repo
+from aimail.tasks import draft as draft_mod
+from aimail.tasks.read import read_message
 from conftest import make_raw
-from mail2leads import backends
-from mail2leads.api.app import create_app
-from mail2leads.ingest import attachments
-from mail2leads.ingest.run import ingest_once, store_raw
-from mail2leads.store import repo
-from mail2leads.tasks import draft as draft_mod
-from mail2leads.tasks.read import read_message
 
 NOW = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
 

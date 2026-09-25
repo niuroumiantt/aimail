@@ -11,13 +11,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import backends, send
+from aimail.api.app import create_app
+from aimail.ingest import run as ingest_run
+from aimail.ingest.run import store_raw
+from aimail.tasks import draft as draft_mod
+from aimail.tasks import read as read_mod
 from conftest import make_raw
-from mail2leads import backends, send
-from mail2leads.api.app import create_app
-from mail2leads.ingest import run as ingest_run
-from mail2leads.ingest.run import store_raw
-from mail2leads.tasks import draft as draft_mod
-from mail2leads.tasks import read as read_mod
 
 # 来信日期放在过去:回信的 Date 是真实的"现在",线程排序要靠它落在来信之后
 NOW = datetime(2026, 9, 1, 8, 12, tzinfo=UTC)
@@ -163,7 +163,7 @@ def test_background_modules_never_import_send():
     """收信、读数、起草都碰不到发信模块。"""
     for module in (ingest_run, read_mod, draft_mod):
         source = Path(module.__file__).read_text("utf-8")
-        assert "mail2leads.send" not in source and "import send" not in source, module.__name__
+        assert "aimail.send" not in source and "import send" not in source, module.__name__
 
 
 # ── 起草 ──

@@ -14,11 +14,11 @@ import pytest
 import uvicorn
 from fastapi.testclient import TestClient
 
+from aimail.api.app import CSV_COLUMNS, create_app
+from aimail.config import parse_tokens
+from aimail.ingest.run import store_raw
+from aimail.store import leads, outbox, repo
 from conftest import make_raw
-from mail2leads.api.app import CSV_COLUMNS, create_app
-from mail2leads.config import parse_tokens
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import leads, outbox, repo
 
 NOW = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
 TOKEN = "oa-0123456789abcdef0123456789abcdef"

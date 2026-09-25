@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from mail2leads.pilot import bounded_raw, read_env, recent_uids
+from aimail.pilot import bounded_raw, read_env, recent_uids
 
 
 def test_model_canary_records_usage_without_mail_content(tmp_path, monkeypatch):
@@ -11,7 +11,7 @@ def test_model_canary_records_usage_without_mail_content(tmp_path, monkeypatch):
     import sqlite3
     import sys
 
-    from mail2leads.backends import pilot
+    from aimail.backends import pilot
 
     directory = tmp_path / ".local/share/mail2leads/pilot"
     directory.mkdir(parents=True)

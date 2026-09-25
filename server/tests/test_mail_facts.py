@@ -3,13 +3,13 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import fact_store
+from aimail.ingest.run import store_raw
+from aimail.local_web import create_local_app
+from aimail.store import repo
+from aimail.store.db import connect
+from aimail.tasks.extract_mail_facts import Extraction, validate
 from conftest import make_raw
-from mail2leads import fact_store
-from mail2leads.ingest.run import store_raw
-from mail2leads.local_web import create_local_app
-from mail2leads.store import repo
-from mail2leads.store.db import connect
-from mail2leads.tasks.extract_mail_facts import Extraction, validate
 
 
 def test_grounding_rejects_invented_values_and_quotes():

@@ -18,7 +18,7 @@ def main():
             json={
                 "kind": "tokens",
                 "tokens": 100000,
-                "label": "mail2leads",
+                "label": "aimail",
                 "models": ["qwen3.8:27b-mxfp8"],
             },
         )

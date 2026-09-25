@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from mail2leads.tasks.translate_mail import _numbers, translate
+from aimail.tasks.translate_mail import _numbers, translate
 
 
 def main():

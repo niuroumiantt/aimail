@@ -2,7 +2,7 @@
 """守卫:适配器目录之外不出现主机名、内网地址或别的仓库的名字(宪法第八条)。
 
 外物只借不靠:系统不依赖任何特定机器、网关或别的仓库的存在。
-知道"Spark 在哪"的只有 server/src/mail2leads/backends/,别处一律通过配置拿地址。
+知道"Spark 在哪"的只有 server/src/aimail/backends/,别处一律通过配置拿地址。
 
 用法:python tools/guard_hostnames.py [server/src web/src]
 """

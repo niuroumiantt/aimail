@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """守卫:每个模型任务必须有评测集(宪法第七条:评测先于提示词)。
 
-约定:server/src/mail2leads/tasks/ 下声明了 `TASK_VERSION = "<name>@N"` 的模块是模型任务;
+约定:server/src/aimail/tasks/ 下声明了 `TASK_VERSION = "<name>@N"` 的模块是模型任务;
 evals/<name>/ 必须存在,且带 run.py 和 dataset.sample.jsonl(编的示例;真实数据 gitignore)。
 
 用法:python tools/guard_evals.py [tasks目录] [evals目录]
@@ -30,7 +30,7 @@ def check(tasks_dir: Path, evals_dir: Path) -> list[str]:
 
 
 def main(argv: list[str]) -> int:
-    tasks_dir = Path(argv[1] if len(argv) > 1 else "server/src/mail2leads/tasks")
+    tasks_dir = Path(argv[1] if len(argv) > 1 else "server/src/aimail/tasks")
     evals_dir = Path(argv[2] if len(argv) > 2 else "evals")
     problems = check(tasks_dir, evals_dir) if tasks_dir.exists() else []
     for p in problems:

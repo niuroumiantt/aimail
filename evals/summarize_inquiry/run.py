@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "server" / "src"))
 
-from mail2leads import backends  # noqa: E402
-from mail2leads.tasks.summarize import summarize  # noqa: E402
+from aimail import backends  # noqa: E402
+from aimail.tasks.summarize import summarize  # noqa: E402
 
 JUDGE_SYSTEM = (
     "你在核对一份摘要有没有覆盖到给定的事实点。对每一个参考事实点,判断它是否被摘要表达出来了"

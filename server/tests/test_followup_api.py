@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
+from aimail import backends
+from aimail.api.app import create_app
+from aimail.api.followup import Summary
+from aimail.ingest.run import store_raw
+from aimail.store import repo
 from conftest import make_raw
-from mail2leads import backends
-from mail2leads.api.app import create_app
-from mail2leads.api.followup import Summary
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import repo
 
 
 def test_thread_scoped_transfer_exports_attachments_without_granting_mailbox(conn, monkeypatch):

@@ -7,7 +7,7 @@ aimail 是公司 OA 办公体系中的邮件应用，独立仓库承载研发；
 login.glocalstorage.cn 提供，部署由 infra 管理。产品规则见 [CONSTITUTION.md](CONSTITUTION.md)。
 CRM、报价和合同不在本轮范围；leadsgen 负责发现和交接客户，不承担完整 CRM。
 
-产品名已经确定为 aimail；GitHub 仓库、Python 包、运行容器及数据目录暂仍为 mail2leads。
+产品名已经确定为 aimail；Python 包入口现为 `aimail`；GitHub 仓库、运行容器及数据目录仍暂沿用 `mail2leads`，分步迁移以保护生产数据。
 不要根据页面标题直接改生产路径。职责以 [范围定义](docs/aimail-scope.md) 为准，
 当前版本、测试、候选部署与剩余验收见 [交付记录](docs/delivery-milestones.md)。
 
@@ -34,9 +34,9 @@ cd web && pnpm dev           # 界面开发服务器
 ```bash
 cp .env.example .env         # 填 IMAP 地址、账号、密码;密码永远不进仓库
 set -a; . ./.env; set +a
-uv run python -m mail2leads ingest    # 收一次信就退出,看日志里拉了几封
+uv run python -m aimail ingest    # 收一次信就退出,看日志里拉了几封
 cd web && pnpm build && cd ..
-WEB_DIST=web/dist uv run python -m mail2leads serve   # http://localhost:8900
+WEB_DIST=web/dist uv run python -m aimail serve   # http://localhost:8900
 ```
 
 `pnpm build` 的生产产物默认连接同一服务的 API；开发服务器默认显示虚构样本，
@@ -52,7 +52,7 @@ IMAP 连接显式校验证书——`imaplib` 默认不校验。
 对不上的界面标红。不是询盘的线程自动归到「无效」。
 
 ```bash
-uv run python -m mail2leads read     # 给还没有读数的来信补读(换模型、改合同后用)
+uv run python -m aimail read     # 给还没有读数的来信补读(换模型、改合同后用)
 uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jsonl --no-judge
 ```
 

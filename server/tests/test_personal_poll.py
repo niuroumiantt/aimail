@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from mail2leads import __main__ as service
-from mail2leads.config import Config
-from mail2leads.send.accounts import receiving_configs
+from aimail import __main__ as service
+from aimail.config import Config
+from aimail.send.accounts import receiving_configs
 
 
 def test_personal_imap_is_explicit_and_credentials_are_not_echoed(monkeypatch):
@@ -49,8 +49,8 @@ def test_personal_manual_sync_is_bound_to_selected_authorized_mailbox(conn, monk
 
     from fastapi.testclient import TestClient
 
-    from mail2leads.api.app import create_app
-    from mail2leads.store import repo
+    from aimail.api.app import create_app
+    from aimail.store import repo
 
     larry = SimpleNamespace(mailbox="larry@example.test")
     cloud = SimpleNamespace(mailbox="cloud@example.test")

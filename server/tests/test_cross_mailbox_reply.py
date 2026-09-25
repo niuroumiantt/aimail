@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 
 import pytest
 
+from aimail.ingest.run import store_raw
+from aimail.store import followup, repo
 from conftest import make_raw
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import followup, repo
 
 NOW = datetime(2026, 9, 25, tzinfo=UTC)
 

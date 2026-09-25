@@ -51,7 +51,7 @@ if [ "$NAME" = sales ] && [ -f "$DATA/mail2leads.sqlite3" ] && [ ! -f "$DB_PATH"
   export DB_PATH="$DATA/mail2leads.sqlite3"   # M9 之前的库,接着用
 fi
 PORT="${PORT:-8900}"
-uv run python -m mail2leads ingest
+uv run python -m aimail ingest
 
 echo "── 写 launchd 并启动 ──"
 UV=$(command -v uv)
@@ -65,7 +65,7 @@ cat > "$PLIST" <<PLIST
   <array>
     <string>/bin/bash</string>
     <string>-c</string>
-    <string>set -a; . "$CONF"; set +a; export WEB_DIST="$WEB_DIST" DB_PATH="$DB_PATH"; exec "$UV" run --project "$ROOT" python -m mail2leads serve</string>
+    <string>set -a; . "$CONF"; set +a; export WEB_DIST="$WEB_DIST" DB_PATH="$DB_PATH"; exec "$UV" run --project "$ROOT" python -m aimail serve</string>
   </array>
   <key>WorkingDirectory</key><string>$ROOT</string>
   <key>RunAtLoad</key><true/>

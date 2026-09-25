@@ -14,7 +14,7 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_SCHEMA = Path("server/src/mail2leads/store/schema.sql")
+DEFAULT_SCHEMA = Path("server/src/aimail/store/schema.sql")
 REQUIRED = ("model", "task_version", "produced_at", "source_id")
 # 标记必须独占一行:注释里顺嘴提到「-- derived」不算
 DERIVED = re.compile(

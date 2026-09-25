@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "server" / "src"))
 
-from mail2leads import backends  # noqa: E402
-from mail2leads.tasks.draft_reply import draft_reply  # noqa: E402
+from aimail import backends  # noqa: E402
+from aimail.tasks.draft_reply import draft_reply  # noqa: E402
 
 
 def main() -> int:

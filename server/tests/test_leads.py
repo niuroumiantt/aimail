@@ -11,13 +11,13 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from aimail import backends
+from aimail.api.app import create_app
+from aimail.ingest.run import store_raw
+from aimail.store import leads
+from aimail.tasks import read as read_mod
+from aimail.tasks.read import read_message
 from conftest import make_raw
-from mail2leads import backends
-from mail2leads.api.app import create_app
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import leads
-from mail2leads.tasks import read as read_mod
-from mail2leads.tasks.read import read_message
 
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 SUMMARY = {

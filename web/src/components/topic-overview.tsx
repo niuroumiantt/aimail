@@ -26,7 +26,7 @@ export function TopicOverview({ mails, activeId, onRead, children, last, onMove,
 }) {
   const [expanded, setExpanded] = useState<string[]>([]);
   return <section className="ds-topic" aria-label="专题总览" draggable={false}>
-    <header className="ds-topic-header" draggable onDragStart={event => { event.dataTransfer.setData("application/x-mail2leads-panel", "topic"); event.dataTransfer.effectAllowed = "move"; }} title="拖动标题栏，与邮件原文交换位置"><div><GripHorizontal size={13} /><span className="ds-topic-icon"><Layers size={16} /></span><strong>专题总览</strong><span className="ds-topic-badge">仅当前话题</span></div><button onClick={onMove} aria-label={last ? "将专题总览移至正文上方" : "将专题总览移至正文下方"}>{last ? <ArrowUp size={14} /> : <ArrowDown size={14} />}移动</button></header>
+    <header className="ds-topic-header" draggable onDragStart={event => { event.dataTransfer.setData("application/x-aimail-panel", "topic"); event.dataTransfer.effectAllowed = "move"; }} title="拖动标题栏，与邮件原文交换位置"><div><GripHorizontal size={13} /><span className="ds-topic-icon"><Layers size={16} /></span><strong>专题总览</strong><span className="ds-topic-badge">仅当前话题</span></div><button onClick={onMove} aria-label={last ? "将专题总览移至正文上方" : "将专题总览移至正文下方"}>{last ? <ArrowUp size={14} /> : <ArrowDown size={14} />}移动</button></header>
     <div className="ds-topic-provenance"><Sparkles size={13} /><span>综合本专题 {mails.length} 封邮件 · 最新总结</span><span>更新至 {mails.at(-1)?.date} · 示例</span></div>
     <div className="ds-topic-customer"><p><strong>{customer.company}</strong>，位于{customer.city.split(" · ").reverse().join(" · ")}。当前联系人为 <strong>{customer.contact}</strong>（职位未提供），公司联系邮箱 <a href={`mailto:${customer.email}`}>{customer.email}</a>。</p><div><span>本话题参与者</span>{[...new Set(mails.map(mail => mail.sender))].map(name => <span className="ds-participant" key={name}>{name}{name === "Larry" ? " · 我方" : " · 客户"}</span>)}</div></div>
     <p className="ds-topic-recap"><strong>话题总结</strong>{recap}</p>
@@ -47,7 +47,7 @@ export function TopicOverview({ mails, activeId, onRead, children, last, onMove,
 
 export function TopicOriginal({ mail, onAttachment }: { mail: TopicMail; onAttachment: () => void }) {
   return <section className="ds-topic-original" id="topic-original" aria-label="邮件原文阅读区">
-    <div className="ds-original-label" draggable onDragStart={event => { event.dataTransfer.setData("application/x-mail2leads-panel", "original"); event.dataTransfer.effectAllowed = "move"; }} title="拖动标题栏，与专题总览交换位置"><span><GripHorizontal size={13} /><Mail size={14} />邮件原文</span><span>当前阅读  ·  {mail.outgoing ? "我方发出" : "客户来信"}</span></div>
+    <div className="ds-original-label" draggable onDragStart={event => { event.dataTransfer.setData("application/x-aimail-panel", "original"); event.dataTransfer.effectAllowed = "move"; }} title="拖动标题栏，与专题总览交换位置"><span><GripHorizontal size={13} /><Mail size={14} />邮件原文</span><span>当前阅读  ·  {mail.outgoing ? "我方发出" : "客户来信"}</span></div>
     <h3>{mail.subject}</h3>
     <div className="ds-original-meta"><strong>{mail.sender}</strong><span>{mail.outgoing ? "发给客户" : "发送至 sales@glocal.example"}</span><time>{mail.date}</time></div>
     <div className="ds-original-body">{mail.body}</div>

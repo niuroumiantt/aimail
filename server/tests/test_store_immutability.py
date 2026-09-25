@@ -7,8 +7,8 @@ from datetime import UTC, datetime
 
 import pytest
 
+from aimail.ingest.run import store_raw
 from conftest import make_raw
-from mail2leads.ingest.run import store_raw
 
 
 def _one(conn, mailbox, **kw) -> int:

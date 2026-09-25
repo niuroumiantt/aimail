@@ -1,8 +1,8 @@
 import pytest
 
+from aimail.ingest.run import store_raw
+from aimail.store import followup
 from conftest import make_raw
-from mail2leads.ingest.run import store_raw
-from mail2leads.store import followup
 
 
 def seed(conn, mailbox):
