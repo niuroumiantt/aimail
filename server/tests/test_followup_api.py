@@ -63,23 +63,45 @@ def test_thread_scoped_transfer_exports_attachments_without_granting_mailbox(con
     assert app.get(f"/api/followups/{tid}", headers=headers(jane)).status_code == 403
     assert app.get(f"/api/followups/{private_tid}", headers=headers(cloud)).status_code == 403
     assert app.get("/api/threads", headers=headers(cloud)).status_code == 403
+
     def unread(who):
         return app.get("/api/followups", headers=headers(who)).json()["items"][0]["unread_count"]
 
     assert unread(cloud) == 1
-    assert app.post(f"/api/followups/{tid}/read", headers=headers(jane),
-                    json={"last_message_id": pk}).status_code == 403
-    assert app.post(f"/api/followups/{tid}/read", headers=headers(cloud),
-                    json={"last_message_id": second}).status_code == 422
+    assert (
+        app.post(
+            f"/api/followups/{tid}/read", headers=headers(jane), json={"last_message_id": pk}
+        ).status_code
+        == 403
+    )
+    assert (
+        app.post(
+            f"/api/followups/{tid}/read", headers=headers(cloud), json={"last_message_id": second}
+        ).status_code
+        == 422
+    )
     # A new arrival after the displayed snapshot must remain unread.
-    newer, _ = store_raw(conn, box, make_raw(message_id="<new@x>", in_reply_to="<a@aurora.test>"),
-                         "in", datetime.now(UTC))
-    assert app.post(f"/api/followups/{tid}/read", headers=headers(cloud),
-                    json={"last_message_id": pk}).status_code == 200
+    newer, _ = store_raw(
+        conn,
+        box,
+        make_raw(message_id="<new@x>", in_reply_to="<a@aurora.test>"),
+        "in",
+        datetime.now(UTC),
+    )
+    assert (
+        app.post(
+            f"/api/followups/{tid}/read", headers=headers(cloud), json={"last_message_id": pk}
+        ).status_code
+        == 200
+    )
     assert unread(cloud) == 1
     assert unread(larry) == 2  # Read state is personal, not shared between salespeople.
-    assert app.post(f"/api/followups/{tid}/read", headers=headers(cloud),
-                    json={"last_message_id": newer}).status_code == 200
+    assert (
+        app.post(
+            f"/api/followups/{tid}/read", headers=headers(cloud), json={"last_message_id": newer}
+        ).status_code
+        == 200
+    )
     assert unread(cloud) == 0
     result = app.get(f"/api/followups/{tid}/history.zip", headers=headers(cloud))
     assert result.status_code == 200

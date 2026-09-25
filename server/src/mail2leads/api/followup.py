@@ -94,10 +94,17 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
         output["history"] = []
         return {
             "state": state,
-            "unresolved_send": next((dict(r) for r in conn.execute(
-                "SELECT id,sender,state,created_at FROM reply_attempt "
-                "WHERE thread_id=? AND state IN ('sending','unknown')", (tid,)
-            )), None),
+            "unresolved_send": next(
+                (
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT id,sender,state,created_at FROM reply_attempt "
+                        "WHERE thread_id=? AND state IN ('sending','unknown')",
+                        (tid,),
+                    )
+                ),
+                None,
+            ),
             "last_message_id": conn.execute(
                 "SELECT MAX(id) FROM message WHERE thread_id=?", (tid,)
             ).fetchone()[0],
@@ -212,10 +219,14 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
         ).fetchone()
         if not attempt:
             raise HTTPException(404, "没有待核对发送")
-        return Response(bytes(attempt["raw"]), media_type="message/rfc822", headers={
-            "Content-Disposition": f'attachment; filename="unresolved-{tid}.eml"',
-            "Cache-Control": "no-store",
-        })
+        return Response(
+            bytes(attempt["raw"]),
+            media_type="message/rfc822",
+            headers={
+                "Content-Disposition": f'attachment; filename="unresolved-{tid}.eml"',
+                "Cache-Control": "no-store",
+            },
+        )
 
     @app.post("/api/followups/{tid}/reply")
     def reply(tid: int, body: Reply, request: Request):

@@ -53,3 +53,12 @@ PR21 已合并；本分支新增提交应创建新的增量 PR，不继续冒称
 Message-ID 的原邮件用于服务商核对，待接手人和前负责人不可下载该待核对邮件。
 接口在签发新发送令牌前也拒绝未决会话。没有已发送副本不能当作未发送证据。
 尚未提供人工解除未决状态的接口；需要先定义核对证据与审计，禁止自动解除重发。
+
+2026-09-25 10:11 CST：修复 PR22 CI 的 Python 格式失败后，在独立依赖环境跑完
+tools/precommit.sh：227 后端、54 前端测试，类型检查、lint、构建、全部守卫通过。
+阿里云仍运行 mail2leads:ai-convergence-serialized-20260923。实测邮件容器没有
+LOCAL_MODEL / LOCAL_BASE_URL / DGX_GATEWAY_URL / DGX_API_KEY / FOLLOWUP_MEMBERS。
+阿里云没有 tailscale 命令或接口；Spark 的 LiteLLM 及数据库健康，网关由
+Tailscale Serve 仅向 tailnet 提供 HTTPS 4000。模型部署需要网络接入及专用应用凭据；
+不得把网关直接暴露公网或把管理密钥当应用密钥。下一步先检查已有入网/密钥管理方案，
+并补交接工作台的浏览器交互验收。
