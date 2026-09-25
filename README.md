@@ -70,7 +70,8 @@ uv run python evals/extract_lead/run.py evals/extract_lead/dataset.jsonl
 发信要一次性令牌:只签给带身份的请求、绑定线程、十分钟有效、用一次作废;后台代码没有请求也就没有令牌,
 收信、读数、起草模块连发信模块都 import 不到(有测试守着)。发出的信原样落库为我方消息,线程归「已回复」。
 
-SMTP 不填就沿用 IMAP 的账号密码(主机名把 `imap.` 换成 `smtp.`),465 走 SMTP_SSL,其余端口 STARTTLS;
+SMTP 必须显式配置个人邮箱账号与凭据，不能沿用收信凭据；公共 sales 邮箱禁止发信。
+465 走 SMTP_SSL，其余端口 STARTTLS；
 `SENDER_NAME` 是发件人显示名,发件地址就是 `MAILBOX`。
 
 ```bash
@@ -118,7 +119,7 @@ cd ~/mail2leads && bash deploy/install_mini.sh          # 实例名默认 sales
 
 第一次会生成 `~/.config/mail2leads/sales.env`(0600),按 `.env.example` 填好再跑一次:
 IMAP 与 `MAILBOX`;模型(`DGX_GATEWAY_URL` / `DGX_API_KEY` / `LOCAL_MODEL`);发信用的 `SENDER_NAME`
-(SMTP 默认沿用 IMAP 的账号);要接 OA 再填 `API_TOKENS` 与 `WEBHOOK_URL` / `WEBHOOK_SECRET`。
+(SMTP 须显式配置个人邮箱账号);既有下游接口使用 `API_TOKENS` 与 `WEBHOOK_URL` / `WEBHOOK_SECRET`。
 脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/sales.log`。
 Linux 主机用 `docker compose up -d --build`(`.env` 同样内容,`PORT` 决定端口)。
 

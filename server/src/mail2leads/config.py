@@ -43,6 +43,7 @@ class Config:
     shared_imap_password: str = ""
     shared_imap_inbox: str = "INBOX"
     shared_imap_sent: str = ""
+    followup_members: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls) -> Config:
@@ -65,11 +66,10 @@ class Config:
             imap_password=required("IMAP_PASSWORD"),
             imap_inbox=os.environ.get("IMAP_INBOX", "INBOX"),
             imap_sent=os.environ.get("IMAP_SENT", ""),
-            smtp_host=os.environ.get("SMTP_HOST", "").strip()
-            or required("IMAP_HOST").replace("imap.", "smtp.", 1),
+            smtp_host=os.environ.get("SMTP_HOST", "").strip(),
             smtp_port=int(os.environ.get("SMTP_PORT", "465")),
-            smtp_user=os.environ.get("SMTP_USER", "").strip() or required("IMAP_USER"),
-            smtp_password=os.environ.get("SMTP_PASSWORD", "").strip() or required("IMAP_PASSWORD"),
+            smtp_user=os.environ.get("SMTP_USER", "").strip(),
+            smtp_password=os.environ.get("SMTP_PASSWORD", "").strip(),
             sender_name=os.environ.get("SENDER_NAME", "").strip(),
             api_tokens=parse_tokens(os.environ.get("API_TOKENS", "")),
             tasks=parse_tasks(os.environ.get("TASKS", "")),
@@ -97,6 +97,11 @@ class Config:
             shared_imap_password=os.environ.get("SHARED_IMAP_PASSWORD", "").strip(),
             shared_imap_inbox=os.environ.get("SHARED_IMAP_INBOX", "INBOX").strip(),
             shared_imap_sent=os.environ.get("SHARED_IMAP_SENT", "").strip(),
+            followup_members=tuple(
+                x.strip().lower()
+                for x in os.environ.get("FOLLOWUP_MEMBERS", "").split(",")
+                if x.strip()
+            ),
         )
 
     def shared_config(self) -> Config | None:

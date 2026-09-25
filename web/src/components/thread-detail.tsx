@@ -57,6 +57,7 @@ export function ThreadDetail({
           </p>
         </div>
         <div className="flex basis-full shrink-0 items-center justify-end gap-1.5 md:basis-auto">
+          {import.meta.env.VITE_DATA_SOURCE === "api" && <Link to={`/followups/${thread.id}`}>分配 / 转交</Link>}
           <Pill tone={FOLDER_TONE[thread.folder]} dot>
             {FOLDER_LABEL[thread.folder]}
           </Pill>

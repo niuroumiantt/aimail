@@ -222,6 +222,7 @@ def main(argv: list[str]) -> int:
         display_name=config.sender_name,
         sync_mailbox=lambda: _ingest_all(config, mailbox_id),
         require_oa_auth=config.require_oa_auth,
+        followup_members=config.followup_members,
         outreach_import_token=config.outreach_import_token,
         outreach_enabled=config.outreach_enabled,
         outreach_approval_proxy_key=config.outreach_approval_proxy_key,
