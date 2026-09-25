@@ -1,23 +1,23 @@
 # aimail 交付里程碑
 
-2026-09-25 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
+2026-09-25 16:42 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
 
 | 里程碑 | 验收要求 | 当前状态 |
 | --- | --- | --- |
-| M1 身份与发件 | sales 只收信；各员工使用自己的 SMTP | 当前 main `57ebb055` 已部署。Larry 主 IMAP、Larry SMTP、sales 共享 IMAP 凭据已认证；sales 不在发件名单，自动开发信保持关闭。第二位员工与真人登录验收待完成。 |
-| M2 随时交接 | AI 总结、原邮件附件、接手/再转交、接手人续跟进 | PR #22 代码已部署，模拟测试覆盖权限、发送未决保护和交接；登录后的浏览器验收待完成。 |
+| M1 身份与发件 | sales 只收信；各员工使用自己的 SMTP | 浏览器 OIDC 会话识别为 `larry@glocalstorage.com`，个人邮箱列表显示 173 个会话；共享 `sales@` 与个人邮箱分别登记。已有 IMAP/SMTP 凭据认证通过；sales 不在发件名单，自动开发信关闭。第二位员工及真实收发验收待完成。 |
+| M2 随时交接 | AI 总结、原邮件附件、接手/再转交、接手人续跟进 | PR #22 功能代码已包含在当前部署；自动化测试覆盖权限、发送未决保护和交接。生产页面真人交接、摘要、附件及接手人续跟进尚未验收。 |
 | M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | Leadsgen 接口只读访问及跨仓模拟回执通过；真实人员分配、接手和完整往返流程待验收。 |
-| M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云容器、SQLite 完整性、HTTPS/OIDC 入口检查通过；真实 IMAP/SMTP 认证通过。Aliyun 已用专用 `tag:aimail` 入 tailnet，Spark LiteLLM `:4000` 健康检查通过，Ollama `:11434` 被拒。实际模型推理待 `fast` 专用虚拟密钥及验收；没有发送邮件。 |
-| M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | 仍使用 `mail2leads` 仓库、Compose 服务和 `/srv/mail2leads-data`。OA 邮件表为空且 worker 未运行，但源码仍有引用，未删除。 |
-| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #223/#224/#225 已合并；PR #225 记录 Aliyun Tailscale 地址、专用标签和最小访问规则。Aimail 自动发布器 active，当前 `57ebb055` 已部署。员工业务验收与仓库/运行路径改名仍未完成。 |
+| M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云已运行 main `f5047ccf593b09d23f46311367e9760cc1d3d6ea`；容器健康端点 200、`aimail` 包导入、SQLite integrity/foreign-key、HTTPS 及匿名 API OIDC 302 均通过。真实页面以 Larry 登录并显示现存邮件；此次没有发送邮件。Aliyun `tag:aimail` 已入 tailnet，Spark LiteLLM `:4000` 健康、Ollama `:11434` 被拒；推理待 `fast` 专用虚拟密钥和验收。 |
+| M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | Python 包已改名并部署；GitHub 仓库、Compose 服务、`/srv/mail2leads-data` 仍使用旧名。OA 邮件表为空且 worker 未运行，但源码仍有引用，未删除。 |
+| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #223–#227 已合并；PR #226 记录持久 DNS 修复，#227 更新六机实测并修复刷新器保留标签/DNS 的缺陷。图已记录当前 Aimail image SHA。员工业务验收及完整命名/路径迁移仍未完成。 |
 
-## 当前生产事实（2026-09-25 15:48 CST）
+## 当前生产事实（2026-09-25 16:42 CST）
 
 - 阿里云 `aimail-deploy.timer` 已启用并 active，每 15 分钟检查 GitHub main，只更新 aimail。当前版本无变化时 7 秒返回 `Up to date`，不会重复扫描镜像归档。
-- 当前运行镜像为 `mail2leads:aimail-57ebb055c9a31fd238f1d243d668eab784d7fc6a`。容器 `/healthz`、SQLite 完整性、HTTPS 及未登录 `/api/followups` 的 OIDC 302 均通过；切换前数据库备份已完成并校验。
+- 当前运行镜像为 `mail2leads:aimail-f5047ccf593b09d23f46311367e9760cc1d3d6ea`。容器 `/healthz`、`aimail` 包导入、SQLite 完整性/外键检查、HTTPS 及未登录 `/api/followups` 的 OIDC 302 均通过；切换前数据库备份已完成并校验。
 - 邮箱身份策略为共享 sales 收件、个人 Larry 发件。IMAP 和 SMTP 凭据已通过协议认证测试；测试没有选择邮件文件夹、抓取邮件或发送邮件。生产自动开发信开关仍为关闭。
-- GitHub Release 下载与离线镜像导入不需要 Docker Hub 账号。生产服务器使用 GitHub Actions 生成的固定 SHA 镜像，不从 Docker Hub 拉取。
-- `mail.glocalstorage.cn` 的 Authentik 登录页已在浏览器打开，等待员工完成登录后验收。Aliyun 已加入现有 tailnet，ACL 仅允许访问 Spark LiteLLM HTTPS `:4000`；实际推理仍需一个 `fast` 范围的 LiteLLM 虚拟密钥，不复用管理密钥。
+- GitHub Release 下载与离线镜像导入不需要 Docker Hub 账号。生产服务器使用 GitHub Actions 生成的固定 SHA 镜像，不从 Docker Hub 拉取。DNS 修复后的本次 87 MB Release 下载用了 18 分 33 秒；自动化成功，但跨境下载是部署延迟。
+- `mail.glocalstorage.cn` 在现有浏览器 OIDC 会话中识别出 Larry，并加载个人邮箱的 173 个邮件会话；这只验收登录和现存数据可见，不代表实时同步、回复、转交或第二员工权限已验收。Aliyun 已加入现有 tailnet，ACL 仅允许访问 Spark LiteLLM HTTPS `:4000`；实际推理仍需一个 `fast` 范围的 LiteLLM 虚拟密钥，不复用管理密钥。
 - 2026-09-25 15:37 CST，从 Aliyun `100.83.13.53` 经 Tailscale Serve HTTPS 检查 Spark LiteLLM `/health/liveliness` 返回 200；直连 Spark Ollama `:11434` 被 ACL 阻断。该项由 infra PR #225 记录并合并；它只证明网络和网关健康，不代表模型推理已验收。
 - 当前生产容器、TLS/OIDC 外网入口、SMTP/IMAP 身份认证已验证；客户沟通、AI 分析、线索分配/转交、多员工权限仍不能标记为业务验收完成。
 
@@ -25,7 +25,7 @@
 
 1. 一位真实第二员工的姓名与公司邮箱，用于验证各自邮箱身份、权限隔离及转交；不要发送密码。
 2. 是否批准创建一个仅限 `fast` 路由的 LiteLLM 虚拟密钥，并由我安全写入 Aliyun 的 root-only Aimail 环境文件；如暂不批准，模型推理验收保持待办。
-3. 在已打开的 `mail.glocalstorage.cn` Authentik 页面登录并确认工作台可用。测试客户邮件时，必须先指定测试收件人和允许发送的内容。
+3. 生产浏览器登录已通过；如果要测试真实发信，需指定测试收件人和允许发送的内容。此前尚未发送任何客户邮件。
 
 第二员工资料、虚拟密钥决策或浏览器真人验收未完成时，我会继续推进命名迁移准备、OA 邮件引用审计和生产文档收口；不会因等待输入停止其他工作。
 
