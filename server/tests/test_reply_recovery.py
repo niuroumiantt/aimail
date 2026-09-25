@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import UTC, datetime
 
 import pytest
@@ -47,4 +48,49 @@ def test_uncertain_delivery_blocks_new_token_after_restart(tmp_path):
         attempt(conn)
     assert len(calls) == 1
     assert conn.execute("SELECT count(*) FROM outbound").fetchone()[0] == 0
+    conn.close()
+
+
+def test_old_reply_attempt_schema_migrates_without_losing_unknown_delivery(tmp_path):
+    path = tmp_path / "legacy.sqlite3"
+    raw = b"legacy exact message"
+    with sqlite3.connect(path) as legacy:
+        legacy.executescript("""
+        CREATE TABLE mailbox(id INTEGER PRIMARY KEY,address TEXT NOT NULL UNIQUE,
+          display_name TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL);
+        INSERT INTO mailbox(id,address,created_at) VALUES(1,'larry@example.test','2026-09-25');
+        CREATE TABLE thread(id INTEGER PRIMARY KEY,
+          mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+          subject TEXT NOT NULL,subject_key TEXT NOT NULL,contact_email TEXT NOT NULL,
+          contact_name TEXT NOT NULL DEFAULT '',folder TEXT NOT NULL DEFAULT 'inbox',
+          first_at TEXT NOT NULL,last_at TEXT NOT NULL);
+        INSERT INTO thread(id,mailbox_id,subject,subject_key,contact_email,first_at,last_at)
+          VALUES(7,1,'RFQ','rfq','customer@example.test','2026-09-25','2026-09-25');
+        CREATE TABLE reply_attempt(
+          id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL REFERENCES thread(id),
+          token_hash TEXT NOT NULL UNIQUE, sender TEXT NOT NULL, actor TEXT NOT NULL,
+          raw BLOB NOT NULL, state TEXT NOT NULL CHECK(state IN ('sending','unknown','recorded')),
+          created_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX reply_unresolved ON reply_attempt(thread_id)
+          WHERE state IN ('sending','unknown');
+        INSERT INTO reply_attempt VALUES(3,7,'old-token','larry@example.test','larry@example.test',
+          X'6c6567616379206578616374206d657373616765','unknown','2026-09-25T00:00:00+00:00');
+        """)
+    conn = connect(path)
+    record = conn.execute("SELECT id,state,raw FROM reply_attempt").fetchone()
+    assert (record["id"], record["state"], bytes(record["raw"])) == (3, "unknown", raw)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO reply_attempt(thread_id,token_hash,sender,actor,raw,state,created_at) "
+            "VALUES(7,'blocked-token','larry@example.test','larry@example.test',?,'unknown',?)",
+            (raw, datetime.now(UTC).isoformat()),
+        )
+    conn.execute("UPDATE reply_attempt SET state='resolved_not_sent' WHERE id=3")
+    conn.execute(
+        "INSERT INTO reply_attempt(thread_id,token_hash,sender,actor,raw,state,created_at) "
+        "VALUES(7,'new-token','larry@example.test','larry@example.test',?,'sending',?)",
+        (raw + b" new", datetime.now(UTC).isoformat()),
+    )
+    assert conn.execute("SELECT count(*) FROM reply_attempt").fetchone()[0] == 2
     conn.close()

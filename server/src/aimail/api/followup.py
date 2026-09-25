@@ -3,12 +3,14 @@
 import io
 import json
 import zipfile
+from typing import Literal
 
 from fastapi import HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from aimail import backends
 from aimail import send as send_mod
+from aimail.send import reconcile as reconcile_mod
 from aimail.store import followup, repo
 
 
@@ -30,6 +32,11 @@ class Reply(BaseModel):
     token: str = Field(max_length=200)
     subject: str = Field(min_length=1, max_length=1000)
     body: str = Field(min_length=1, max_length=100000)
+
+
+class SendResolution(BaseModel):
+    outcome: Literal["sent", "not_sent"]
+    evidence_reference: str = Field(min_length=6, max_length=500)
 
 
 class Summary(BaseModel):
@@ -227,6 +234,25 @@ def install(app, conn, person, mailbox_row, thread_output, members, sending_acco
                 "Cache-Control": "no-store",
             },
         )
+
+    @app.post("/api/followups/{tid}/unresolved/{attempt_id}/resolve")
+    def resolve_send(tid: int, attempt_id: int, body: SendResolution, request: Request):
+        user, _ = access(request, tid, manage=True)
+        try:
+            return reconcile_mod.resolve(
+                conn,
+                thread_id=tid,
+                attempt_id=attempt_id,
+                actor=user,
+                outcome=body.outcome,
+                evidence_reference=body.evidence_reference,
+            )
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from None
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from None
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
 
     @app.post("/api/followups/{tid}/reply")
     def reply(tid: int, body: Reply, request: Request):

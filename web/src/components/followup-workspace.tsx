@@ -23,6 +23,9 @@ function FollowupView() {
   const [reply, setReply] = useState('');
   const [preview, setPreview] = useState<{token:string;sender:string;recipient:string;body:string;subject:string} | null>(null);
   const [sendResult, setSendResult] = useState('');
+  const [resolutionOutcome, setResolutionOutcome] = useState<''|'sent'|'not_sent'>('');
+  const [resolutionEvidence, setResolutionEvidence] = useState('');
+  const [resolutionResult, setResolutionResult] = useState('');
   const [localUncertain, setUncertain] = useState(false);
   const uncertain = localUncertain || !!detail?.unresolved_send;
   const refresh = useCallback(async () => {
@@ -63,6 +66,17 @@ function FollowupView() {
       setError('发送结果需核对，请检查个人邮箱已发送记录，暂勿重复发送。');
     } finally { setBusy(false); }
   }
+  async function resolveSend() {
+    if (!id || !detail?.unresolved_send || !resolutionOutcome || resolutionEvidence.trim().length < 6) return;
+    setBusy(true); setError('');
+    try {
+      await api(`/api/followups/${id}/unresolved/${detail.unresolved_send.id}/resolve`, {outcome:resolutionOutcome,evidence_reference:resolutionEvidence});
+      setUncertain(false);
+      setResolutionResult(resolutionOutcome === 'sent' ? '已根据服务商证据记录为已发送；系统没有发送邮件。' : '已根据服务商证据记录为未发送；系统没有重试。请人工检查内容后再决定是否新建发送。');
+      setResolutionOutcome(''); setResolutionEvidence('');
+      await refresh();
+    } catch(e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
   const summary = state ? JSON.parse(state.summary) as Record<string,unknown> : null;
   return <main className="mx-auto max-w-5xl space-y-5 p-6 text-ink">
     <header className="flex gap-6"><Link to="/">返回邮箱</Link><Link to="/followups">我的跟进</Link><button onClick={() => void refresh()}>刷新</button></header>
@@ -74,7 +88,25 @@ function FollowupView() {
       {summary && <article className="border border-line p-4"><h3>AI 阶段总结 · 需结合原文核对</h3>{([['stage','当前阶段'],['needs','客户需求'],['commitments','已作承诺'],['open_questions','待解决事项'],['next_steps','建议下一步'],['model','模型'],['source_ids','引用邮件']] as const).map(([key,label]) => <p className="my-2 whitespace-pre-wrap" key={key}>{label}：{String(summary[key] ?? '')}</p>)}</article>}
       {state?.note && <p>交接说明：{state.note}</p>}
       <p>提交交接会暂停此会话关联的自动开发信序列；取消交接也不会自动恢复发送。已经提交给邮件服务商的邮件无法撤回。</p>
-      {detail.unresolved_send && <aside role="alert" className="border border-line p-4"><h3>发送结果待核对，已暂停重复发送</h3><p>{detail.unresolved_send.created_at} · {detail.unresolved_send.sender}</p><p>请核对个人邮箱或邮件服务商的投递记录。没有找到“已发送”副本不能证明未发送；不要直接重发。</p>{(!state || state.owner === list.identity) && <a href={`/api/followups/${id}/unresolved.eml`}>下载待核对原邮件（含 Message-ID）</a>}</aside>}
+      {detail.unresolved_send && <aside role="alert" className="space-y-3 border border-line p-4">
+        <h3>发送结果待核对，已暂停重复发送</h3>
+        <p>{detail.unresolved_send.created_at} · {detail.unresolved_send.sender}</p>
+        <p>请按 Message-ID 核对邮箱或邮件服务商记录。找不到“已发送”副本不能证明未发送；只有服务商明确确认已接受或未接受后，才记录相应结果。此处不会发送或重试邮件。</p>
+        {(!state || state.owner === list.identity) && <>
+          <a href={`/api/followups/${id}/unresolved.eml`}>下载待核对原邮件（含 Message-ID）</a>
+          <label className="block">核对结果
+            <select aria-label="核对结果" className="ml-2 border border-line p-2" value={resolutionOutcome} onChange={e => setResolutionOutcome(e.target.value as ('' | 'sent' | 'not_sent'))}>
+              <option value="">请选择服务商确认结果</option>
+              <option value="sent">服务商确认已接受发送</option>
+              <option value="not_sent">服务商确认未接受发送</option>
+            </select>
+          </label>
+          <label className="block">服务商核对依据
+            <input aria-label="服务商核对依据" className="ml-2 border border-line p-2" maxLength={500} value={resolutionEvidence} onChange={e => setResolutionEvidence(e.target.value)} placeholder="投递日志编号或服务商记录号" />
+          </label>
+          <button disabled={busy || !resolutionOutcome || resolutionEvidence.trim().length < 6} onClick={() => void resolveSend()}>记录核对结果（不发送邮件）</button>
+        </>}</aside>}
+      {resolutionResult && <p role="status">{resolutionResult}</p>}
       <section className="space-y-3"><h3>邮件往来原文</h3>{detail.thread.messages.map(message => <article key={message.id} className="border border-line p-4"><p>{message.from_email} · {message.sent_at}</p><p className="whitespace-pre-wrap">{message.body}</p>{message.quoted && <details><summary>引用历史</summary><p className="whitespace-pre-wrap">{message.quoted}</p></details>}</article>)}<button disabled={busy} onClick={() => void markRead()}>将当前显示的邮件标为已读</button></section>
       <a href={`/api/followups/${id}/history.zip`}>下载完整邮件历史及附件（原始邮件压缩包）</a><p>仅交接当前会话；下载不会发送邮件。</p>
       {state?.pending === list.identity && <button disabled={busy} onClick={() => void act('accept')}>确认接手</button>}

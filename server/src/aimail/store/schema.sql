@@ -31,11 +31,29 @@ CREATE TABLE IF NOT EXISTS reply_attempt (
   sender TEXT NOT NULL,
   actor TEXT NOT NULL,
   raw BLOB NOT NULL,
-  state TEXT NOT NULL CHECK(state IN ('sending','unknown','recorded')),
+  state TEXT NOT NULL CHECK(state IN ('sending','unknown','recorded','resolved_not_sent')),
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS reply_unresolved ON reply_attempt(thread_id)
   WHERE state IN ('sending','unknown');
+
+CREATE TABLE IF NOT EXISTS reply_resolution (
+  attempt_id INTEGER PRIMARY KEY REFERENCES reply_attempt(id),
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  actor TEXT NOT NULL,
+  outcome TEXT NOT NULL CHECK(outcome IN ('sent','not_sent')),
+  evidence_reference TEXT NOT NULL CHECK(length(trim(evidence_reference)) >= 6),
+  message_pk INTEGER REFERENCES message(id),
+  resolved_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS reply_resolution_no_update BEFORE UPDATE ON reply_resolution
+BEGIN
+  SELECT RAISE(ABORT, '发信核对记录为追加审计,不允许 UPDATE');
+END;
+CREATE TRIGGER IF NOT EXISTS reply_resolution_no_delete BEFORE DELETE ON reply_resolution
+BEGIN
+  SELECT RAISE(ABORT, '发信核对记录为追加审计,不允许 DELETE');
+END;
 
 CREATE TABLE IF NOT EXISTS message (
   id INTEGER PRIMARY KEY,

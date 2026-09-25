@@ -52,6 +52,7 @@ def store_raw(
     now: datetime,
     *,
     new_thread: bool = False,
+    target_thread_id: int | None = None,
 ) -> tuple[int | None, bool]:
     """落一封。返回 (message 主键或 None, 是否解析失败)。已存在的返回 (None, False)。"""
     if repo.raw_seen(conn, hashlib.sha256(raw).hexdigest()):
@@ -70,10 +71,24 @@ def store_raw(
     at = parsed.sent_at or received
     body_new, body_quoted = quote.split(parsed.text)
 
+    if target_thread_id is not None:
+        target = conn.execute(
+            "SELECT 1 FROM thread WHERE id=? AND mailbox_id=?",
+            (target_thread_id, mailbox_id),
+        ).fetchone()
+        if not target:
+            raise ValueError("指定的会话不存在或不属于该邮箱")
+
     conn.execute("BEGIN")
     try:
         thread_id = (
-            None if new_thread else thread.choose_thread(conn, mailbox_id, parsed, direction, now)
+            target_thread_id
+            if target_thread_id is not None
+            else (
+                None
+                if new_thread
+                else thread.choose_thread(conn, mailbox_id, parsed, direction, now)
+            )
         )
         if thread_id is None:
             thread_id = repo.create_thread(
