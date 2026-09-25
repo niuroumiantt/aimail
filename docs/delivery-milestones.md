@@ -1,24 +1,24 @@
 # aimail 交付里程碑
 
-2026-09-25 17:04 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
+2026-09-25 17:37 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
 
 | 里程碑 | 验收要求 | 当前状态 |
 | --- | --- | --- |
 | M1 身份与发件 | sales 只收信；各员工使用自己的 SMTP | 浏览器 OIDC 会话识别为 `larry@glocalstorage.com`，个人邮箱列表显示 173 个会话；共享 `sales@` 与个人邮箱分别登记。已有 IMAP/SMTP 凭据认证通过；sales 不在发件名单，自动开发信关闭。第二位员工及真实收发验收待完成。 |
 | M2 随时交接 | AI 总结、原邮件附件、接手/再转交、接手人续跟进 | PR #22 功能代码已包含在当前部署；自动化测试覆盖权限、发送未决保护和交接。生产页面真人交接、摘要、附件及接手人续跟进尚未验收。 |
 | M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | Leadsgen 接口只读访问及跨仓模拟回执通过；真实人员分配、接手和完整往返流程待验收。 |
-| M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云已运行 main `f5047ccf593b09d23f46311367e9760cc1d3d6ea`；容器健康端点 200、`aimail` 包导入、SQLite integrity/foreign-key、HTTPS 及匿名 API OIDC 302 均通过。真实页面以 Larry 登录并显示现存邮件；此次没有发送邮件。Aliyun `tag:aimail` 已入 tailnet，Spark LiteLLM `:4000` 健康、Ollama `:11434` 被拒；推理待 `fast` 专用虚拟密钥和验收。 |
-| M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | GitHub 仓库已改名为 `niuroumiantt/aimail`，当前发布器与 infra 登记正在分 PR 收口；Compose 服务、镜像 tag 与 `/srv/mail2leads-data` 仍保留兼容旧名，后续须单独备份迁移。OA 邮件表为空且 worker 未运行，但源码仍有引用，未删除。 |
-| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #223–#227 已合并；PR #226 记录持久 DNS 修复，#227 更新六机实测并修复刷新器保留标签/DNS 的缺陷。图已记录当前 Aimail image SHA。员工业务验收及完整命名/路径迁移仍未完成。 |
+| M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云已运行 main `4181a345edcfa6867835c6236ab9830c31b09fd8`；容器内健康端点 200、`aimail` 包导入、SQLite integrity/foreign-key、匿名 API OIDC 302 均通过。浏览器已用 Larry 登录并显示现存邮件；这次没有发送邮件。Aliyun `tag:aimail` 已入 tailnet，Spark LiteLLM `:4000` 健康、Ollama `:11434` 被拒；推理待 `fast` 专用虚拟密钥和验收。 |
+| M5 命名职责 | GitHub repo、运行服务和路径迁移；确认 OA 邮件代码边界 | GitHub 仓库、镜像 OCI 来源、Release 清单、CI tag 校验及 infra 应用登记均使用规范名 `aimail`（Aimail PR #30、infra #228 已合并）。生产 Compose 服务/container/image 前缀、持久目录与 SQLite 文件名仍用兼容旧名；Aliyun、AWS 和 m5 的旧 checkout 路径仍待逐一核验、迁移或清理。OA 邮件表为空且 worker 未运行，但源码仍有引用，未删除。 |
+| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #223–#228 已合并；#226 记录持久 DNS、#227 修复刷新器并更新六机快照、#228 登记 Aimail 规范仓库名与过渡兼容。新部署后的六机快照已采集，Aimail SHA `4181a345` 已写入待审 infra 更新。员工业务验收、模型推理和完整运行时命名迁移仍未完成。 |
 
-## 当前生产事实（2026-09-25 16:42 CST）
+## 当前生产事实（2026-09-25 17:37 CST）
 
 - 阿里云 `aimail-deploy.timer` 已启用并 active，每 15 分钟检查 GitHub main，只更新 aimail。当前版本无变化时 7 秒返回 `Up to date`，不会重复扫描镜像归档。
-- 当前运行镜像为 `mail2leads:aimail-f5047ccf593b09d23f46311367e9760cc1d3d6ea`。容器 `/healthz`、`aimail` 包导入、SQLite 完整性/外键检查、HTTPS 及未登录 `/api/followups` 的 OIDC 302 均通过；切换前数据库备份已完成并校验。
+- 当前运行镜像为 `mail2leads:aimail-4181a345edcfa6867835c6236ab9830c31b09fd8`。内部容器 `/healthz` 返回 200、`aimail` 包导入、SQLite 完整性/外键检查均通过；匿名业务 API 按策略 302 到统一身份认证。切换前 SQLite 备份已由发布器生成并校验。公网 `/healthz` 由登录代理保护，因此公网检查也会返回 302。
 - 邮箱身份策略为共享 sales 收件、个人 Larry 发件。IMAP 和 SMTP 凭据已通过协议认证测试；测试没有选择邮件文件夹、抓取邮件或发送邮件。生产自动开发信开关仍为关闭。
-- GitHub Release 下载与离线镜像导入不需要 Docker Hub 账号。生产服务器使用 GitHub Actions 生成的固定 SHA 镜像，不从 Docker Hub 拉取。DNS 修复后的本次 87 MB Release 下载用了 18 分 33 秒；自动化成功，但跨境下载是部署延迟。
+- GitHub Release 下载与离线镜像导入不需要 Docker Hub 账号。生产服务器使用 GitHub Actions 生成的固定 SHA 镜像，不从 Docker Hub 拉取。此前下载用时较长；本次 87 MB Release 资产用 10 分 14 秒下载并成功部署，跨境下载仍是发布延迟。
 - `mail.glocalstorage.cn` 在现有浏览器 OIDC 会话中识别出 Larry，并加载个人邮箱的 173 个邮件会话；这只验收登录和现存数据可见，不代表实时同步、回复、转交或第二员工权限已验收。Aliyun 已加入现有 tailnet，ACL 仅允许访问 Spark LiteLLM HTTPS `:4000`；实际推理仍需一个 `fast` 范围的 LiteLLM 虚拟密钥，不复用管理密钥。
-- GitHub 仓库已在 2026-09-25 从 `niuroumiantt/mail2leads` 改名为 `niuroumiantt/aimail`，旧地址由 GitHub 重定向。新 release 生成器、OCI 来源标签和 CI 发布校验正在更新到规范仓库名；生产发布器会在切换期同时接受新旧 provenance，Compose 服务和数据路径另行迁移，避免混在一次改名里。
+- GitHub 仓库已在 2026-09-25 从 `niuroumiantt/mail2leads` 改名为 `niuroumiantt/aimail`，旧地址由 GitHub 重定向。Aimail PR #30 更新 Release 生成、OCI 来源标签和 CI tag 校验；infra PR #228 更新发布器及生产登记。阿里云由新发布器成功安装 SHA `4181a345`，兼容旧镜像名和数据路径；Compose 服务、镜像前缀及数据目录仍留待独立备份迁移。
 - 2026-09-25 15:37 CST，从 Aliyun `100.83.13.53` 经 Tailscale Serve HTTPS 检查 Spark LiteLLM `/health/liveliness` 返回 200；直连 Spark Ollama `:11434` 被 ACL 阻断。该项由 infra PR #225 记录并合并；它只证明网络和网关健康，不代表模型推理已验收。
 - 当前生产容器、TLS/OIDC 外网入口、SMTP/IMAP 身份认证已验证；客户沟通、AI 分析、线索分配/转交、多员工权限仍不能标记为业务验收完成。
 
