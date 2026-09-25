@@ -11,7 +11,7 @@ RUN pnpm build
 
 FROM python:3.12-slim
 ARG VCS_REF=unknown
-LABEL org.opencontainers.image.source="https://github.com/niuroumiantt/mail2leads" \
+LABEL org.opencontainers.image.source="https://github.com/niuroumiantt/aimail" \
       org.opencontainers.image.revision="$VCS_REF"
 RUN pip install --no-cache-dir uv && useradd -m app && mkdir /data && chown app /data
 WORKDIR /app

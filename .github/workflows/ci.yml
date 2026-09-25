@@ -77,7 +77,7 @@ jobs:
             else
               assets="$(gh release view "$tag" --json assets)"
               python3 -c 'import json,sys; names={a["name"] for a in json.load(sys.stdin)["assets"]}; required={"aimail-image.tar.gz","aimail-image.tar.gz.sha256","release.json"}; sys.exit(0 if required <= names else 1)' <<<"$assets"
-              ref="$(gh api "repos/niuroumiantt/mail2leads/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
+              ref="$(gh api "repos/niuroumiantt/aimail/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
               if [[ "$ref" != "commit ${GITHUB_SHA}" ]]; then
                 echo "Existing release tag does not point at the tested source commit" >&2
                 exit 1
@@ -93,7 +93,7 @@ jobs:
           # the verified draft first, then assert the resulting ref points at
           # the exact commit whose image passed CI.
           gh release edit "$tag" --draft=false
-          ref="$(gh api "repos/niuroumiantt/mail2leads/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
+          ref="$(gh api "repos/niuroumiantt/aimail/git/ref/tags/${tag}" --jq '.object.type + " " + .object.sha')"
           if [[ "$ref" != "commit ${GITHUB_SHA}" ]]; then
             echo "Release tag does not point at the tested source commit" >&2
             exit 1

@@ -17,7 +17,7 @@ IMAGE = {
     "Architecture": "amd64",
     "Config": {
         "Labels": {
-            "org.opencontainers.image.source": "https://github.com/niuroumiantt/mail2leads",
+            "org.opencontainers.image.source": "https://github.com/niuroumiantt/aimail",
             "org.opencontainers.image.revision": SHA,
         }
     },
@@ -49,6 +49,7 @@ class PackageReleaseTests(unittest.TestCase):
             with gzip.open(archive, "rb") as saved:
                 self.assertEqual(saved.read(), b"docker image archive")
             self.assertEqual(manifest["source_sha"], SHA)
+            self.assertEqual(manifest["repository"], "niuroumiantt/aimail")
             self.assertEqual(manifest["archive"]["image_id"], IMAGE["Id"])
             archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
             self.assertEqual(manifest["archive"]["sha256"], archive_hash)
