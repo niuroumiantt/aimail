@@ -18,6 +18,7 @@ from mail2leads.ingest.imap import ImapSource
 from mail2leads.ingest.run import ingest_once
 from mail2leads.send import SmtpTransport
 from mail2leads.send.accounts import from_env as sending_accounts_from_env
+from mail2leads.send.accounts import receiving_configs
 from mail2leads.store import outbox, repo
 from mail2leads.store.db import connect
 from mail2leads.tasks.read import read_message, unread_incoming
@@ -101,7 +102,26 @@ def _deliver_forever(config: Config, mailbox_id: int) -> None:
         time.sleep(30)
 
 
-def _poll_forever(config: Config, mailbox_id: int) -> None:
+def _poll_personal_once(config: Config, receiving_id: int, sequence_mailbox_id: int) -> None:
+    _ingest_all(config, receiving_id)
+    conn = connect(config.db_path)
+    try:
+        outreach.tick(
+            conn,
+            sequence_mailbox_id,
+            sender=config.mailbox,
+            sender_name=config.sender_name,
+            transport=SmtpTransport(
+                config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password
+            ),
+            enabled=config.outreach_enabled,
+            daily_cap=config.outreach_daily_cap,
+        )
+    finally:
+        conn.close()
+
+
+def _poll_forever(config: Config, mailbox_id: int, personal=()) -> None:
     while True:
         try:
             _ingest_all(config, mailbox_id)
@@ -124,6 +144,11 @@ def _poll_forever(config: Config, mailbox_id: int) -> None:
                 conn.close()
         except Exception:  # noqa: BLE001 —— 收信失败只记日志,下一轮再来;服务本身不能死
             log.exception("收信失败,%d 秒后重试", config.poll_seconds)
+        for personal_config, receiving_id in personal:
+            try:
+                _poll_personal_once(personal_config, receiving_id, mailbox_id)
+            except Exception:  # noqa: BLE001
+                log.error("个人邮箱同步或调度失败，本轮该账号不再发送")
         time.sleep(config.poll_seconds)
 
 
@@ -191,9 +216,10 @@ def main(argv: list[str]) -> int:
     from mail2leads.api.app import create_app
 
     outreach.recover(conn, mailbox_id)
+    personal = tuple((c, repo.ensure_mailbox(conn, c.mailbox)) for c in receiving_configs(config))
 
     threading.Thread(
-        target=_poll_forever, args=(config, mailbox_id), daemon=True, name="ingest"
+        target=_poll_forever, args=(config, mailbox_id, personal), daemon=True, name="ingest"
     ).start()
     if shared_config and shared_mailbox_id is not None:
         threading.Thread(

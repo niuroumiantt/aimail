@@ -285,8 +285,10 @@ def inbound_reason(conn, row):
     }
     messages = conn.execute(
         "SELECT from_email,in_reply_to,refs,raw FROM message "
-        "WHERE mailbox_id=? AND direction='in' AND received_at>=?",
-        (row["mailbox_id"], row["created_at"][:19]),
+        "WHERE (mailbox_id=? OR thread_id IN ("
+        "SELECT m.thread_id FROM message m JOIN prospect_step p ON p.message_id=m.message_id "
+        "WHERE p.sequence_id=? AND m.mailbox_id=?)) AND direction='in' AND received_at>=?",
+        (row["mailbox_id"], row["id"], row["mailbox_id"], row["created_at"][:19]),
     )
     for message in messages:
         parsed = BytesParser(policy=policy.default).parsebytes(message["raw"])
@@ -441,7 +443,7 @@ def tick(
             conn.execute(
                 "INSERT INTO outbound(mailbox_id,thread_id,message_pk,sent_by,sent_at,"
                 "transport_result) VALUES(?,?,?,?,?,?)",
-                (mailbox_id, thread_id, pk, row["approved_by"], stamp(now), "ok"),
+                (mailbox_id, thread_id, pk, sender, stamp(now), "ok"),
             )
             conn.execute(
                 "UPDATE prospect_step SET state='smtp_accepted',sent_at=? "

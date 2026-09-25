@@ -8,7 +8,7 @@ from mail2leads import outreach as o
 from mail2leads.api.app import create_app
 from mail2leads.ingest.run import store_raw
 from mail2leads.send.accounts import SendingAccount
-from mail2leads.store import followup
+from mail2leads.store import followup, repo
 from test_outreach import PAYLOAD, STEPS, Transport
 
 
@@ -105,6 +105,23 @@ def test_precontact_assignment_never_sends_and_rejects_previous_sender(conn, mai
     assert inherited["owner"] == recipient and inherited["pending"] == ""
     assert inherited["thread_id"] != old_thread
     assert conn.execute("SELECT action FROM followup_event").fetchone()[0] == "prospect_assigned"
+    personal_box = repo.ensure_mailbox(conn, recipient)
+    sent_mid = conn.execute(
+        "SELECT message_id FROM prospect_step WHERE sequence_id=? AND day=0", (sid,)
+    ).fetchone()[0]
+    store_raw(
+        conn,
+        personal_box,
+        make_raw(
+            from_=PAYLOAD["email"],
+            to=recipient,
+            message_id="<personal-response@test>",
+            in_reply_to=sent_mid,
+        ),
+        "in",
+        datetime.now(UTC),
+    )
+    assert o.inbound_reason(conn, o.get(conn, mailbox, sid)) == "replied"
     followup.transfer(conn, inherited["thread_id"], recipient, owner, 1, {}, "handoff")
     assert o.get(conn, mailbox, sid)["state"] == "paused"
     followup.decide(conn, inherited["thread_id"], recipient, 2, "cancel")
