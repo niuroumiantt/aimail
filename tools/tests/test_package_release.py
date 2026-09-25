@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from package_release import IMAGE as RELEASE_IMAGE
 from package_release import REPOSITORY, package
 
 SHA = "a" * 40
@@ -45,19 +46,27 @@ class PackageReleaseTests(unittest.TestCase):
         self.assertIn(f"repos/{REPOSITORY}/git/ref/tags/", workflow)
         self.assertNotIn("repos/niuroumiantt/mail2leads/", workflow)
         self.assertIn(f"https://github.com/{REPOSITORY}", dockerfile)
+        self.assertIn("-t aimail:release .", workflow)
+        self.assertNotIn("-t mail2leads:release .", workflow)
 
     def test_packages_image_and_binds_archive_to_source_sha(self):
         with (
             tempfile.TemporaryDirectory() as directory,
-            patch("package_release.subprocess.check_output", return_value=json.dumps([IMAGE])),
+            patch(
+                "package_release.subprocess.check_output", return_value=json.dumps([IMAGE])
+            ) as inspect_image,
             patch("package_release.subprocess.Popen", return_value=Process()),
         ):
             manifest = package(SHA, "12345", "1", Path(directory))
+            inspect_image.assert_called_once_with(
+                ["docker", "image", "inspect", "aimail:release"], text=True
+            )
             archive = Path(directory) / "aimail-image.tar.gz"
             with gzip.open(archive, "rb") as saved:
                 self.assertEqual(saved.read(), b"docker image archive")
             self.assertEqual(manifest["source_sha"], SHA)
             self.assertEqual(manifest["repository"], "niuroumiantt/aimail")
+            self.assertEqual(RELEASE_IMAGE, "aimail:release")
             self.assertEqual(manifest["archive"]["image_id"], IMAGE["Id"])
             archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
             self.assertEqual(manifest["archive"]["sha256"], archive_hash)
