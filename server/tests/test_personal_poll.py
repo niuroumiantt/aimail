@@ -42,3 +42,52 @@ def test_failed_personal_sync_never_calls_outreach(monkeypatch):
     with pytest.raises(ConnectionError):
         service._poll_personal_once(None, 2, 1)
     assert calls == []
+
+
+def test_personal_manual_sync_is_bound_to_selected_authorized_mailbox(conn, monkeypatch):
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    from mail2leads.api.app import create_app
+    from mail2leads.store import repo
+
+    larry = SimpleNamespace(mailbox="larry@example.test")
+    cloud = SimpleNamespace(mailbox="cloud@example.test")
+    main_id = repo.ensure_mailbox(conn, larry.mailbox)
+    cloud_id = repo.ensure_mailbox(conn, cloud.mailbox)
+    calls = []
+    monkeypatch.setattr(service, "_ingest_all", lambda c, mid: calls.append((c.mailbox, mid)))
+    app = TestClient(
+        create_app(
+            conn,
+            main_id,
+            require_oa_auth=True,
+            sync_mailboxes=service._sync_callbacks(((larry, main_id), (cloud, cloud_id))),
+        )
+    )
+    headers = {"X-OA-User": "cloud", "X-OA-Email": cloud.mailbox}
+    assert app.post("/api/sync", headers=headers).status_code == 200
+    assert calls == [(cloud.mailbox, cloud_id)]
+    assert (
+        app.post(
+            "/api/sync",
+            headers={
+                **headers,
+                "X-Mailbox-Address": larry.mailbox,
+            },
+        ).status_code
+        == 403
+    )
+    assert calls == [(cloud.mailbox, cloud_id)]
+    assert (
+        app.post(
+            "/api/sync",
+            headers={
+                "X-OA-User": "larry",
+                "X-OA-Email": larry.mailbox,
+            },
+        ).status_code
+        == 200
+    )
+    assert calls[-1] == (larry.mailbox, main_id)

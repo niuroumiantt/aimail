@@ -11,6 +11,7 @@ import logging
 import sys
 import threading
 import time
+from functools import partial
 
 from mail2leads import backends, outreach
 from mail2leads.config import Config
@@ -100,6 +101,11 @@ def _deliver_forever(config: Config, mailbox_id: int) -> None:
         except Exception:  # noqa: BLE001 —— 推送失败只记日志,服务本身不能死
             log.exception("推送失败")
         time.sleep(30)
+
+
+def _sync_callbacks(mailboxes):
+    """Bind each explicit mailbox to its own read-only ingest action."""
+    return {c.mailbox.lower(): partial(_ingest_all, c, mid) for c, mid in mailboxes}
 
 
 def _poll_personal_once(config: Config, receiving_id: int, sequence_mailbox_id: int) -> None:
@@ -236,6 +242,9 @@ def main(argv: list[str]) -> int:
     transport = SmtpTransport(
         config.smtp_host, config.smtp_port, config.smtp_user, config.smtp_password
     )
+    sync_targets = list(personal)
+    if shared_config and shared_mailbox_id is not None:
+        sync_targets.append((shared_config, shared_mailbox_id))
     app = create_app(
         conn,
         mailbox_id,
@@ -258,11 +267,7 @@ def main(argv: list[str]) -> int:
         if config.mailbox_owner_email and config.mailbox_owner_access
         else None,
         mailbox_tasks=config.mailbox_tasks,
-        sync_mailboxes={
-            shared_config.mailbox: lambda: _ingest_all(shared_config, shared_mailbox_id)
-        }
-        if shared_config and shared_mailbox_id is not None
-        else None,
+        sync_mailboxes=_sync_callbacks(sync_targets),
     )
     uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")
     return 0
