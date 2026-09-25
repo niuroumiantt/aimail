@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from package_release import package
+from package_release import REPOSITORY, package
 
 SHA = "a" * 40
 IMAGE = {
@@ -38,6 +38,14 @@ class Process:
 
 
 class PackageReleaseTests(unittest.TestCase):
+    def test_release_workflow_and_docker_source_use_canonical_repository(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        dockerfile = (root / "Dockerfile").read_text()
+        self.assertIn(f"repos/{REPOSITORY}/git/ref/tags/", workflow)
+        self.assertNotIn("repos/niuroumiantt/mail2leads/", workflow)
+        self.assertIn(f"https://github.com/{REPOSITORY}", dockerfile)
+
     def test_packages_image_and_binds_archive_to_source_sha(self):
         with (
             tempfile.TemporaryDirectory() as directory,
