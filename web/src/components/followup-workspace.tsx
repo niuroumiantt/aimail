@@ -29,6 +29,10 @@ function FollowupView() {
   const [resolutionResult, setResolutionResult] = useState('');
   const [localUncertain, setUncertain] = useState(false);
   const uncertain = localUncertain || !!detail?.unresolved_send;
+  const refreshFollowups = useCallback(async () => {
+    try { setList(await api<FollowupList>('/api/followups')); setError(''); }
+    catch(e) { setError((e as Error).message); }
+  }, []);
   const refresh = useCallback(async () => {
     try { setList(await api('/api/followups')); setDetail(id ? await api(`/api/followups/${id}`) : null); setError(''); }
     catch(e) { setError((e as Error).message); setDetail(null); }
@@ -36,11 +40,11 @@ function FollowupView() {
   useEffect(() => { const timer = setTimeout(() => void refresh(), 0); return () => clearTimeout(timer); }, [refresh]);
   useEffect(() => {
     if (id) return;
-    const timer = setInterval(() => {
-      api<FollowupList>('/api/followups').then(setList).catch(e => setError((e as Error).message));
-    }, 60_000);
-    return () => clearInterval(timer);
-  }, [id]);
+    const refresh = () => { void refreshFollowups(); };
+    const timer = setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
+  }, [id, refreshFollowups]);
   async function act(action: string) {
     if (!detail || !id) return;
     setBusy(true);
