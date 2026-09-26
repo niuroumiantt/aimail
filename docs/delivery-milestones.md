@@ -9,7 +9,7 @@
 | M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | 生产桥接配置匹配；1 条历史 `accepted` 回执与 1 条 Aimail `draft` 对应，发送步骤为 0。接口负载校验已做无写入烟测。新潜客现场交接、sales 来信分配和员工接手待验收。 |
 | M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云运行 Aimail `46b1d63347fc27938865707080658f322977c875`。内部健康检查、SQLite 完整性、OIDC 入口已验证；Larry 的会话与邮件列表已由真人浏览器确认。Larry SMTP 已配置；个人 IMAP 未启用；`sales@` 不在发件名单；自动开发信关闭。Spark `fast` 合成推理通过，未授权 `brain` 返回 403。双人权限、人工收件分配和完整邮件/交接场景仍待验收；没有发送客户邮件。 |
 | M5 命名职责 | GitHub repo、运行服务/数据路径迁移；确认 OA 邮件代码边界 | GitHub 仓库、Aimail 包、OCI 镜像、Compose 服务、生产容器和 `/srv/aimail-data` 均已规范命名。infra PR #255 移除一次性运行时迁移/恢复代码并部署新的安装器与 systemd 写路径边界；复验在线备份后，旧停止容器、`/srv/mail2leads-data` 兼容链接及旧网络 alias 均已移除。SQLite 文件名 `mail2leads.sqlite3` 和所有既有备份保留。OA 系统通知与 Aimail 客户邮件分属不同职责，不删除 OA 通知能力。m5 常驻 checkout 已迁至 `~/code/aimail`；旧销售 LaunchAgent 已改为 `com.aimail.sales` 并从新路径启动，健康检查返回 200。原 `~/code/mail2leads` 路径已无进程使用并已移除。迁移保留两个有改动的链接工作树，不清理其父目录；本机配置与 SQLite 数据路径继续保留旧应用名，尚未迁移。此项是 m5 本机开发/服务目录改名，不是生产部署。 |
-| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #246 刷新六台设备快照，#247 收敛 Aimail 正常发布状态，#248 将 `mail.glocalstorage.cn` 的 Caddy 上游切至 `aimail:8900`，#249 记录路由差异，#250 修正大陆节点现况说明，#251 将 Authentik provider/application 改名为 Aimail 并保留 `mail` issuer，#252 记录线上验证；PR #255 部署迁移收尾安装器，#256 同步运行时核验，#257 移除旧 Caddy 环境文件 fallback，#258 记录生产同步和核验，均已合并且 CI 通过。2026-09-26 22:39 CST 定向复验：生产镜像 SHA `46b1d63347fc27938865707080658f322977c875`；内部健康 200、SQLite 完整性 `ok`、外键错误 0、公网 OIDC 跳转 302、发布 timer active；旧容器/链接/alias 已移除，新 436,748,288 字节在线备份通过两次完整性检查。23:03 CST 再核对代理 Compose 已匹配 main `699fa5f`：旧 `.env.mail2leads.proxy` fallback 不存在，原文件有 `0600` 备份，Compose 校验成功，mail/leads/OA 均返回 OIDC 302；没有重启服务或轮换密钥。业务交付仍待第二员工本人注册验证和管理员审批、双人交接场景及明确批准的邮件发送验收。 |
+| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #246 刷新六台设备快照，#247 收敛 Aimail 正常发布状态，#248 将 `mail.glocalstorage.cn` 的 Caddy 上游切至 `aimail:8900`，#249 记录路由差异，#250 修正大陆节点现况说明，#251 将 Authentik provider/application 改名为 Aimail 并保留 `mail` issuer，#252 记录线上验证；PR #255 部署迁移收尾安装器，#256 同步运行时核验，#257 移除旧 Caddy 环境文件 fallback，#258 记录生产同步和核验，#259 刷新 M5 新 checkout 路径的六机清单和拓扑图，均已合并且 CI 通过。#259 仅更新只读资产清单，不改远程服务。2026-09-26 22:39 CST 定向复验：生产镜像 SHA `46b1d63347fc27938865707080658f322977c875`；内部健康 200、SQLite 完整性 `ok`、外键错误 0、公网 OIDC 跳转 302、发布 timer active；旧容器/链接/alias 已移除，新 436,748,288 字节在线备份通过两次完整性检查。23:03 CST 再核对代理 Compose 已匹配 main `699fa5f`：旧 `.env.mail2leads.proxy` fallback 不存在，原文件有 `0600` 备份，Compose 校验成功，mail/leads/OA 均返回 OIDC 302；没有重启服务或轮换密钥。业务交付仍待第二员工本人注册验证和管理员审批、双人交接场景及明确批准的邮件发送验收。 |
 
 ## 当前生产事实（2026-09-26 CST；核对点见各条时间）
 
@@ -33,6 +33,10 @@
 - 2026-09-26 23:03 CST：infra PR #257/#258 已合并，阿里云正式 Compose 源文件移除旧 mail2leads proxy env-file fallback；原文件保留在 root-only `0600` 备份中，`docker compose config --quiet` 与 mail/leads/OA OIDC 302 复核通过。没有重启 Caddy、改变代理 key 或发送邮件；详细记录见 infra 生产账本。
 
 - [代码与生产版本核对；2026-09-26] 未决发送人工核对实现 `3bef550` 是生产镜像标签 `aimail-46b1d63347fc27938865707080658f322977c875` 的祖先；对应后端路由/证据核对测试 5 项、前端阻止重发与证据录入测试 4 项均通过。此结果只核实功能在代码和镜像版本中，不代表真实员工已完成端到端业务验收。
+
+## 代码评审中的改动（不是部署或业务验收）
+
+- 2026-09-27 PR #48 修正潜客接手页面的个人发件提示，并补充接手后人工审批的模拟 UI 测试。该改动未合并、未部署；真实员工注册、发件配置和双人场景验收仍未完成。
 
 ## 尚待完成的验收输入
 
