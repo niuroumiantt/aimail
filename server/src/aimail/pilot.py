@@ -12,6 +12,7 @@ from pathlib import Path
 
 from aimail.ingest.imap import ImapSource
 from aimail.ingest.run import store_raw
+from aimail.paths import pilot_data_directory
 from aimail.store import repo
 from aimail.store.db import connect
 
@@ -77,7 +78,7 @@ def main() -> int:
     config = read_env(args.mail_config)
     if config.get("KEEL_CRM_MAILBOX_ADDRESS") != args.mailbox:
         raise ValueError("Mailbox does not match explicitly requested account")
-    directory = Path.home() / ".local/share/mail2leads/pilot"
+    directory = pilot_data_directory()
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Dedicated pilot database; never updates the full-sync cursor or the OA database.
     conn = connect(directory / "mailbox.sqlite3")

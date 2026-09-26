@@ -13,7 +13,7 @@ def test_model_canary_records_usage_without_mail_content(tmp_path, monkeypatch):
 
     from aimail.backends import pilot
 
-    directory = tmp_path / ".local/share/mail2leads/pilot"
+    directory = tmp_path / ".local/share/aimail/pilot"
     directory.mkdir(parents=True)
     conn = sqlite3.connect(directory / "mailbox.sqlite3")
     conn.execute("CREATE TABLE message (id, subject, body_new, body_quoted, sent_at)")

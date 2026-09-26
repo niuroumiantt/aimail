@@ -7,7 +7,7 @@ aimail 是公司 OA 办公体系中的邮件应用，独立仓库承载研发；
 login.glocalstorage.cn 提供，部署由 infra 管理。产品规则见 [CONSTITUTION.md](CONSTITUTION.md)。
 CRM、报价和合同不在本轮范围；leadsgen 负责发现和交接客户，不承担完整 CRM。
 
-产品名已经确定为 aimail；Python 包入口现为 `aimail`；GitHub 仓库、运行容器及数据目录仍暂沿用 `mail2leads`，分步迁移以保护生产数据。
+新安装的产品名、Python 包入口、GitHub 仓库、运行容器和本机配置/数据目录使用 `aimail`。旧数据库路径在显式迁移前会继续使用；历史 SQLite 文件名 `mail2leads.sqlite3` 保留以免改名时误迁移用户数据。
 不要根据页面标题直接改生产路径。职责以 [范围定义](docs/aimail-scope.md) 为准，
 当前版本、测试、候选部署与剩余验收见 [交付记录](docs/delivery-milestones.md)。
 
@@ -129,10 +129,10 @@ git clone git@github.com:niuroumiantt/aimail.git ~/code/aimail
 cd ~/code/aimail && bash deploy/install_mini.sh          # 实例名默认 sales
 ```
 
-第一次会生成 `~/.config/mail2leads/sales.env`(0600),按 `.env.example` 填好再跑一次:
+第一次会生成 `~/.config/aimail/sales.env`(0600),按 `.env.example` 填好再跑一次:
 IMAP 与 `MAILBOX`;模型(`DGX_GATEWAY_URL` / `DGX_API_KEY` / `LOCAL_MODEL`);发信用的 `SENDER_NAME`
 (SMTP 须显式配置个人邮箱账号);既有下游接口使用 `API_TOKENS` 与 `WEBHOOK_URL` / `WEBHOOK_SECRET`。
-脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/Library/Logs/mail2leads/sales.log`。
+脚本会先收一次信做冒烟,再起服务:`http://<mini>:8900`,日志在 `~/.local/state/aimail/sales.log`。
 Linux 主机用 `docker compose up -d --build`(`.env` 同样内容,`PORT` 决定端口)。
 
 上线后的验证顺序(每一步验完把 STATUS.md 里对应的 ⚠ 改成 ✅):

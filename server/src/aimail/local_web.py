@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from aimail import backends, fact_store, translation_store
 from aimail.ingest.imap import ImapSource
 from aimail.ingest.run import store_raw
+from aimail.paths import local_gateway_config, pilot_data_directory
 from aimail.pilot import bounded_raw, read_env, recent_uids
 from aimail.store import repo
 from aimail.store.db import connect
@@ -485,7 +486,7 @@ def main():
     import uvicorn
 
     os.umask(0o077)
-    cfg = read_env(Path.home() / ".config/mail2leads/local-api.env")
+    cfg = read_env(local_gateway_config())
     # Business tasks only see the gateway contract. No direct Ollama or Spark access.
     os.environ.update(
         LLM_BACKEND="local",
@@ -496,7 +497,7 @@ def main():
         LOCAL_PROVIDER_LABEL="本机 API",
         MAIL_TRANSLATION_MODEL=cfg.get("MAIL_TRANSLATION_MODEL", ""),
     )
-    app = create_local_app(Path.home() / ".local/share/mail2leads/pilot", automatic=True)
+    app = create_local_app(pilot_data_directory(), automatic=True)
     uvicorn.run(app, host="127.0.0.1", port=8910)
 
 

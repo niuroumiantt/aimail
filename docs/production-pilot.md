@@ -17,7 +17,7 @@
 
 建议默认最近 30 天、最多 100 封；IMAP 使用只读选择与 BODY.PEEK，不标已读，不移动、不删信。需先实现有界收取，使用独立试点数据库与游标，不能把筛选后的最大 UID 写进正式全量同步游标。
 
-新数据存于 `~/.local/share/mail2leads/pilot/`，运行状态/日志存于 `~/.local/state/mail2leads/`。只绑定 loopback，不开放公网。禁止 SMTP、webhook 和后台全量轮询；API 层也拒绝发送及其他业务写入，不能只藏前端按钮。
+新数据存于 `~/.local/share/aimail/pilot/`，运行状态/日志存于 `~/.local/state/aimail/`。只绑定 loopback，不开放公网。禁止 SMTP、webhook 和后台全量轮询；API 层也拒绝发送及其他业务写入，不能只藏前端按钮。已有 `mail2leads` 数据目录仅在 Aimail 目录不存在时作为回退；两者同时存在时始终使用 Aimail 目录。
 
 先验证连接、文件夹与收取计数，再导入原文，最后在明确批准的模型后端分析。没有批准模型时只收信，不调用模型。保留示例环境，另开真实试点入口，显著标记数据来源，API 失败不回退成样本。
 
@@ -86,7 +86,7 @@ OA 只读检查依据：`apps/mail/receive.py` 使用只读 IMAP，口令由 `cr
 
 `python -m aimail.pilot --mail-config <私有配置路径> --mailbox <明确邮箱> --limit 10`
 
-配置文件作为数据解析，不执行 shell；只读 INBOX，最多最近 30 天/100 封，默认 10 封，每封最大 2 MB。独立数据库 `~/.local/share/mail2leads/pilot/mailbox.sqlite3`，不写 OA 数据、不更新正式同步游标、不启动网页/SMTP/webhook/轮询。超过上限明确计数，不称为已完整读取邮箱。暂不支持跨文件夹覆盖。
+配置文件作为数据解析，不执行 shell；只读 INBOX，最多最近 30 天/100 封，默认 10 封，每封最大 2 MB。独立数据库 `~/.local/share/aimail/pilot/mailbox.sqlite3`，不写 OA 数据、不更新正式同步游标、不启动网页/SMTP/webhook/轮询。超过上限明确计数，不称为已完整读取邮箱。暂不支持跨文件夹覆盖。
 
 `python -m aimail.backends.pilot --config <Spark配置路径> [--endpoint <核实后的内网端点>]`
 
@@ -98,14 +98,14 @@ OA 只读检查依据：`apps/mail/receive.py` 使用只读 IMAP，口令由 `cr
 
 ### M5 本地 openapi 接入
 
-`tools/configure_local_api.py` 为 mail2leads 申请独立 100,000 点模型受限 Key，
-以 0600 权限保存于 `~/.config/mail2leads/local-api.env`，不在源码或日志回显。
+`tools/configure_local_api.py` 为 Aimail 申请独立 100,000 点模型受限 Key，
+以 0600 权限保存于 `~/.config/aimail/local-api.env`，不在源码或日志回显。
 已有配置拒绝覆盖。执行 `python -m aimail.backends.pilot --config <该配置>`
 经本机 8800 网关而不是直接访问 Ollama；不会调用 Spark 或修改 OA。
 
 openapi 为独立仓库 `~/code/openapi`，持有自己的调用与正文记录数据库。
-用户已要求观察 mail2leads 的 API 对话，因此网关显式为 mail2leads 标签开启正文记录；
-管理页可按调用查看实际发出的上下文与回答。该功能不代表 mail2leads 前台问邮箱已接通，
+用户已要求观察 Aimail 的 API 对话，因此网关显式为 aimail 标签开启正文记录；
+管理页可按调用查看实际发出的上下文与回答。该功能不代表 Aimail 前台问邮箱已接通，
 也不代表跨邮件检索与完整会话管理已经完成。
 
 可以建设公网入口，但当前版本不满足公开部署条件，本次没有发布或开放端口。

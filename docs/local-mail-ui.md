@@ -19,8 +19,8 @@
 前端在 web 目录用 `npm run dev -- --port 5197` 启动；8910 为只监听本机的试点后端。
 依赖独立的 openapi 网关 http://127.0.0.1:8800；其后台可查看调用内容和实际 token。
 
-运行数据：`~/.local/share/mail2leads/pilot/mailbox.sqlite3`。
-网关凭据：`~/.config/mail2leads/local-api.env`，权限必须为 0600。
+运行数据：`~/.local/share/aimail/pilot/mailbox.sqlite3`。
+网关凭据：`~/.config/aimail/local-api.env`，权限必须为 0600。
 收信配置复用 OA 的 `~/.local/state/oa/sales-leads-preview/mailbox.env`，不改 OA 项目。
 
 手动同步仅取 INBOX 最近 30 天最新 30 封，单封最大 2 MB，重复跳过。
