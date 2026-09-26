@@ -7,6 +7,14 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 
+def default_database_path() -> Path:
+    configured = os.environ.get("DB_PATH", "").strip()
+    if configured:
+        return Path(configured)
+    legacy = Path("data/mail2leads.sqlite3")
+    return legacy if legacy.exists() else Path("data/aimail.sqlite3")
+
+
 @dataclass(frozen=True)
 class Config:
     mailbox: str
@@ -77,7 +85,7 @@ class Config:
             listen_host=os.environ.get("LISTEN_HOST", "127.0.0.1").strip() or "127.0.0.1",
             webhook_url=webhook_url,
             webhook_secret=webhook_secret,
-            db_path=Path(os.environ.get("DB_PATH", "data/mail2leads.sqlite3")),
+            db_path=default_database_path(),
             poll_seconds=int(os.environ.get("POLL_SECONDS", "60")),
             web_dist=Path(dist) if dist else None,
             require_oa_auth=os.environ.get("REQUIRE_OA_AUTH", "") == "1",

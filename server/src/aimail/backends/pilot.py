@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from aimail.backends import _extract_json
+from aimail.paths import pilot_data_directory
 from aimail.pilot import read_env
 from aimail.tasks.summarize import SYSTEM, TASK_VERSION, InquirySummary, compose_source
 from aimail.verify.numbers import unverified_numbers
@@ -35,7 +36,7 @@ def main() -> int:
     if parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError("Unsafe endpoint")
     # Read the established local pilot data directory until its owner migrates it explicitly.
-    directory = Path.home() / ".local/share/mail2leads/pilot"
+    directory = pilot_data_directory()
     conn = sqlite3.connect(f"file:{directory / 'mailbox.sqlite3'}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     row = conn.execute(
