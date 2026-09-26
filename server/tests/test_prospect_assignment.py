@@ -1,4 +1,6 @@
 from datetime import UTC, datetime, timedelta
+from email import policy
+from email.parser import BytesParser
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +11,7 @@ from aimail.ingest.run import store_raw
 from aimail.send.accounts import SendingAccount
 from aimail.store import followup, repo
 from conftest import make_raw
-from test_outreach import PAYLOAD, STEPS, Transport
+from test_outreach import NOW, PAYLOAD, STEPS, Transport
 
 
 def test_personal_approval_requires_accepted_ownership(conn, mailbox):
@@ -52,6 +54,84 @@ def test_personal_approval_requires_accepted_ownership(conn, mailbox):
         == recipient
     )
     assert transport.calls == []
+
+
+def test_accepted_employee_approval_and_scheduler_use_only_personal_sender(conn, mailbox):
+    owner, recipient = "larry@example.test", "cloud@example.test"
+    owner_transport, recipient_transport = Transport(), Transport()
+    app = TestClient(
+        create_app(
+            conn,
+            mailbox,
+            sender=owner,
+            transport=owner_transport,
+            require_oa_auth=True,
+            outreach_approval_proxy_key="test-approval",
+            followup_members=(owner, recipient),
+            sending_accounts={recipient: SendingAccount(recipient, "Cloud", recipient_transport)},
+        )
+    )
+    sid = o.import_prospect(conn, mailbox, PAYLOAD)["receipt_id"]
+    owner_headers = {
+        "X-OA-User": "larry",
+        "X-OA-Email": owner,
+        "X-Outreach-Approval-Key": "test-approval",
+        "X-Outreach-Action": "confirm-v1",
+    }
+    recipient_headers = {**owner_headers, "X-OA-User": "cloud", "X-OA-Email": recipient}
+    offered = app.post(
+        f"/api/prospects/{sid}/assignment",
+        headers=owner_headers,
+        json={"action": "offer", "recipient": recipient, "version": 0},
+    )
+    assert offered.status_code == 200
+    assert (
+        app.post(f"/api/prospects/{sid}/approval-token", headers=recipient_headers).status_code
+        == 403
+    )
+    accepted = app.post(
+        f"/api/prospects/{sid}/assignment",
+        headers=recipient_headers,
+        json={"action": "accept", "recipient": "", "version": 1},
+    )
+    assert accepted.status_code == 200
+    token = app.post(f"/api/prospects/{sid}/approval-token", headers=recipient_headers).json()[
+        "token"
+    ]
+    approved = app.post(
+        f"/api/prospects/{sid}/approve",
+        headers=recipient_headers,
+        json={"token": token, "steps": STEPS, "policy_confirmed": True},
+    )
+    assert approved.status_code == 200
+    assert (
+        o.tick(
+            conn,
+            mailbox,
+            sender=owner,
+            sender_name="Larry",
+            transport=owner_transport,
+            enabled=True,
+            now=NOW,
+        )
+        is False
+    )
+    assert owner_transport.calls == []
+    assert (
+        o.tick(
+            conn,
+            mailbox,
+            sender=recipient,
+            sender_name="Cloud",
+            transport=recipient_transport,
+            enabled=True,
+            now=NOW,
+        )
+        is True
+    )
+    assert recipient_transport.calls[0][:2] == (recipient, [PAYLOAD["email"]])
+    message = BytesParser(policy=policy.default).parsebytes(recipient_transport.calls[0][2])
+    assert message["From"] == "Cloud <cloud@example.test>"
 
 
 def test_precontact_assignment_never_sends_and_rejects_previous_sender(conn, mailbox):
