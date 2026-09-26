@@ -67,13 +67,16 @@ mkdir -p "$DATA" "$LOGS"
 chmod 700 "$DATA" "$LOGS"
 LEGACY_BACKUP=""
 LEGACY_STOPPED=0
+LEGACY_WAS_ACTIVE=0
 restore_legacy_service() {
   status=$?
   if [ "$status" -ne 0 ] && [ "$LEGACY_STOPPED" = 1 ] && [ -n "$LEGACY_BACKUP" ]; then
     launchctl bootout "gui/$(id -u)" "$PLIST" >/dev/null 2>&1 || true
     cp "$LEGACY_BACKUP" "$LEGACY_PLIST"
     chmod 600 "$LEGACY_PLIST"
-    launchctl bootstrap "gui/$(id -u)" "$LEGACY_PLIST" >/dev/null 2>&1 || launchctl load -w "$LEGACY_PLIST" >/dev/null 2>&1 || true
+    if [ "$LEGACY_WAS_ACTIVE" = 1 ]; then
+      launchctl bootstrap "gui/$(id -u)" "$LEGACY_PLIST" >/dev/null 2>&1 || launchctl load -w "$LEGACY_PLIST" >/dev/null 2>&1 || true
+    fi
   fi
 }
 trap restore_legacy_service EXIT
@@ -88,6 +91,7 @@ if launchctl print "gui/$(id -u)/$LEGACY_LABEL" >/dev/null 2>&1; then
   chmod 600 "$LEGACY_BACKUP"
   launchctl bootout "gui/$(id -u)" "$LEGACY_PLIST"
   LEGACY_STOPPED=1
+  LEGACY_WAS_ACTIVE=1
   mv "$LEGACY_PLIST" "$LEGACY_DISABLED"
 elif [ -f "$LEGACY_PLIST" ]; then
   LEGACY_BACKUP="$DATA/migration-backups/$LEGACY_LABEL-$(date +%Y%m%dT%H%M%S)-$$.backup"
