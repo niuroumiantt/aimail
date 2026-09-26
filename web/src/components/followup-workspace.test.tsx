@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { FollowupWorkspace } from "./followup-workspace";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
 function show(unresolved = false, owner = "larry@example.test") {
   const state = { thread_id: 7, owner, pending: "", version: 2, summary: "{}", note: "" };
@@ -43,6 +43,51 @@ it("does not offer personal reply controls to a non-owner", async () => {
   show(false, "cloud@example.test");
   await screen.findByText("Original request");
   expect(screen.queryByLabelText("回复正文")).not.toBeInTheDocument();
+});
+
+it("refreshes unread reminders on the open list without syncing mail or sending", async () => {
+  vi.useFakeTimers();
+  let unread = 0;
+  const fetcher = vi.fn(async (path: string) => {
+    if (path !== "/api/followups") throw new Error(`Unexpected request: ${path}`);
+    return new Response(JSON.stringify({
+      identity: "larry@example.test",
+      members: ["larry@example.test", "cloud@example.test"],
+      items: [{ thread_id: 7, owner: "larry@example.test", pending: "", version: 1, summary: "{}", note: "", subject: "Customer RFQ", unread_count: unread }],
+    }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  render(<MemoryRouter initialEntries={["/followups"]}><Routes><Route path="/followups" element={<FollowupWorkspace />} /></Routes></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(screen.getByRole("status")).toHaveTextContent("无未读来信");
+  fetcher.mockClear();
+  unread = 2;
+  await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher).toHaveBeenCalledWith("/api/followups", expect.objectContaining({ method: "GET" }));
+  expect(screen.getByRole("status")).toHaveTextContent("2 封未读来信");
+  expect(fetcher.mock.calls.every(([path]) => path === "/api/followups")).toBe(true);
+});
+
+it("refreshes follow-up status when returning to the visible tab", async () => {
+  let unread = 0;
+  const fetcher = vi.fn(async (path: string) => {
+    if (path !== "/api/followups") throw new Error(`Unexpected request: ${path}`);
+    return new Response(JSON.stringify({
+      identity: "larry@example.test",
+      members: ["larry@example.test", "cloud@example.test"],
+      items: [{ thread_id: 7, owner: "larry@example.test", pending: "", version: 1, summary: "{}", note: "", subject: "Customer RFQ", unread_count: unread }],
+    }), { status: 200 });
+  });
+  vi.stubGlobal("fetch", fetcher);
+  vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+  render(<MemoryRouter initialEntries={["/followups"]}><Routes><Route path="/followups" element={<FollowupWorkspace />} /></Routes></MemoryRouter>);
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("无未读来信"));
+  fetcher.mockClear();
+  unread = 1;
+  await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("status")).toHaveTextContent("1 封未读来信");
 });
 
 it("requires provider evidence and resolves without sending a message", async () => {

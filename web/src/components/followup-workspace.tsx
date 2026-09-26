@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 type State = { thread_id: number; owner: string; pending: string; version: number; summary: string; note: string; subject?: string; unread_count?: number };
+type FollowupList = { items: State[]; members: string[]; identity: string };
 type Detail = { state: State | null; unresolved_send: {id:number;sender:string;state:string;created_at:string}|null; last_message_id: number; thread: { subject: string; messages: {id:string;from_email:string;sent_at:string;body:string;quoted:string|null}[] }; history: { id: number; actor: string; action: string; at: string }[] };
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, { method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json", "X-Mailbox-Address": localStorage.getItem("mailbox-address") ?? "" }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -16,7 +17,7 @@ export function FollowupWorkspace() {
 
 function FollowupView() {
   const { id } = useParams();
-  const [list, setList] = useState<{ items: State[]; members: string[]; identity: string }>({items:[],members:[],identity:''});
+  const [list, setList] = useState<FollowupList>({items:[],members:[],identity:''});
   const [detail, setDetail] = useState<Detail | null>(null);
   const [recipient, setRecipient] = useState(''); const [note, setNote] = useState('');
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
@@ -28,11 +29,22 @@ function FollowupView() {
   const [resolutionResult, setResolutionResult] = useState('');
   const [localUncertain, setUncertain] = useState(false);
   const uncertain = localUncertain || !!detail?.unresolved_send;
+  const refreshFollowups = useCallback(async () => {
+    try { setList(await api<FollowupList>('/api/followups')); setError(''); }
+    catch(e) { setError((e as Error).message); }
+  }, []);
   const refresh = useCallback(async () => {
     try { setList(await api('/api/followups')); setDetail(id ? await api(`/api/followups/${id}`) : null); setError(''); }
     catch(e) { setError((e as Error).message); setDetail(null); }
   }, [id]);
   useEffect(() => { const timer = setTimeout(() => void refresh(), 0); return () => clearTimeout(timer); }, [refresh]);
+  useEffect(() => {
+    if (id) return;
+    const refresh = () => { void refreshFollowups(); };
+    const timer = setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
+  }, [id, refreshFollowups]);
   async function act(action: string) {
     if (!detail || !id) return;
     setBusy(true);
@@ -82,7 +94,7 @@ function FollowupView() {
     <header className="flex gap-6"><Link to="/">返回邮箱</Link><Link to="/followups">我的跟进</Link><button onClick={() => void refresh()}>刷新</button></header>
     <h1 className="text-xl font-semibold">aimail · 销售交接</h1>
     {error && <p role="alert">{error}</p>}
-    {!id && <ul>{list.items.map(item => <li key={item.thread_id}><Link to={`/followups/${item.thread_id}`}>{item.subject}</Link> · {item.pending ? `等待 ${item.pending} 接手` : `负责人：${item.owner}`} · {item.unread_count ? `${item.unread_count} 封未读来信` : '无未读来信'}</li>)}</ul>}
+    {!id && <ul>{list.items.map(item => <li key={item.thread_id}><Link to={`/followups/${item.thread_id}`}>{item.subject}</Link> · {item.pending ? `等待 ${item.pending} 接手` : `负责人：${item.owner}`} · <span role="status">{item.unread_count ? `${item.unread_count} 封未读来信` : '无未读来信'}</span></li>)}</ul>}
     {!id && !error && !list.items.length && <p>暂无交接记录。打开邮件会话后选择“分配 / 转交”。</p>}
     {detail && <section className="space-y-4"><h2>{detail.thread.subject}</h2><p>当前负责人：{state?.owner ?? list.identity}；待接手：{state?.pending || '无'}</p>
       {summary && <article className="border border-line p-4"><h3>AI 阶段总结 · 需结合原文核对</h3>{([['stage','当前阶段'],['needs','客户需求'],['commitments','已作承诺'],['open_questions','待解决事项'],['next_steps','建议下一步'],['model','模型'],['source_ids','引用邮件']] as const).map(([key,label]) => <p className="my-2 whitespace-pre-wrap" key={key}>{label}：{String(summary[key] ?? '')}</p>)}</article>}

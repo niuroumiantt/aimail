@@ -111,7 +111,7 @@ export function OutreachWorkspace() {
             {identity === owner && !current.assignment?.pending && <><select aria-label="潜客接收人" value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">选择销售</option>{members.filter(m => m !== identity).map(m => <option key={m}>{m}</option>)}</select><Button disabled={busy || !recipient} onClick={() => void assign('offer')}>提交潜客交接</Button></>}
             {current.assignment?.pending === identity && <Button disabled={busy} onClick={() => void assign('accept')}>确认接手潜客</Button>}
             {identity === owner && current.assignment?.pending && <Button disabled={busy} onClick={() => void assign('cancel')}>取消潜客交接</Button>}
-          </>}{!mayApprove && <p>当前账号不能使用此序列的发件通道批准发送。个人首封发件接入尚待完成。</p>}</section>}
+          </>}{!mayApprove && <p>当前账号不是此序列的负责人及其个人发件账号，不能批准发送。请先完成潜客交接，或让管理员检查当前员工的个人发件配置。</p>}</section>}
           <p className="mb-5 text-sm text-ink-2">日期均从首封 SMTP 接受时计算；SMTP 接受不保证最终送达。服务停机错过的节点会跳过，不补发一串邮件。</p>
           <div className="space-y-5">{steps.map((step, index) => <fieldset key={step.day} className="rounded-lg border border-line p-4">
             <legend className="px-2 font-medium">{step.day === 0 ? "首封 · Day 0" : `第 ${step.day} 天`}</legend>
