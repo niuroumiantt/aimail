@@ -245,6 +245,9 @@ def main(argv: list[str]) -> int:
     sync_targets = list(personal)
     if shared_config and shared_mailbox_id is not None:
         sync_targets.append((shared_config, shared_mailbox_id))
+    mailbox_access = dict(config.mailbox_access or {})
+    if config.mailbox_owner_email and config.mailbox_owner_access:
+        mailbox_access.setdefault(config.mailbox_owner_email, config.mailbox_owner_access)
     app = create_app(
         conn,
         mailbox_id,
@@ -263,9 +266,7 @@ def main(argv: list[str]) -> int:
         outreach_import_token=config.outreach_import_token,
         outreach_enabled=config.outreach_enabled,
         outreach_approval_proxy_key=config.outreach_approval_proxy_key,
-        mailbox_access={config.mailbox_owner_email: config.mailbox_owner_access}
-        if config.mailbox_owner_email and config.mailbox_owner_access
-        else None,
+        mailbox_access=mailbox_access or None,
         mailbox_tasks=config.mailbox_tasks,
         sync_mailboxes=_sync_callbacks(sync_targets),
     )

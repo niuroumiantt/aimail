@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -45,6 +47,7 @@ class Config:
     outreach_approval_proxy_key: str = ""
     mailbox_owner_email: str = ""
     mailbox_owner_access: tuple[str, ...] = ()
+    mailbox_access: dict[str, tuple[str, ...]] | None = None
     mailbox_tasks: dict[str, frozenset[str]] | None = None
     shared_mailbox: str = ""
     shared_imap_user: str = ""
@@ -99,6 +102,7 @@ class Config:
                 for x in os.environ.get("MAILBOX_OWNER_ACCESS", "").split(",")
                 if x.strip()
             ),
+            mailbox_access=parse_mailbox_access(os.environ.get("MAILBOX_ACCESS", "")),
             mailbox_tasks=parse_mailbox_tasks(os.environ.get("MAILBOX_TASKS", "")),
             shared_mailbox=os.environ.get("SHARED_MAILBOX", "").strip().lower(),
             shared_imap_user=os.environ.get("SHARED_IMAP_USER", "").strip(),
@@ -145,6 +149,40 @@ def parse_tokens(raw: str) -> dict[str, str]:
             raise RuntimeError(f"API 令牌 {name} 太短,至少 16 个字符(openssl rand -hex 32)")
         tokens[name.strip()] = value.strip()
     return tokens
+
+
+def parse_mailbox_access(raw: str) -> dict[str, tuple[str, ...]]:
+    """Parse explicit OIDC-email to mailbox grants; secrets never belong here."""
+    if not raw.strip():
+        return {}
+    try:
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError
+        grants: dict[str, tuple[str, ...]] = {}
+        for identity, addresses in value.items():
+            if not isinstance(identity, str):
+                raise ValueError
+            normalized_identity = identity.strip().lower()
+            if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", normalized_identity):
+                raise ValueError
+            if normalized_identity in grants:
+                raise ValueError
+            if not isinstance(addresses, list) or not addresses:
+                raise ValueError
+            normalized_addresses = []
+            for address in addresses:
+                if not isinstance(address, str):
+                    raise ValueError
+                normalized_address = address.strip().lower()
+                if not re.fullmatch(r"[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+", normalized_address):
+                    raise ValueError
+                if normalized_address not in normalized_addresses:
+                    normalized_addresses.append(normalized_address)
+            grants[normalized_identity] = tuple(normalized_addresses)
+        return grants
+    except (ValueError, TypeError):
+        raise RuntimeError("MAILBOX_ACCESS 必须是邮箱身份到邮箱地址列表的 JSON 映射") from None
 
 
 # 一个邮箱开哪些任务:read 读数(必开)、leads 提线索建议、draft 起草回信。个人邮箱通常只开 read
