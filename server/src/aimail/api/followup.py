@@ -2,6 +2,7 @@
 
 import io
 import json
+import secrets
 import zipfile
 from typing import Literal
 
@@ -48,10 +49,56 @@ class Summary(BaseModel):
     source_ids: list[int] = Field(min_length=1)
 
 
-def install(app, conn, person, mailbox_row, thread_output, members, sending_account):
+class LeadsgenAccessGrant(BaseModel):
+    external_id: str = Field(min_length=1, max_length=200)
+    thread_id: int = Field(ge=1)
+    recipient: str = Field(min_length=3, max_length=320)
+
+
+def install(
+    app,
+    conn,
+    person,
+    mailbox_row,
+    thread_output,
+    members,
+    sending_account,
+    *,
+    import_token="",
+    shared_mailbox_id=None,
+):
     followup.init(conn)
     tokens = send_mod.TokenBox()
     members = frozenset(address.strip().lower() for address in members if address.strip())
+
+    @app.post("/v1/followups/access")
+    def leadsgen_access_grant(request: Request, body: LeadsgenAccessGrant):
+        authorization = request.headers.get("authorization", "")
+        if not import_token or not secrets.compare_digest(authorization, "Bearer " + import_token):
+            raise HTTPException(401, "需要集成令牌")
+        recipient = body.recipient.strip().lower()
+        if recipient not in members:
+            raise HTTPException(422, "接收人未登记为跟进人员")
+        row = conn.execute(
+            "SELECT id FROM thread WHERE id=? AND mailbox_id=?",
+            (body.thread_id, shared_mailbox_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "共享邮箱线程不存在")
+        try:
+            current = followup.grant_from_leadsgen(
+                conn, body.thread_id, recipient, body.external_id
+            )
+        except PermissionError as exc:
+            raise HTTPException(409, "邮件线程已有其他跟进负责人") from exc
+        except ValueError as exc:
+            raise HTTPException(422, "外部线索编号无效") from exc
+        return {
+            "external_id": body.external_id,
+            "thread_id": str(body.thread_id),
+            "owner": current["owner"],
+            "version": current["version"],
+        }
 
     def actor(request):
         person(request)

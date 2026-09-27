@@ -754,7 +754,15 @@ def create_app(
         from aimail.api.followup import install as install_followup
 
         install_followup(
-            app, conn, _person, _mailbox_row, _thread_out, followup_members, _authorize_sender
+            app,
+            conn,
+            _person,
+            _mailbox_row,
+            _thread_out,
+            followup_members,
+            _authorize_sender,
+            import_token=outreach_import_token,
+            shared_mailbox_id=mailbox_id,
         )
 
     if web_dist and (web_dist / "index.html").exists():
