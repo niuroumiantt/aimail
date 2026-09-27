@@ -107,8 +107,8 @@ def install(
         if not import_token or not secrets.compare_digest(authorization, "Bearer " + import_token):
             raise HTTPException(401, "需要集成令牌")
         rows = conn.execute(
-            "SELECT f.*,t.subject,t.contact_email FROM followup f JOIN thread t ON "
-            "t.id=f.thread_id "
+            "SELECT f.*,t.subject,t.contact_email,m.address AS mailbox FROM followup f "
+            "JOIN thread t ON t.id=f.thread_id JOIN mailbox m ON m.id=t.mailbox_id "
             f"WHERE t.mailbox_id IN ({placeholders}) ORDER BY f.thread_id",
             pipeline_ids,
         ).fetchall()
@@ -118,6 +118,7 @@ def install(
             items.append(
                 {
                     "thread_id": row["thread_id"],
+                    "mailbox": row["mailbox"],
                     "subject": row["subject"],
                     "email": row["contact_email"],
                     "owner": row["owner"],
