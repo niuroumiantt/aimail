@@ -1,23 +1,24 @@
 # aimail 交付里程碑
 
-2026-09-27 00:44 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
+2026-09-27 14:32 CST 当前状态。顶部内容是权威现况；后面的带时间戳记录是历史，不得覆盖当前事实。
 
 | 里程碑 | 验收要求 | 当前状态 |
 | --- | --- | --- |
-| M1 身份与发件 | sales 只收信；各员工使用自己的 SMTP | Larry 的 OIDC 会话和 173 个既存邮件会话已在浏览器验证；sales 收件与 Larry 个人发件凭据通过协议认证。sales 不在发件名单，自动开发信关闭。第二员工已指定但尚未注册/验证，管理员审批和人工发送验收待完成。 |
+| M1 身份与发件 | sales 只收信；各员工使用自己的 SMTP | Larry 的 OIDC 会话和 173 个既存邮件会话已在浏览器验证；sales 收件、Larry 及 Isaac 的个人收发凭据通过协议认证。Isaac 的 Authentik 账号由管理员创建，Isaac 已登录 Aimail；sales 不在发件名单，自动开发信关闭。发信的业务验收仍待完成。 |
 | M2 随时交接 | AI 总结、邮件历史/附件、接手/再转交、接手人续跟进 | PR #22/#33 功能已部署，含权限校验、未决发送核对及交接记录；未决发送由当前负责人凭服务商证据记为已发送或未发送，系统不自动重发。真实页面的交接、摘要、附件和接手后续跟进待两名员工验收。 |
-| M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | “我的跟进”轮询/提示与既有出站回执仍按原范围运行。新增 CRM-lite 源码在 leadsgen、Aimail、infra 三个隔离工作树：OIDC 角色隔离、人工确认 sales@ 线索导入、员工接手后单线程授权、转交撤权和跟进状态；自动化测试、前端构建及代理信任边界检查通过，尚未合并或部署。生产邮箱授权边界已收窄：Larry 可看 sales@ 与个人邮箱，Isaac 只看个人邮箱；Isaac 登录 Aimail 已由用户浏览器确认。新 pipeline 的生产角色配置、部署、线索现场分配和完整员工验收仍待完成。没有发送客户邮件。 |
-| M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云运行 Aimail `46b1d63347fc27938865707080658f322977c875`。内部健康检查、SQLite 完整性、OIDC 入口已验证；Larry 的会话与邮件列表已由真人浏览器确认。Larry SMTP 已配置；个人 IMAP 未启用；`sales@` 不在发件名单；自动开发信关闭。Spark `fast` 合成推理通过，未授权 `brain` 返回 403。双人权限、人工收件分配和完整邮件/交接场景仍待验收；没有发送客户邮件。 |
+| M3 业务入口 | leadsgen→aimail 回执；sales 来信分配；跨邮箱新回复关联和提醒 | “我的跟进”轮询/提示与既有出站回执继续运行。CRM-lite 角色隔离、人工确认 sales@ 线索导入、员工接手后单线程授权、转交撤权和跟进状态已合并并部署：leadsgen `0.3.0-a9deb1f`，Aimail `f387bb5`，infra `7685734`。生产角色配置为 Larry 管理员、Isaac 销售；隔离角色烟测、生产健康检查、数据库完整性与 OIDC 入口验证通过。员工在浏览器里的现场分配、接手、邮件/附件授权及续跟进仍待 Larry 和 Isaac 验收。没有发送客户邮件。 |
+| M4 生产业务 | 登录、页面、收信发信、模型和交接验收 | 阿里云运行 Aimail `f387bb5ba80e0058de0e639e3ad659ac8988fa35`；内部健康 200、公网 OIDC 302。Leadsgen `0.3.0-a9deb1f` healthy，公网 OIDC 302，SQLite integrity `ok`、外键错误 0。Larry 可管理公共 sales@ 来信和原始线索；Isaac 的 Aimail 邮箱选择器只含个人邮箱，接手 leadsgen 线索后才获授权看对应单个邮件线程。真实双人业务流程和附件验收待完成；发件仍由个人邮箱，自动开发信关闭，未发送客户邮件。Spark `fast` 合成推理通过，未授权 `brain` 返回 403。 |
 | M5 命名职责 | GitHub repo、运行服务/数据路径迁移；确认 OA 邮件代码边界 | GitHub 仓库、Aimail 包、OCI 镜像、Compose 服务、生产容器和 `/srv/aimail-data` 均已规范命名。infra PR #255 移除一次性运行时迁移/恢复代码并部署新的安装器与 systemd 写路径边界；复验在线备份后，旧停止容器、`/srv/mail2leads-data` 兼容链接及旧网络 alias 均已移除。SQLite 文件名 `mail2leads.sqlite3` 和所有既有备份保留。OA 系统通知与 Aimail 客户邮件分属不同职责，不删除 OA 通知能力。m5 常驻 checkout 已迁至 `~/code/aimail`；旧销售 LaunchAgent 已改为 `com.aimail.sales` 并从新路径启动，健康检查返回 200。原 `~/code/mail2leads` 路径已无进程使用并已移除。迁移保留两个有改动的链接工作树，不清理其父目录。2026-09-27 本机配置与 SQLite 内容已迁至 `~/.config/aimail`、`~/.local/share/aimail`；sales LaunchAgent 改用规范路径，健康检查 200、数据库逻辑内容一致且完整性 `ok`。旧路径保留指向规范目录的兼容 symlink，原始配置/数据库树及 LaunchAgent plist 留在 `~/.local/share/aimail/migration-backups/`；此项是 m5 本机开发/服务目录改名，不是生产部署。 |
-| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #246 刷新六台设备快照，#247 收敛 Aimail 正常发布状态，#248 将 `mail.glocalstorage.cn` 的 Caddy 上游切至 `aimail:8900`，#249 记录路由差异，#250 修正大陆节点现况说明，#251 将 Authentik provider/application 改名为 Aimail 并保留 `mail` issuer，#252 记录线上验证；PR #255 部署迁移收尾安装器，#256 同步运行时核验，#257 移除旧 Caddy 环境文件 fallback，#258 记录生产同步和核验，#259 刷新 M5 新 checkout 路径的六机清单和拓扑图，均已合并且 CI 通过。#259 仅更新只读资产清单，不改远程服务。2026-09-26 22:39 CST 定向复验：生产镜像 SHA `46b1d63347fc27938865707080658f322977c875`；内部健康 200、SQLite 完整性 `ok`、外键错误 0、公网 OIDC 跳转 302、发布 timer active；旧容器/链接/alias 已移除，新 436,748,288 字节在线备份通过两次完整性检查。23:03 CST 再核对代理 Compose 已匹配 main `699fa5f`：旧 `.env.mail2leads.proxy` fallback 不存在，原文件有 `0600` 备份，Compose 校验成功，mail/leads/OA 均返回 OIDC 302；没有重启服务或轮换密钥。业务交付仍待第二员工本人注册验证和管理员审批、双人交接场景及明确批准的邮件发送验收。 |
+| M6 总交付 | infra 账本、图和实际部署版本一致；附验收证据 | infra PR #246–#262 均已合并，CI 通过；leadsgen #1、Aimail #51 与 infra #261 已合并；Aimail 主分支 CI、Docker 和 release 成功。2026-09-27 14:27 CST 核验：Aimail `f387bb5` 内部 health 200、公网 OIDC 302；leadsgen `0.3.0-a9deb1f` healthy、公网 OIDC 302、SQLite integrity `ok`、外键错误 0；生产角色、镜像、备份与隔离烟测证据已写入 infra 账本。业务交付仍待 Larry 与 Isaac 完成浏览器分配/接手/邮件附件/续跟进验收，以及具体批准的发信验收；没有发送客户邮件。 |
 
-## 当前生产事实（2026-09-26 CST；核对点见各条时间）
+## 当前生产事实（2026-09-27 CST；核对点见各条时间）
 
 - 阿里云 `aimail-deploy.timer` 已启用并 active，每 15 分钟检查 GitHub main，只更新 aimail。当前版本无变化时 7 秒返回 `Up to date`，不会重复扫描镜像归档。
-- 当前运行容器为 `mainland-aimail-1`，镜像 `aimail:aimail-46b1d63347fc27938865707080658f322977c875`，数据目录 `/srv/aimail-data`。发布前备份为 `/srv/aimail-data/backups/pre-aimail-46b1d63347fc27938865707080658f322977c875-1790340673-43c1ebda.sqlite3`。切换后内部健康 200、SQLite 完整性 `ok`、外键错误 0；匿名业务 API 和公网入口由 OIDC 保护而返回 302。
-- 邮箱身份策略为共享 sales 收件、个人 Larry 发件。IMAP 和 SMTP 凭据已通过协议认证测试；测试没有选择邮件文件夹、抓取邮件或发送邮件。生产自动开发信开关仍为关闭。
-- GitHub Release 下载与离线镜像导入不需要 Docker Hub 账号。生产服务器使用 GitHub Actions 生成的固定 SHA 镜像，不从 Docker Hub 拉取。此前 87 MB Release 资产用 10 分 14 秒下载并成功部署；跨境下载仍是发布延迟。
-- `mail.glocalstorage.cn` 在现有浏览器 OIDC 会话中识别出 Larry，并加载个人邮箱的 173 个邮件会话；这只验收登录和列表显示，不代表实时同步、回复、转交或第二员工权限已验收。23:08 CST 对身份服务做只读核对，第二位员工尚未建立账号。没有打开客户邮件或发送邮件。Aliyun 已加入现有 tailnet，ACL 仅允许访问 Spark LiteLLM HTTPS `:4000`；22:43 CST 已完成 `fast` 路由推理验收，详情见下一条。
+- 当前运行容器为 `mainland-aimail-1`，镜像 `aimail:aimail-f387bb5ba80e0058de0e639e3ad659ac8988fa35`，数据目录 `/srv/aimail-data`。2026-09-27 内部健康 200、公网 OIDC 302；SQLite 完整性和外键状态沿用上一版数据库并已保留原有发布备份机制。
+- 2026-09-27 新部署 Leadsgen `0.3.0-a9deb1f`，镜像 ID `sha256:6a13bb51bf361dca557ec80c7f67078fd199d15f4f7c7ea74b6c66c4c547ce5d`。生产名单存于 root-only 0600 配置：Larry 管理员、Isaac 销售。切换前 SQLite 备份 `/srv/leadsgen-data/backups/pre-a9deb1f-20260927T061905Z.sqlite3` 为 94,208 字节、0600，完整性 `ok`、外键错误 0。部署后容器 healthy、内部 health 200、公网 OIDC 302；隔离无网络烟测确认匿名 401、管理员/销售 200、未知账号 403。新版本由旧生产镜像为基础，仅覆盖已验证代码与构建前端，依赖锁未改。浏览器业务验收仍待 Larry 与 Isaac；没有客户邮件发送。
+- 邮箱身份策略为 sales 共享收件、Larry 与 Isaac 各自使用个人邮箱发件。两人的个人 IMAP/SMTP 与 sales IMAP 凭据通过协议认证测试；测试未发送邮件。sales 不在发件名单，自动开发信保持关闭。
+- Aimail 使用 GitHub Release 的固定 SHA 镜像，不从 Docker Hub 拉取；Leadsgen 本次以当前生产镜像作基础构建覆盖应用代码，依赖锁未改。此前 Aimail 的 87 MB Release 资产用 10 分 14 秒下载并成功部署；跨境下载仍是发布延迟。
+- Larry 的 `mail.glocalstorage.cn` 会话和 173 个邮件会话已由本人浏览器确认。2026-09-27 Isaac 的 Authentik 账号由管理员创建，Isaac 本人确认登录 Aimail 并可进入个人邮箱。Leadsgen 的实际线索分配、接手后单线程邮件/附件授权与续跟进仍待两人浏览器验收；没有打开或发送客户邮件。Aliyun 已加入现有 tailnet，ACL 仅允许访问 Spark LiteLLM HTTPS `:4000`；`fast` 路由推理验收结果见下一条。
 - 2026-09-25 22:43 CST：阿里云 Aimail 的 `LLM_BACKEND=local`、`LOCAL_MODEL=fast` 已配置，专用 LiteLLM key `aimail-mainland-production` 只开放 `fast`、20 RPM、并发 1。Spark `fast` 映射至 `qwen3:30b-a3b`。在生产容器内调用 Aimail `backends.complete`，以合成提示词和 `reasoning_effort=none` 得到结构校验通过的结果；越权请求 `brain` 返回 403。key 只存阿里云 root-only 0600 环境文件，临时文件已从 Spark 删除。此项不涉及真实邮件内容，也没有发送邮件；模型调用技术验收完成。
 - 运行时改名及迁移兼容清理已完成：Compose 服务和镜像均使用 `aimail`，数据在 `/srv/aimail-data`；2026-09-26 已移除旧停止容器、兼容链接和网络 alias，SQLite 文件与备份保留。GitHub Release 离线镜像发布不依赖 Docker Hub；过往跨境下载延迟仍是发布效率风险。
 - 2026-09-26 23:03 CST：infra PR #257 合并后，阿里云 `/srv/infra/oa-cn/hosts/mainland/public-compose.yml` 已同步 main `699fa5f`。Caddy 只保留规范可选环境文件 `.env.leadsgen.proxy`，旧 `.env.mail2leads.proxy` fallback 已删除；原文件备份 `/var/backups/infra/public-compose.yml.pre-aimail-env-ref-cleanup-20260926T150332Z` 权限 `0600`。更新前后 Compose 配置验证均通过；Aimail、Leadsgen 运行中，Caddy healthy，mail/leads/OA HTTPS 均返回 OIDC 302。此次没有重启服务或轮换 key，验证没有发送客户邮件；infra PR #258 已记录证据、刷新生产图并通过 CI。
