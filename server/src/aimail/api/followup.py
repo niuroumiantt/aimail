@@ -73,7 +73,10 @@ def install(
     *,
     import_token="",
     shared_mailbox_id=None,
+    pipeline_mailbox_ids=None,
 ):
+    pipeline_ids = tuple(pipeline_mailbox_ids or (shared_mailbox_id,))
+    placeholders = ",".join("?" for _ in pipeline_ids)
     followup.init(conn)
     tokens = send_mod.TokenBox()
     members = frozenset(address.strip().lower() for address in members if address.strip())
@@ -88,7 +91,8 @@ def install(
         if (
             actor not in members
             or not conn.execute(
-                "SELECT id FROM thread WHERE id=? AND mailbox_id=?", (tid, shared_mailbox_id)
+                f"SELECT id FROM thread WHERE id=? AND mailbox_id IN ({placeholders})",
+                (tid, *pipeline_ids),
             ).fetchone()
         ):
             raise HTTPException(403, "无权操作该交接")
@@ -103,10 +107,10 @@ def install(
         if not import_token or not secrets.compare_digest(authorization, "Bearer " + import_token):
             raise HTTPException(401, "需要集成令牌")
         rows = conn.execute(
-            "SELECT f.*,t.subject,t.contact_email FROM followup f JOIN thread t ON "
-            "t.id=f.thread_id "
-            "WHERE t.mailbox_id=? ORDER BY f.thread_id",
-            (shared_mailbox_id,),
+            "SELECT f.*,t.subject,t.contact_email,m.address AS mailbox FROM followup f "
+            "JOIN thread t ON t.id=f.thread_id JOIN mailbox m ON m.id=t.mailbox_id "
+            f"WHERE t.mailbox_id IN ({placeholders}) ORDER BY f.thread_id",
+            pipeline_ids,
         ).fetchall()
         items = []
         for row in rows:
@@ -114,6 +118,7 @@ def install(
             items.append(
                 {
                     "thread_id": row["thread_id"],
+                    "mailbox": row["mailbox"],
                     "subject": row["subject"],
                     "email": row["contact_email"],
                     "owner": row["owner"],
@@ -156,8 +161,8 @@ def install(
         if recipient not in members:
             raise HTTPException(422, "接收人未登记为跟进人员")
         row = conn.execute(
-            "SELECT id FROM thread WHERE id=? AND mailbox_id=?",
-            (body.thread_id, shared_mailbox_id),
+            f"SELECT id FROM thread WHERE id=? AND mailbox_id IN ({placeholders})",
+            (body.thread_id, *pipeline_ids),
         ).fetchone()
         if row is None:
             raise HTTPException(404, "共享邮箱线程不存在")

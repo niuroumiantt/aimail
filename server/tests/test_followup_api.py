@@ -389,3 +389,37 @@ def test_projection_export_and_employee_decision_are_scoped_to_shared_threads(co
     result = client.get("/v1/followups", headers=headers).json()["items"][0]
     assert result["pending"] == ""
     assert result["history"][-1]["reason"] == "不熟悉产品"
+
+
+def test_explicit_pipeline_mailboxes_include_sales_and_primary_handoffs_only(conn):
+    from aimail.store import followup
+
+    primary = repo.ensure_mailbox(conn, "larry@example.com")
+    shared = repo.ensure_mailbox(conn, "sales@example.com")
+    private = repo.ensure_mailbox(conn, "isaac@example.com")
+    tids = []
+    for mid in (primary, shared, private):
+        pk, _ = store_raw(conn, mid, make_raw(subject=f"Source {mid}"), "in", datetime.now(UTC))
+        tids.append(conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0])
+    client = TestClient(
+        create_app(
+            conn,
+            primary,
+            shared_mailbox_id=shared,
+            require_oa_auth=True,
+            outreach_import_token="test",
+            followup_members=("larry@example.com", "isaac@example.com"),
+        )
+    )
+    for tid in tids:
+        followup.transfer(conn, tid, "larry@example.com", "isaac@example.com", 0, {}, "")
+    headers = {"Authorization": "Bearer test"}
+    items = client.get("/v1/followups", headers=headers).json()["items"]
+    assert [i["thread_id"] for i in items] == tids[:2]
+    for tid in tids:
+        r = client.post(
+            f"/v1/followups/{tid}/decision",
+            headers=headers,
+            json=dict(actor="isaac@example.com", version=1, action="accept"),
+        )
+        assert r.status_code == (403 if tid == tids[2] else 200)

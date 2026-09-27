@@ -269,6 +269,7 @@ def main(argv: list[str]) -> int:
         mailbox_access=mailbox_access or None,
         mailbox_tasks=config.mailbox_tasks,
         sync_mailboxes=_sync_callbacks(sync_targets),
+        shared_mailbox_id=shared_mailbox_id,
     )
     uvicorn.run(app, host=config.listen_host, port=config.port, log_level="info")
     return 0

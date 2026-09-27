@@ -325,3 +325,25 @@ def test_token_parsing_rejects_short_or_nameless_tokens():
     with pytest.raises(RuntimeError):
         parse_tokens("oa:short")
     assert parse_tokens("") == {}
+
+
+def test_pipeline_merges_primary_and_explicit_shared_but_not_employee_private(conn):
+    primary = repo.ensure_mailbox(conn, "larry@example.com")
+    shared = repo.ensure_mailbox(conn, "sales@example.com")
+    private = repo.ensure_mailbox(conn, "isaac@example.com")
+    ids = []
+    for mid in (primary, shared, private):
+        sid = _suggestion(conn, mid, message_id=f"<source-{mid}@x>", company=f"Source {mid}")
+        ids.append(str(leads.confirm(conn, sid, "Larry")))
+    client = TestClient(create_app(conn, primary, shared_mailbox_id=shared, api_tokens=TOKENS))
+    page = client.get("/v1/leads?limit=1", headers=BEARER).json()
+    assert [i["id"] for i in page["leads"]] == ids[:1]
+    page2 = client.get(
+        "/v1/leads",
+        params={"since": page["next_since"], "after": page["next_after"]},
+        headers=BEARER,
+    ).json()
+    assert [i["id"] for i in page2["leads"]] == ids[1:2]
+    csv = client.get("/v1/leads.csv", headers=BEARER).text
+    assert f"Source {shared}" in csv
+    assert f"Source {private}" not in csv
