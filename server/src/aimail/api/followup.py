@@ -49,6 +49,13 @@ class Summary(BaseModel):
     source_ids: list[int] = Field(min_length=1)
 
 
+class IntegratedDecision(BaseModel):
+    actor: str = Field(min_length=3, max_length=254)
+    version: int = Field(ge=1)
+    action: Literal["accept", "decline"]
+    reason: str = Field(default="", max_length=1000)
+
+
 class LeadsgenAccessGrant(BaseModel):
     external_id: str = Field(min_length=1, max_length=200)
     thread_id: int = Field(ge=1)
@@ -70,6 +77,75 @@ def install(
     followup.init(conn)
     tokens = send_mod.TokenBox()
     members = frozenset(address.strip().lower() for address in members if address.strip())
+
+    @app.post("/v1/followups/{tid}/decision")
+    def integrated_decision(tid: int, request: Request, body: IntegratedDecision):
+        if not import_token or not secrets.compare_digest(
+            request.headers.get("authorization", ""), "Bearer " + import_token
+        ):
+            raise HTTPException(401, "需要集成令牌")
+        actor = body.actor.strip().casefold()
+        if (
+            actor not in members
+            or not conn.execute(
+                "SELECT id FROM thread WHERE id=? AND mailbox_id=?", (tid, shared_mailbox_id)
+            ).fetchone()
+        ):
+            raise HTTPException(403, "无权操作该交接")
+        try:
+            return followup.decide(conn, tid, actor, body.version, body.action, body.reason)
+        except (ValueError, PermissionError) as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @app.get("/v1/followups")
+    def export_followups(request: Request):
+        authorization = request.headers.get("authorization", "")
+        if not import_token or not secrets.compare_digest(authorization, "Bearer " + import_token):
+            raise HTTPException(401, "需要集成令牌")
+        rows = conn.execute(
+            "SELECT f.*,t.subject,t.contact_email FROM followup f JOIN thread t ON "
+            "t.id=f.thread_id "
+            "WHERE t.mailbox_id=? ORDER BY f.thread_id",
+            (shared_mailbox_id,),
+        ).fetchall()
+        items = []
+        for row in rows:
+            summary = json.loads(row["summary"])
+            items.append(
+                {
+                    "thread_id": row["thread_id"],
+                    "subject": row["subject"],
+                    "email": row["contact_email"],
+                    "owner": row["owner"],
+                    "pending": row["pending"],
+                    "version": row["version"],
+                    "updated_at": row["updated_at"],
+                    "summary": "\n".join(
+                        f"{label}：{str(summary.get(key, '未提及'))[:650]}"
+                        for key, label in [
+                            ("stage", "阶段"),
+                            ("needs", "需求"),
+                            ("commitments", "已承诺"),
+                            ("open_questions", "待核实"),
+                            ("next_steps", "建议下一步"),
+                        ]
+                    )[:4000],
+                    "history": [
+                        {
+                            **{key: event[key] for key in ("actor", "action", "version", "at")},
+                            "reason": json.loads(event["payload"]).get("reason", ""),
+                            "recipient": json.loads(event["payload"]).get("recipient", ""),
+                            "notify": json.loads(event["payload"]).get("notify", False),
+                        }
+                        for event in conn.execute(
+                            "SELECT actor,action,version,at,payload FROM followup_event WHERE "
+                            "thread_id=? ORDER BY version",
+                            (row["thread_id"],),
+                        )
+                    ],
+                }
+            )
+        return {"version": "followups@1", "items": items}
 
     @app.post("/v1/followups/access")
     def leadsgen_access_grant(request: Request, body: LeadsgenAccessGrant):
@@ -242,7 +318,9 @@ def install(
         except (backends.LLMError, ValueError):
             raise HTTPException(502, "模型未生成有效交接总结，交接未创建") from None
         try:
-            return followup.transfer(conn, tid, user, recipient, body.version, summary, body.note)
+            return followup.transfer(
+                conn, tid, user, recipient, body.version, summary, body.note, notify=True
+            )
         except (PermissionError, ValueError):
             raise HTTPException(409, "交接状态已变化，请刷新") from None
 

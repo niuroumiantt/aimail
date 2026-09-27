@@ -765,6 +765,29 @@ def create_app(
 
     if require_oa_auth and followup_members:
         from aimail.api.followup import install as install_followup
+        from aimail.api.handoff_notifications import install as install_notifications
+
+        notification_accounts = dict(sending_accounts or {})
+        if sender and transport:
+            notification_accounts.setdefault(
+                sender.casefold(), SendingAccount(sender, sender_name, transport)
+            )
+        shared_address = conn.execute(
+            "SELECT address FROM mailbox WHERE id=?", (mailbox_id,)
+        ).fetchone()[0]
+        install_notifications(
+            app,
+            conn,
+            token=outreach_import_token,
+            members={address.casefold() for address in followup_members},
+            admins={
+                identity.casefold()
+                for identity, allowed in (mailbox_access or {}).items()
+                if shared_address.casefold() in {address.casefold() for address in allowed}
+            },
+            accounts=notification_accounts,
+            shared_mailbox_id=mailbox_id,
+        )
 
         install_followup(
             app,
