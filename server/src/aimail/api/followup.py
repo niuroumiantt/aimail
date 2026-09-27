@@ -23,6 +23,7 @@ class Offer(BaseModel):
 
 class Decision(BaseModel):
     version: int = Field(ge=1)
+    reason: str = Field(default="", max_length=1000)
 
 
 class ReadReceipt(BaseModel):
@@ -418,6 +419,6 @@ def install(
     def decide(tid: int, action: str, body: Decision, request: Request):
         user = actor(request)
         try:
-            return followup.decide(conn, tid, user, body.version, action)
+            return followup.decide(conn, tid, user, body.version, action, body.reason)
         except (PermissionError, ValueError):
             raise HTTPException(409, "无权操作或交接状态已变化") from None

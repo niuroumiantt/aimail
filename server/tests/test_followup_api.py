@@ -1,4 +1,5 @@
 import io
+import json
 import zipfile
 from datetime import UTC, datetime
 
@@ -423,3 +424,45 @@ def test_explicit_pipeline_mailboxes_include_sales_and_primary_handoffs_only(con
             json=dict(actor="isaac@example.com", version=1, action="accept"),
         )
         assert r.status_code == (403 if tid == tids[2] else 200)
+
+
+def test_web_decline_requires_reason_and_preserves_owner(conn):
+    from aimail.store import followup
+
+    box = repo.ensure_mailbox(conn, "sales@glocalstorage.com")
+    pk, _ = store_raw(conn, box, make_raw(), "in", datetime.now(UTC))
+    tid = conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0]
+    larry, isaac = "larry@example.com", "isaac@example.com"
+    followup.init(conn)
+    followup.transfer(conn, tid, larry, isaac, 0, {"needs": "GPU servers"}, "")
+    client = TestClient(
+        create_app(
+            conn,
+            box,
+            require_oa_auth=True,
+            mailbox_access={larry: ("sales@glocalstorage.com",)},
+            followup_members=(larry, isaac),
+        )
+    )
+    headers = {"X-OA-User": isaac, "X-OA-Email": isaac}
+    assert (
+        client.post(
+            f"/api/followups/{tid}/decline", headers=headers, json={"version": 1}
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            f"/api/followups/{tid}/decline",
+            headers=headers,
+            json={"version": 1, "reason": "需要另一位产品专家接手"},
+        ).status_code
+        == 200
+    )
+    state = followup.get(conn, tid)
+    assert state["owner"] == larry and state["pending"] == ""
+    event = conn.execute(
+        "SELECT payload FROM followup_event WHERE thread_id=? AND action='decline'", (tid,)
+    ).fetchone()
+    assert json.loads(event["payload"])["reason"] == "需要另一位产品专家接手"
+    assert client.get(f"/api/followups/{tid}", headers=headers).status_code == 403

@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { FollowupWorkspace } from "./followup-workspace";
+
+beforeEach(() => {
+  vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal("matchMedia", vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() })));
+});
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
@@ -95,7 +100,8 @@ it("requires provider evidence and resolves without sending a message", async ()
   expect(await screen.findByText("发送结果待核对，已暂停重复发送")).toBeInTheDocument();
   const submit = screen.getByRole("button", { name: "记录核对结果（不发送邮件）" });
   expect(submit).toBeDisabled();
-  fireEvent.change(screen.getByLabelText("核对结果"), { target: { value: "not_sent" } });
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "核对结果" }));
+  fireEvent.click(await screen.findByText("服务商确认未接受发送"));
   fireEvent.change(screen.getByLabelText("服务商核对依据"), { target: { value: "provider rejection 1234" } });
   fireEvent.click(submit);
   await waitFor(() => expect(fetcher).toHaveBeenCalledWith(
@@ -104,4 +110,24 @@ it("requires provider evidence and resolves without sending a message", async ()
   ));
   expect(await screen.findByText("已根据服务商证据记录为未发送；系统没有重试。请人工检查内容后再决定是否新建发送。")).toBeInTheDocument();
   expect(fetcher.mock.calls.some(([path]) => path.endsWith("/reply"))).toBe(false);
+});
+
+it("requires a reason to return a pending handoff and leaves a failed decision retryable", async () => {
+  const state = { thread_id: 7, owner: "cloud@example.test", pending: "larry@example.test", version: 3, summary: "Legacy plain-text summary", note: "" };
+  const fetcher = vi.fn(async (path: string) => new Response(JSON.stringify(
+    path.endsWith("/decline") ? { detail: "负责人已变化，请刷新" }
+      : path === "/api/followups" ? { identity: "larry@example.test", members: [], items: [state] }
+      : { state, last_message_id: 19, unresolved_send: null, thread: { subject: "Customer RFQ", messages: [] }, history: [] }
+  ), { status: path.endsWith("/decline") ? 409 : 200 }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<MemoryRouter initialEntries={["/followups/7"]}><Routes><Route path="/followups/:id" element={<FollowupWorkspace />} /><Route path="/followups" element={<FollowupWorkspace />} /></Routes></MemoryRouter>);
+  expect(await screen.findByText("Legacy plain-text summary")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name:"退回"}));
+  expect(screen.getByRole("button", {name:"确认退回"})).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("退回原因"), { target: { value: "需要技术专家接手" } });
+  fireEvent.click(screen.getByRole("button", {name:"确认退回"}));
+  await waitFor(()=>expect(fetcher).toHaveBeenCalledWith("/api/followups/7/decline", expect.objectContaining({method:"POST",body:JSON.stringify({version:3,recipient:"",note:"",reason:"需要技术专家接手"})})));
+  expect(await screen.findByText("负责人已变化，请刷新")).toBeInTheDocument();
+  expect(screen.getByLabelText("退回原因")).toHaveValue("需要技术专家接手");
+  expect(fetcher.mock.calls.every(([path])=>!path.endsWith("/reply"))).toBe(true);
 });
