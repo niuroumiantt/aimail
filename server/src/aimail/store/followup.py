@@ -104,6 +104,61 @@ def transfer(conn, thread_id, actor, recipient, version, summary, note):
     return get(conn, thread_id)
 
 
+def grant_from_leadsgen(conn, thread_id, recipient, external_id):
+    """Make one confirmed leadsgen assignment readable without granting its mailbox."""
+    external_id = str(external_id).strip()
+    if not external_id or len(external_id) > 200:
+        raise ValueError("invalid external lead id")
+    note = "leadsgen:" + external_id
+    at = datetime.now(UTC).isoformat()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        current = get(conn, thread_id)
+        if current:
+            if current["pending"] or current["note"] != note:
+                raise PermissionError("thread already has a different follow-up owner")
+            if current["owner"] == recipient:
+                conn.commit()
+                return current
+            version = current["version"] + 1
+            conn.execute(
+                "UPDATE followup SET owner=?,version=?,updated_at=? WHERE thread_id=?",
+                (recipient, version, at, thread_id),
+            )
+            conn.execute(
+                "INSERT INTO followup_event(thread_id,version,actor,action,payload,at) "
+                "VALUES(?,?,'leadsgen','reassigned',?,?)",
+                (
+                    thread_id,
+                    version,
+                    json.dumps(
+                        {
+                            "external_id": external_id,
+                            "previous_owner": current["owner"],
+                            "recipient": recipient,
+                        }
+                    ),
+                    at,
+                ),
+            )
+            conn.commit()
+            return get(conn, thread_id)
+        conn.execute(
+            "INSERT INTO followup VALUES(?,?,?,?,?,?,?)",
+            (thread_id, recipient, "", 1, json.dumps({}), note, at),
+        )
+        conn.execute(
+            "INSERT INTO followup_event(thread_id,version,actor,action,payload,at) "
+            "VALUES(?,1,'leadsgen','assigned',?,?)",
+            (thread_id, json.dumps({"external_id": external_id, "recipient": recipient}), at),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return get(conn, thread_id)
+
+
 def decide(conn, thread_id, actor, version, action):
     if action not in {"accept", "cancel"}:
         raise ValueError("未知交接动作")

@@ -12,6 +12,101 @@ from aimail.store import repo
 from conftest import make_raw
 
 
+def test_leadsgen_grants_one_shared_mail_thread_without_mailbox_access(conn):
+    shared = repo.ensure_mailbox(conn, "sales@glocalstorage.com")
+    repo.ensure_mailbox(conn, "isaac@semifly.ai")
+    pk, _ = store_raw(
+        conn,
+        shared,
+        make_raw(attachments=[("spec.txt", b"spec evidence", "text/plain")]),
+        "in",
+        datetime.now(UTC),
+    )
+    thread_id = conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0]
+    isaac = "isaac@semifly.ai"
+    larry = "larry@glocalstorage.com"
+    token = "trusted-leadsgen-test-token"
+    app = TestClient(
+        create_app(
+            conn,
+            shared,
+            require_oa_auth=True,
+            mailbox_access={
+                larry: ("sales@glocalstorage.com", larry),
+                isaac: ("isaac@semifly.ai",),
+            },
+            followup_members=(larry, isaac),
+            outreach_import_token=token,
+        )
+    )
+    headers = {"X-OA-User": isaac, "X-OA-Email": isaac}
+    assert app.get("/api/mailboxes", headers=headers).json()["items"] == [
+        {"address": "isaac@semifly.ai", "display_name": "", "tasks": ["draft", "leads", "read"]}
+    ]
+    grant_payload = {"external_id": "mail_123", "thread_id": thread_id, "recipient": isaac}
+    first_grant = app.post(
+        "/v1/followups/access",
+        headers={"Authorization": "Bearer " + token},
+        json=grant_payload,
+    ).json()
+    assert first_grant["owner"] == isaac
+    assert (
+        app.post(
+            "/v1/followups/access",
+            headers={"Authorization": "Bearer " + token},
+            json=grant_payload,
+        ).json()["version"]
+        == first_grant["version"]
+    )
+    assert (
+        app.post(
+            "/v1/followups/access",
+            headers={"Authorization": "Bearer wrong"},
+            json={"external_id": "mail_456", "thread_id": thread_id, "recipient": isaac},
+        ).status_code
+        == 401
+    )
+    assert app.get("/api/threads", headers=headers).status_code == 200
+    assert app.get(f"/api/threads/{thread_id}", headers=headers).status_code == 404
+    assert (
+        app.post(
+            "/v1/followups/access",
+            headers={"Authorization": "Bearer " + token},
+            json={
+                "external_id": "mail_456",
+                "thread_id": thread_id,
+                "recipient": "other@example.com",
+            },
+        ).status_code
+        == 422
+    )
+    followups = app.get("/api/followups", headers=headers).json()["items"]
+    assert [item["thread_id"] for item in followups] == [thread_id]
+    detail = app.get(f"/api/followups/{thread_id}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["thread"]["messages"]
+    exported = app.get(f"/api/followups/{thread_id}/history.zip", headers=headers)
+    assert exported.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
+        assert archive.namelist() == [f"message-{pk}.eml"]
+        assert b"spec.txt" in archive.read(f"message-{pk}.eml")
+    moved = app.post(
+        "/v1/followups/access",
+        headers={"Authorization": "Bearer " + token},
+        json={"external_id": "mail_123", "thread_id": thread_id, "recipient": larry},
+    )
+    assert moved.json()["owner"] == larry
+    assert app.get(f"/api/followups/{thread_id}", headers=headers).status_code == 403
+    assert (
+        app.get(
+            f"/api/followups/{thread_id}", headers={"X-OA-User": larry, "X-OA-Email": larry}
+        ).status_code
+        == 200
+    )
+    other_headers = {"X-OA-User": "other", "X-OA-Email": "other@example.com"}
+    assert app.get("/api/followups", headers=other_headers).status_code == 403
+
+
 def test_thread_scoped_transfer_exports_attachments_without_granting_mailbox(conn, monkeypatch):
     box = repo.ensure_mailbox(conn, "sales@glocalstorage.com")
     raw = make_raw(attachments=[("spec.txt", b"spec evidence", "text/plain")])
