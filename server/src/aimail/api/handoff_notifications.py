@@ -26,7 +26,11 @@ class Notice(BaseModel):
     thread_id: int | None = Field(default=None, ge=1)
 
 
-def install(app, conn, *, token, members, admins, accounts, shared_mailbox_id):
+def install(
+    app, conn, *, token, members, admins, accounts, shared_mailbox_id, pipeline_mailbox_ids=None
+):
+    pipeline_ids = tuple(pipeline_mailbox_ids or (shared_mailbox_id,))
+    placeholders = ",".join("?" for _ in pipeline_ids)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS handoff_notice ("
         "id TEXT PRIMARY KEY, digest TEXT NOT NULL, state TEXT NOT NULL, "
@@ -59,8 +63,8 @@ def install(app, conn, *, token, members, admins, accounts, shared_mailbox_id):
         originals = []
         if body.thread_id:
             if not conn.execute(
-                "SELECT id FROM thread WHERE id=? AND mailbox_id=?",
-                (body.thread_id, shared_mailbox_id),
+                f"SELECT id FROM thread WHERE id=? AND mailbox_id IN ({placeholders})",
+                (body.thread_id, *pipeline_ids),
             ).fetchone():
                 raise HTTPException(404, "共享邮箱线程不存在")
             rows = conn.execute(

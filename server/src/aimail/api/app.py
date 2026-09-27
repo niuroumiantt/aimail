@@ -263,7 +263,10 @@ def create_app(
     sync_mailboxes: dict[str, Callable[[], None]] | None = None,
     followup_members: tuple[str, ...] = (),
     sending_accounts: dict[str, SendingAccount] | None = None,
+    shared_mailbox_id: int | None = None,
 ) -> FastAPI:
+    pipeline_mailbox_id = shared_mailbox_id if shared_mailbox_id is not None else mailbox_id
+    pipeline_mailbox_ids = tuple(dict.fromkeys((mailbox_id, pipeline_mailbox_id)))
     app = FastAPI(title="aimail")
     followup.init(conn)
     tokens = send_mod.TokenBox()
@@ -551,7 +554,13 @@ def create_app(
         _machine(request)
         if status is not None and status not in leads.LEAD_STATUSES:
             raise HTTPException(422, f"状态只能是 {leads.LEAD_STATUSES}")
-        rows = leads.since_leads(conn, mailbox_id, since, after, status, max(1, min(limit, 1000)))
+        page_size = max(1, min(limit, 1000))
+        rows = [
+            row
+            for mid in pipeline_mailbox_ids
+            for row in leads.since_leads(conn, mid, since, after, status, page_size)
+        ]
+        rows = sorted(rows, key=lambda row: (row["updated_at"], row["id"]))[:page_size]
         items = [leads.lead_v1(conn, r) for r in rows]
         return {
             "version": "v1",
@@ -561,7 +570,11 @@ def create_app(
         }
 
     def _csv_response() -> Response:
-        items = [leads.lead_v1(conn, r) for r in leads.list_leads(conn, mailbox_id)]
+        items = [
+            leads.lead_v1(conn, r)
+            for mid in pipeline_mailbox_ids
+            for r in leads.list_leads(conn, mid)
+        ]
         return Response(
             leads_csv(items),
             media_type="text/csv; charset=utf-8",
@@ -773,7 +786,7 @@ def create_app(
                 sender.casefold(), SendingAccount(sender, sender_name, transport)
             )
         shared_address = conn.execute(
-            "SELECT address FROM mailbox WHERE id=?", (mailbox_id,)
+            "SELECT address FROM mailbox WHERE id=?", (pipeline_mailbox_id,)
         ).fetchone()[0]
         install_notifications(
             app,
@@ -786,7 +799,8 @@ def create_app(
                 if shared_address.casefold() in {address.casefold() for address in allowed}
             },
             accounts=notification_accounts,
-            shared_mailbox_id=mailbox_id,
+            shared_mailbox_id=pipeline_mailbox_id,
+            pipeline_mailbox_ids=pipeline_mailbox_ids,
         )
 
         install_followup(
@@ -798,7 +812,8 @@ def create_app(
             followup_members,
             _authorize_sender,
             import_token=outreach_import_token,
-            shared_mailbox_id=mailbox_id,
+            shared_mailbox_id=pipeline_mailbox_id,
+            pipeline_mailbox_ids=pipeline_mailbox_ids,
         )
 
     if web_dist and (web_dist / "index.html").exists():
