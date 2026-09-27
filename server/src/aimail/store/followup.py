@@ -65,7 +65,7 @@ def _pause_outreach(conn, thread_id, actor, at):
         )
 
 
-def transfer(conn, thread_id, actor, recipient, version, summary, note):
+def transfer(conn, thread_id, actor, recipient, version, summary, note, *, notify=False):
     if actor == recipient:
         raise ValueError("接收人不能是自己")
     conn.execute("BEGIN IMMEDIATE")
@@ -92,7 +92,9 @@ def transfer(conn, thread_id, actor, recipient, version, summary, note):
                 version + 1,
                 actor,
                 "offer",
-                json.dumps({"recipient": recipient, "summary": summary, "note": note}),
+                json.dumps(
+                    {"recipient": recipient, "summary": summary, "note": note, "notify": notify}
+                ),
                 at,
             ),
         )
@@ -159,13 +161,15 @@ def grant_from_leadsgen(conn, thread_id, recipient, external_id):
     return get(conn, thread_id)
 
 
-def decide(conn, thread_id, actor, version, action):
-    if action not in {"accept", "cancel"}:
+def decide(conn, thread_id, actor, version, action, reason=""):
+    if action == "decline" and not reason.strip():
+        raise ValueError("请填写退回原因")
+    if action not in {"accept", "cancel", "decline"}:
         raise ValueError("未知交接动作")
     conn.execute("BEGIN IMMEDIATE")
     try:
         current = get(conn, thread_id)
-        field = "pending" if action == "accept" else "owner"
+        field = "pending" if action in {"accept", "decline"} else "owner"
         if (
             not current
             or not current["pending"]
@@ -187,7 +191,7 @@ def decide(conn, thread_id, actor, version, action):
                 version + 1,
                 actor,
                 action,
-                json.dumps({"previous_owner": current["owner"], "owner": owner}),
+                json.dumps({"previous_owner": current["owner"], "owner": owner, "reason": reason}),
                 at,
             ),
         )

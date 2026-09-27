@@ -256,3 +256,136 @@ def test_model_failure_leaves_no_transfer(conn, monkeypatch):
     )
     assert result.status_code == 503
     assert conn.execute("SELECT count(*) FROM followup").fetchone()[0] == 0
+
+
+def test_internal_notification_idempotency_attachments_and_unknown_send(conn):
+    from email import policy
+    from email.parser import BytesParser
+
+    from aimail.send.accounts import SendingAccount
+
+    class Transport:
+        def __init__(self):
+            self.messages = []
+            self.fail = False
+
+        def deliver(self, sender, recipients, raw):
+            self.messages.append((sender, recipients, raw))
+            if self.fail:
+                raise TimeoutError("provider uncertain")
+            return "ok"
+
+    transport = Transport()
+    larry, isaac = "larry@glocalstorage.com", "isaac@semifly.ai"
+    mid = repo.ensure_mailbox(conn, "sales@glocalstorage.com")
+    pk, _ = store_raw(
+        conn,
+        mid,
+        make_raw(attachments=[("spec.txt", b"evidence", "text/plain")]),
+        "in",
+        datetime.now(UTC),
+    )
+    tid = conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0]
+    app = TestClient(
+        create_app(
+            conn,
+            mid,
+            require_oa_auth=True,
+            mailbox_access={larry: ("sales@glocalstorage.com",)},
+            followup_members=(larry, isaac),
+            sending_accounts={larry: SendingAccount(larry, "Larry", transport)},
+            outreach_import_token="test",
+        )
+    )
+    payload = dict(
+        account_id="lead1",
+        version=1,
+        actor=larry,
+        recipient=isaac,
+        subject="20 servers",
+        summary="<unsafe>需求摘要",
+        thread_id=tid,
+    )
+    assert app.post("/v1/handoff-notifications", json=payload).status_code == 401
+    headers = {"Authorization": "Bearer test"}
+    assert (
+        app.post(
+            "/v1/handoff-notifications",
+            json={**payload, "recipient": "customer@example.com"},
+            headers=headers,
+        ).status_code
+        == 403
+    )
+    assert (
+        app.post("/v1/handoff-notifications", json=payload, headers=headers).json()["state"]
+        == "sent"
+    )
+    assert (
+        app.post("/v1/handoff-notifications", json=payload, headers=headers).json()["state"]
+        == "sent"
+    )
+    assert len(transport.messages) == 1
+    message = BytesParser(policy=policy.default).parsebytes(transport.messages[0][2])
+    assert message["To"] == isaac
+    assert "&lt;unsafe&gt;" in message.get_body(preferencelist=("html",)).get_content()
+    attachment = next(message.iter_attachments())
+    assert attachment.get_content_type() == "message/rfc822"
+    assert (
+        next(attachment.get_payload()[0].iter_attachments()).get_payload(decode=True) == b"evidence"
+    )
+    transport.fail = True
+    payload["version"] = 2
+    assert (
+        app.post("/v1/handoff-notifications", json=payload, headers=headers).json()["state"]
+        == "unknown"
+    )
+    assert (
+        app.post("/v1/handoff-notifications", json=payload, headers=headers).json()["state"]
+        == "unknown"
+    )
+    assert len(transport.messages) == 2
+
+
+def test_projection_export_and_employee_decision_are_scoped_to_shared_threads(conn):
+    from aimail.store import followup
+
+    shared = repo.ensure_mailbox(conn, "sales@glocalstorage.com")
+    private = repo.ensure_mailbox(conn, "larry@glocalstorage.com")
+    tids = []
+    for mailbox in [shared, private]:
+        pk, _ = store_raw(conn, mailbox, make_raw(subject=str(mailbox)), "in", datetime.now(UTC))
+        tids.append(conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0])
+    client = TestClient(
+        create_app(
+            conn,
+            shared,
+            require_oa_auth=True,
+            followup_members=("larry@example.com", "isaac@example.com"),
+            outreach_import_token="test",
+        )
+    )
+    for tid in tids:
+        followup.transfer(
+            conn, tid, "larry@example.com", "isaac@example.com", 0, {"needs": "summary"}, "note"
+        )
+    headers = {"Authorization": "Bearer test"}
+    assert client.get("/v1/followups").status_code == 401
+    rows = client.get("/v1/followups", headers=headers).json()["items"]
+    assert [r["thread_id"] for r in rows] == [tids[0]]
+    assert "payload" not in rows[0]["history"][0]
+    payload = dict(actor="isaac@example.com", version=1, action="decline", reason="不熟悉产品")
+    assert (
+        client.post(f"/v1/followups/{tids[1]}/decision", headers=headers, json=payload).status_code
+        == 403
+    )
+    assert (
+        client.post(f"/v1/followups/{tids[0]}/decision", headers=headers, json=payload).status_code
+        == 200
+    )
+    assert (
+        client.post(f"/v1/followups/{tids[0]}/decision", headers=headers, json=payload).status_code
+        == 409
+    )
+    result = client.get("/v1/followups", headers=headers).json()["items"][0]
+    assert result["pending"] == ""
+    assert result["history"][-1]["reason"] == "不熟悉产品"
