@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { AccountMenu } from "@/components/account-menu";
 
 type State = { thread_id: number; owner: string; pending: string; version: number; summary: string; note: string; subject?: string; unread_count?: number };
 type FollowupList = { items: State[]; members: string[]; identity: string };
@@ -91,6 +92,7 @@ function FollowupView() {
   }
   const summary = state ? JSON.parse(state.summary) as Record<string,unknown> : null;
   return <main className="mx-auto max-w-5xl space-y-5 p-6 text-ink">
+    <AccountMenu />
     <header className="flex gap-6"><Link to="/">返回邮箱</Link><Link to="/followups">我的跟进</Link><button onClick={() => void refresh()}>刷新</button></header>
     <h1 className="text-xl font-semibold">aimail · 销售交接</h1>
     {error && <p role="alert">{error}</p>}

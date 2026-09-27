@@ -20,7 +20,7 @@ it("hands off a prospect without requesting an approval or sending mail", async 
   fireEvent.change(screen.getByLabelText("潜客接收人"), {target:{value:"cloud@example.test"}});
   fireEvent.click(screen.getByRole("button", {name:"提交潜客交接"}));
   await waitFor(() => expect(requests).toContain("/api/prospects/p1/assignment"));
-  expect(requests.every(path => path === "/api/prospects" || path.endsWith("/assignment"))).toBe(true);
+  expect(requests.every(path => path === "/api/prospects" || path === "/api/session" || path.endsWith("/assignment"))).toBe(true);
 });
 
 it("requires six complete messages and explicit confirmation before approving outreach", async () => {
