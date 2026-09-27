@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
+import { AccountMenu } from "@/components/account-menu";
 import { Button } from "@/components/button";
 import { getUser, setUser } from "@/lib/user";
 
@@ -79,6 +80,7 @@ export function OutreachWorkspace() {
   const owner = current?.assignment?.owner ?? defaultOwner;
   const mayApprove = !identity || (identity === owner && identity === sender);
   return <main className="min-h-screen bg-canvas p-6 text-ink">
+    <AccountMenu />
     <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
       <div><Link className="text-brand-text" to={import.meta.env.VITE_DATA_SOURCE === "api" ? "/" : "/mail"}>← 邮箱</Link>
         <h1 className="mt-3 text-2xl font-semibold">开发信序列</h1>

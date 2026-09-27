@@ -317,6 +317,19 @@ def create_app(
     def healthz() -> dict:
         return {"ok": True}
 
+    @app.get("/api/session")
+    def api_session(request: Request) -> dict:
+        """Expose the trusted login identity separately from the selected mailbox."""
+        if not require_oa_auth:
+            return {"identity": "local-operator", "username": "local-operator"}
+        email = request.headers.get("x-oa-email", "").strip().casefold()
+        if not email:
+            raise HTTPException(401, "登录身份没有邮箱地址")
+        return {
+            "identity": email,
+            "username": request.headers.get("x-oa-user", "").strip(),
+        }
+
     @app.get("/api/mailboxes")
     def api_mailboxes(request: Request) -> dict:
         current = _mailbox_row(request)

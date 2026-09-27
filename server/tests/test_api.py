@@ -95,6 +95,16 @@ def test_oa_auth_mode_accepts_only_the_portal_identity(conn, mailbox):
     )
 
 
+def test_session_reports_the_trusted_login_not_the_selected_mailbox(conn, mailbox):
+    client = TestClient(create_app(conn, mailbox, require_oa_auth=True))
+    assert client.get("/api/session", headers={"X-User": "Mallory"}).status_code == 401
+    response = client.get(
+        "/api/session",
+        headers={"X-OA-User": "Isaac", "X-OA-Email": "Isaac@Semifly.AI"},
+    )
+    assert response.json() == {"identity": "isaac@semifly.ai", "username": "Isaac"}
+
+
 def test_owner_can_switch_mailboxes_but_other_users_cannot(conn, mailbox):
     other = repo.ensure_mailbox(conn, "larry@example.test", "Larry")
 
