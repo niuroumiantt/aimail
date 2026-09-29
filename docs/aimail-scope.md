@@ -35,7 +35,7 @@
 
 规范名称已统一为 `aimail`：GitHub 仓库、Python 包、OCI 镜像、Compose 服务和生产数据目录均已迁移；用户入口仍为 `mail.glocalstorage.cn`。生产服务运行于 `mainland-aimail-1`，数据目录为 `/srv/aimail-data`。
 
-旧停止容器与 `/srv/mail2leads-data` 兼容符号链接暂时保留作回退。发布器的回退与安装路径仍引用这些旧位置，删除前必须先改造并测试回退，再确认所有线上和本机引用已消失。名称迁移不应触碰 Authentik 的稳定用户 subject、OIDC client 或会话数据。
+infra PR #255/#256 已完成旧迁移恢复代码退役和生产兼容清理。阿里云新版安装器和 systemd 写路径边界已部署；复验 SQLite 在线备份后，旧停止容器、`/srv/mail2leads-data` 符号链接及 Aimail 旧网络 alias 均已移除。规范数据目录 `/srv/aimail-data`、SQLite 原文件名和所有备份均保留。名称迁移未触碰 Authentik 的稳定用户 subject、OIDC client 或会话数据。生产证据见 `docs/delivery-milestones.md` 与 infra `docs/production-state.md`。
 
 ## 当前候选能力与生产验收边界
 
