@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getUser, setUser as persistUser } from "@/lib/user";
 import { chooseSource, type DataSource } from "./source";
 import type {
@@ -61,6 +61,9 @@ const Ctx = createContext<State | null>(null);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<DataSource>();
+  const activeSource = useRef<DataSource | undefined>(undefined);
+  const refreshVersion = useRef(0);
+  const pendingDetails = useRef(new Map<string, Promise<void>>());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string>();
@@ -75,20 +78,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState(getUser);
 
   const refresh = useCallback(async (src: DataSource) => {
-    const [t, s, f, l, o, m] = await Promise.all([
-      src.threads(),
-      src.suggestions(),
-      src.failedSuggestions(),
-      src.leads(),
-      src.outbox(),
-      src.mailbox(),
-    ]);
-    setThreads(t);
-    setSuggestions(s);
-    setFailed(f);
-    setLeads(l);
-    setOutbox(o);
-    setMailbox(m);
+    if (activeSource.current !== src) return;
+    const version = ++refreshVersion.current;
+    const current = () => activeSource.current === src && refreshVersion.current === version;
+    try {
+      // 收件列表先显示；线索和推送状态不能阻挡阅读。
+      const [t, m] = await Promise.all([src.threads(), src.mailbox()]);
+      if (!current()) return;
+      setThreads(t);
+      setMailbox(m);
+      setLoading(false);
+      setError(undefined);
+      const [s, f, l, o] = await Promise.all([
+        src.suggestions(), src.failedSuggestions(), src.leads(), src.outbox(),
+      ]);
+      if (!current()) return;
+      setSuggestions(s);
+      setFailed(f);
+      setLeads(l);
+      setOutbox(o);
+    } catch (e) {
+      if (current()) setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (current()) setLoading(false);
+    }
+  }, []);
+
+  const activate = useCallback((src: DataSource, info: MailboxInfo) => {
+    activeSource.current = src;
+    pendingDetails.current = new Map();
+    setSource(src);
+    setMailbox(info);
+    setLoading(true);
+    setSyncing(false);
+    setError(undefined);
+    setThreads([]);
+    setDetails({});
+    setSuggestions([]);
+    setFailed(0);
+    setLeads([]);
+    setOutbox(NO_OUTBOX);
   }, []);
 
   useEffect(() => {
@@ -100,20 +129,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const access = await src.mailboxes();
         const stored = localStorage.getItem("mailbox-address") ?? "";
         const selected = access.items.some(item => item.address === stored) ? stored : access.default;
-        src.selectMailbox(selected);
+        if (!alive) return;
+        const scoped = src.selectMailbox(selected);
         setMailboxes(access.items);
-        setSource(src);
-        await refresh(src);
+        activate(scoped, access.items.find(item => item.address === selected) ?? NO_MAILBOX);
+        await refresh(scoped);
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (alive) setLoading(false);
+        if (alive && !activeSource.current) setLoading(false);
       }
     })();
     return () => {
       alive = false;
+      activeSource.current = undefined;
     };
-  }, [refresh]);
+  }, [activate, refresh]);
 
   const setUser = useCallback((name: string) => {
     persistUser(name);
@@ -130,19 +160,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       return e instanceof Error ? e.message : String(e);
     } finally {
-      setSyncing(false);
+      if (activeSource.current === source) setSyncing(false);
     }
   }, [source, refresh]);
 
   const openThread = useCallback(
     async (id: string) => {
-      if (!source) return;
-      try {
-        const t = await source.thread(id);
-        if (t) setDetails((d) => ({ ...d, [id]: t }));
-      } catch {
-        /* 列表里那份先顶着;下次刷新再试 */
-      }
+      if (!source || activeSource.current !== source) return;
+      const pending = pendingDetails.current;
+      if (pending.has(id)) return pending.get(id);
+      const request = (async () => {
+        try {
+          const t = await source.thread(id);
+          if (t && activeSource.current === source) setDetails((d) => ({ ...d, [id]: t }));
+        } catch {
+          /* 列表里那份先顶着;下次刷新再试 */
+        } finally {
+          pending.delete(id);
+        }
+      })();
+      pending.set(id, request);
+      return request;
     },
     [source],
   );
@@ -196,10 +234,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       mailbox,
       mailboxes,
       selectMailbox: async (address) => {
-        if (!source || !mailboxes.some(item => item.address === address)) return;
-        source.selectMailbox(address);
-        setDetails({});
-        await refresh(source);
+        const info = mailboxes.find(item => item.address === address);
+        if (!source || !info || address === mailbox.address) return;
+        const scoped = source.selectMailbox(address);
+        activate(scoped, info);
+        await refresh(scoped);
       },
       user,
       setUser,
@@ -221,7 +260,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!source) return "还没加载完";
         try {
           const thread = await source.analyzeThread(id);
-          setDetails((value) => ({ ...value, [id]: thread }));
+          if (activeSource.current === source) setDetails((value) => ({ ...value, [id]: thread }));
           await refresh(source);
           return "";
         } catch (e) {
@@ -241,7 +280,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.clearAssistant(user);
       },
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

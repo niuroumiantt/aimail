@@ -195,7 +195,15 @@ def _attachments_out(conn: sqlite3.Connection, message_pk: int) -> list[dict] | 
 
 
 def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool) -> dict:
-    messages = repo.thread_messages(conn, int(row["id"]))
+    # List rows need counts and the latest incoming reading, never message bodies.
+    messages = (
+        repo.thread_messages(conn, int(row["id"]))
+        if with_messages
+        else conn.execute(
+            "SELECT id, direction FROM message WHERE thread_id = ? ORDER BY sent_at, id",
+            (int(row["id"]),),
+        ).fetchall()
+    )
     last_in = next((m for m in reversed(messages) if m["direction"] == "in"), None)
     reading = _reading_out(repo.latest_reading(conn, int(last_in["id"]))) if last_in else None
     out = {
@@ -270,15 +278,39 @@ def create_app(
     app = FastAPI(title="aimail")
     followup.init(conn)
     tokens = send_mod.TokenBox()
-    # create_app receives one SQLite connection for the process. FastAPI executes sync
-    # endpoints in a thread pool, so a browser's parallel initial requests can otherwise
-    # use that connection concurrently and trigger sqlite3.InterfaceError. Serialize only
-    # data APIs; static assets and the SPA shell remain concurrent.
+    # Writes share the injected connection and remain serialized. Committed inbox
+    # reads use their own read-only WAL connection so IMAP, SMTP and model waits
+    # cannot block browsing. In-memory/test databases retain the shared lock.
     api_connection_lock = threading.Lock()
+    database_path = next(
+        (row[2] for row in conn.execute("PRAGMA database_list") if row[1] == "main"), ""
+    )
+    read_paths = {"/api/session", "/api/mailboxes", "/api/mailbox", "/api/threads"}
 
     @app.middleware("http")
     async def serialize_shared_sqlite(request: Request, call_next):
-        if request.url.path.startswith(("/api/", "/v1/")):
+        path = request.url.path
+        inbox_read = request.method == "GET" and (
+            path in read_paths
+            or (path.startswith("/api/threads/") and path.removeprefix("/api/threads/").isdigit())
+        )
+        if inbox_read and database_path:
+            reader = sqlite3.connect(
+                Path(database_path).as_uri() + "?mode=ro",
+                uri=True,
+                isolation_level=None,
+                check_same_thread=False,
+            )
+            try:
+                reader.row_factory = sqlite3.Row
+                reader.execute("PRAGMA query_only = ON")
+                # One response observes one committed snapshot, including permissions.
+                reader.execute("BEGIN")
+                request.state.inbox_reader = reader
+                return await call_next(request)
+            finally:
+                reader.close()
+        if path.startswith(("/api/", "/v1/")):
             await anyio.to_thread.run_sync(api_connection_lock.acquire)
             try:
                 return await call_next(request)
@@ -286,8 +318,12 @@ def create_app(
                 api_connection_lock.release()
         return await call_next(request)
 
+    def _inbox_conn(request: Request) -> sqlite3.Connection:
+        return getattr(request.state, "inbox_reader", conn)
+
     def _mailbox_row(request: Request) -> sqlite3.Row:
-        default = conn.execute("SELECT * FROM mailbox WHERE id = ?", (mailbox_id,)).fetchone()
+        db = _inbox_conn(request)
+        default = db.execute("SELECT * FROM mailbox WHERE id = ?", (mailbox_id,)).fetchone()
         if default is None:
             raise HTTPException(503, "邮箱尚未配置")
         if not require_oa_auth:
@@ -298,7 +334,7 @@ def create_app(
         allowed = (mailbox_access or {}).get(identity, (identity,))
         rows = {
             row["address"].lower(): row
-            for row in conn.execute("SELECT * FROM mailbox").fetchall()
+            for row in db.execute("SELECT * FROM mailbox").fetchall()
             if row["address"].lower() in {address.lower() for address in allowed}
         }
         if not rows:
@@ -343,7 +379,7 @@ def create_app(
             allowed = (mailbox_access or {}).get(identity, (identity,))
             by_address = {
                 row["address"].lower(): row
-                for row in conn.execute("SELECT * FROM mailbox").fetchall()
+                for row in _inbox_conn(request).execute("SELECT * FROM mailbox").fetchall()
             }
             rows = [by_address[a.lower()] for a in allowed if a.lower() in by_address]
         return {
@@ -386,19 +422,21 @@ def create_app(
 
     @app.get("/api/threads")
     def threads(request: Request, folder: str | None = None) -> list[dict]:
+        db = _inbox_conn(request)
         selected = _mailbox_row(request)
         return [
-            _thread_out(conn, row, with_messages=False)
-            for row in repo.list_threads(conn, int(selected["id"]), folder)
+            _thread_out(db, row, with_messages=False)
+            for row in repo.list_threads(db, int(selected["id"]), folder)
         ]
 
     @app.get("/api/threads/{thread_id}")
     def thread(thread_id: int, request: Request) -> dict:
+        db = _inbox_conn(request)
         selected = _mailbox_row(request)
-        row = repo.get_thread(conn, thread_id, int(selected["id"]))
+        row = repo.get_thread(db, thread_id, int(selected["id"]))
         if row is None:
             raise HTTPException(404, "没有这条线程")
-        return _thread_out(conn, row, with_messages=True)
+        return _thread_out(db, row, with_messages=True)
 
     @app.post("/api/threads/{thread_id}/analyze")
     def analyze_thread(thread_id: int, request: Request) -> dict:

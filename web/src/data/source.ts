@@ -41,7 +41,8 @@ export interface DataSource {
   /** 伺候的是哪个邮箱、开了哪些任务 */
   mailbox(): Promise<MailboxInfo>;
   mailboxes(): Promise<MailboxAccess>;
-  selectMailbox(address: string): void;
+  /** 返回独立的邮箱作用域；在途请求（包括两步发送）保留原邮箱。 */
+  selectMailbox(address: string): DataSource;
   analyzeThread(threadId: string): Promise<Thread>;
   assistant(): Promise<AssistantState>;
   askAssistant(question: string, user: string): Promise<AssistantState>;
@@ -129,7 +130,7 @@ export async function fixtureSource(): Promise<DataSource> {
   const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   // 列表和 API 一样不带信件与历史;详情才有。界面必须走 thread(id) 才看得到信
   const listEntry = (t: Thread): Thread => ({ ...t, messages: [], history: undefined });
-  return {
+  const source: DataSource = {
     sync: async () => {},
     threads: async () => threads.map(listEntry),
     thread: async (id) => threads.find((t) => t.id === id),
@@ -214,12 +215,13 @@ export async function fixtureSource(): Promise<DataSource> {
     mailboxes: async () => ({ default: "sales@glocalstorage.example", items: [{
       address: "sales@glocalstorage.example", display_name: "Sales", tasks: ["read", "leads", "draft"],
     }] }),
-    selectMailbox: () => {},
+    selectMailbox: () => source,
     analyzeThread: async (id) => threads.find((t) => t.id === id)!,
     assistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
     askAssistant: async () => { throw new Error("设计样本不调用真实模型"); },
     clearAssistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
   };
+  return source;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -243,8 +245,7 @@ const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH"): Requ
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 
-export function apiSource(): DataSource {
-  let selected = localStorage.getItem("mailbox-address") ?? "";
+export function apiSource(selected = localStorage.getItem("mailbox-address") ?? ""): DataSource {
   const api = <T,>(path: string, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     if (selected) headers.set("X-Mailbox-Address", selected);
@@ -277,7 +278,10 @@ export function apiSource(): DataSource {
     outbox: () => api<OutboxStatus>("/api/outbox"),
     mailbox: () => api<MailboxInfo>("/api/mailbox"),
     mailboxes: () => call<MailboxAccess>("/api/mailboxes"),
-    selectMailbox: (address) => { selected = address; localStorage.setItem("mailbox-address", address); },
+    selectMailbox: (address) => {
+      localStorage.setItem("mailbox-address", address);
+      return apiSource(address);
+    },
     analyzeThread: (id) => api<Thread>(`/api/threads/${id}/analyze`, { method: "POST" }),
     assistant: () => api<AssistantState>("/api/assistant"),
     askAssistant: (question, user) => api<AssistantState>("/api/assistant", asPerson(user, { question }, "POST")),

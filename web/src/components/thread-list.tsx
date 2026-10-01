@@ -8,10 +8,14 @@ export function ThreadList({
   threads,
   folder,
   search,
+  loading = false,
+  error,
 }: {
   threads: Thread[];
   folder: FolderKey;
   search: string;
+  loading?: boolean;
+  error?: string;
 }) {
   return (
     <>
@@ -22,8 +26,11 @@ export function ThreadList({
         </div>
         <SearchBox />
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {threads.length === 0 ? (
+      {error && <p role="alert" className="border-b border-line px-4 py-3 text-xs text-danger-text">加载失败：{error}。请刷新页面重试。</p>}
+      <div aria-busy={loading} className="min-h-0 flex-1 overflow-y-auto">
+        {loading ? (
+          <p role="status" className="px-4 py-6 text-sm text-ink-2">正在加载邮件…</p>
+        ) : threads.length === 0 && !error ? (
           <EmptyState title="这个分组是空的" subtitle="新来的询盘会按读数结果自动落到对应分组。" />
         ) : (
           threads.map((t) => <ThreadRow key={t.id} thread={t} search={search} />)

@@ -3,11 +3,11 @@ import { lazy, Suspense } from "react";
 import { TipProvider } from "@/components/tip";
 import { DataProvider } from "@/data/provider";
 import InboxPage from "@/pages/inbox";
-import KitPage from "@/pages/kit";
-import LeadsPage from "@/pages/leads";
-import { DesignStudio } from "@/components/design-studio";
-import { OutreachWorkspace } from "@/components/outreach-workspace";
-import { FollowupWorkspace } from "@/components/followup-workspace";
+const KitPage = lazy(() => import("@/pages/kit"));
+const LeadsPage = lazy(() => import("@/pages/leads"));
+const DesignStudio = lazy(() => import("@/components/design-studio").then(module => ({ default: module.DesignStudio })));
+const OutreachWorkspace = lazy(() => import("@/components/outreach-workspace").then(module => ({ default: module.OutreachWorkspace })));
+const FollowupWorkspace = lazy(() => import("@/components/followup-workspace").then(module => ({ default: module.FollowupWorkspace })));
 const RealMailbox = lazy(() => import("@/components/real-mailbox").then(module => ({ default: module.RealMailbox })));
 
 /** 在线预览是静态托管,用 hash 路由;正式部署由服务端兜底,用 history 路由。 */
@@ -18,6 +18,7 @@ export default function App() {
   return (
     <Router>
       <TipProvider delayDuration={300}>
+        <Suspense fallback={<p role="status">正在打开工作区…</p>}>
         <Routes>
           <Route path="/followups" element={<FollowupWorkspace />} />
           <Route path="/followups/:id" element={<FollowupWorkspace />} />
@@ -37,6 +38,7 @@ export default function App() {
             </DataProvider>
           } />
         </Routes>
+        </Suspense>
       </TipProvider>
     </Router>
   );
