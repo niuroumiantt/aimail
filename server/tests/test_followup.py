@@ -45,3 +45,13 @@ def test_cancel_retains_owner_and_history(conn, mailbox):
     state = followup.decide(conn, tid, "larry", 1, "cancel")
     assert state["owner"] == "larry" and state["pending"] == ""
     assert conn.execute("SELECT count(*) FROM followup_event").fetchone()[0] == 2
+
+
+def test_leadsgen_access_grant_cannot_become_an_independent_mail_transfer(conn, mailbox):
+    tid = seed(conn, mailbox)
+    grant = followup.grant_from_leadsgen(conn, tid, "cloud", "mail_123")
+    with pytest.raises(ValueError, match="客户工作台"):
+        followup.transfer(conn, tid, "cloud", "jane", grant["version"], {}, "")
+    assert followup.get(conn, tid)["owner"] == "cloud"
+    moved = followup.grant_from_leadsgen(conn, tid, "jane", "mail_123")
+    assert moved["owner"] == "jane"

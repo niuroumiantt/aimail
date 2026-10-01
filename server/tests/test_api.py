@@ -231,6 +231,11 @@ def test_spa_fallback_serves_index_and_assets(conn, mailbox, tmp_path):
     assert client.get("/t/123").text == "<div id=root></div>"
     assert client.get("/assets/app.js").text == "console.log(1)"
     assert client.get("/api/threads/9999").status_code == 404
+    for path in ("/api", "/api/missing", "/api/followups", "/v1", "/v1/followups"):
+        response = client.get(path)
+        assert response.status_code == 404, path
+        assert response.json() == {"detail": "Not Found"}
+    assert client.get("/followups").text == "<div id=root></div>"
     assert client.get("/healthz").json() == {"ok": True}
 
 
