@@ -5,7 +5,8 @@ aimail 阅读、翻译、总结并分配负责人，由获授权的个人邮箱�
 
 aimail 是公司 OA 办公体系中的邮件应用，独立仓库承载研发；统一身份由
 login.glocalstorage.cn 提供，部署由 infra 管理。产品规则见 [CONSTITUTION.md](CONSTITUTION.md)。
-CRM、报价和合同不在本轮范围；leadsgen 负责发现和交接客户，不承担完整 CRM。
+Leadsgen 承担轻量获客 CRM：发现、客户资料、分配和早期跟进；Aimail 负责邮件与个人发件身份。
+报价、订单和合同尚未接入。跨仓库边界见 [销售工作流合同](https://github.com/niuroumiantt/infra/blob/main/docs/sales-workflow.md)。
 
 新安装的产品名、Python 包入口、GitHub 仓库、运行容器和本机配置/数据目录使用 `aimail`。旧数据库路径在显式迁移前会继续使用；历史 SQLite 文件名 `mail2leads.sqlite3` 保留以免改名时误迁移用户数据。
 不要根据页面标题直接改生产路径。职责以 [范围定义](docs/aimail-scope.md) 为准，
@@ -104,7 +105,7 @@ uv run python evals/draft_reply/run.py evals/draft_reply/dataset.jsonl
 ## 下游(M8)
 
 以下是保留的既有事实导出接口，不代表 OA、CRM、报价或合同已经接入，也不规定
-leadsgen 必须接管正式客户档案。当前交付方向是 leadsgen → aimail → 个人邮箱沟通与销售交接。
+正式客户档案已全部迁移。当前已确认的 sales@ 询盘同步到 Leadsgen；原邮件仍由 Aimail 保管。
 `/v1/leads` 导出人确认过的邮件事实；既有记录保留，不在命名迁移中删除。
 机器用 Bearer 令牌(`API_TOKENS`),**只能读**;写线索的接口只认人。线索每次变化还会 POST 到 `WEBHOOK_URL`
 (HMAC-SHA256 签名、失败按退避重试、永不丢,送没送到线索页上看得见)。接口形状钉死在测试里,改字段先写 ADR。

@@ -822,6 +822,8 @@ def create_app(
         @app.get("/{path:path}")
         def spa(path: str) -> FileResponse:
             # history 路由:所有非 API 路径都回 index.html,前端自己认路
+            if path.split("/", 1)[0] in {"api", "v1"}:
+                raise HTTPException(404, "Not Found")
             return FileResponse(web_dist / "index.html")
 
     return app

@@ -10,8 +10,8 @@ beforeEach(() => {
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); vi.restoreAllMocks(); });
 
-function show(unresolved = false, owner = "larry@example.test") {
-  const state = { thread_id: 7, owner, pending: "", version: 2, summary: "{}", note: "" };
+function show(unresolved = false, owner = "larry@example.test", managedByLeads = false) {
+  const state = { thread_id: 7, owner, pending: "", version: 2, summary: "{}", note: managedByLeads ? "leadsgen:mail_123" : "", assignment_authority: managedByLeads ? "leadsgen" : "aimail", assignment_account_id: managedByLeads ? "mail_123" : "" };
   let resolved = false;
   const fetcher = vi.fn(async (path: string, options?: RequestInit) => {
     if (path.endsWith("/resolve")) resolved = true;
@@ -26,6 +26,14 @@ function show(unresolved = false, owner = "larry@example.test") {
   render(<MemoryRouter initialEntries={["/followups/7"]}><Routes><Route path="/followups/:id" element={<FollowupWorkspace />} /></Routes></MemoryRouter>);
   return fetcher;
 }
+
+it("routes customer assignments to the customer workspace while retaining mail access", async () => {
+  show(false, "larry@example.test", true);
+  expect(await screen.findByRole("link", {name: "前往客户工作台"})).toHaveAttribute("href", "https://leads.glocalstorage.cn/?lead=mail_123");
+  expect(screen.queryByText("转交给销售同事")).not.toBeInTheDocument();
+  expect(screen.queryByText("leadsgen:mail_123")).not.toBeInTheDocument();
+  expect(screen.getByText("Original request")).toBeInTheDocument();
+});
 
 it("keeps unresolved delivery blocked after loading persisted server state", async () => {
   const fetcher = show(true);

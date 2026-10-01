@@ -37,7 +37,18 @@ def init(conn: sqlite3.Connection) -> None:
 
 def get(conn, thread_id):
     row = conn.execute("SELECT * FROM followup WHERE thread_id=?", (thread_id,)).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    state = dict(row)
+    # 权威取自创建事件，不能由用户填写的交接说明冒充。
+    grant = conn.execute(
+        "SELECT payload FROM followup_event WHERE thread_id=? AND version=1 "
+        "AND actor='leadsgen' AND action='assigned'",
+        (thread_id,),
+    ).fetchone()
+    state["assignment_authority"] = "leadsgen" if grant else "aimail"
+    state["assignment_account_id"] = json.loads(grant["payload"])["external_id"] if grant else ""
+    return state
 
 
 def _pause_outreach(conn, thread_id, actor, at):
@@ -77,6 +88,8 @@ def transfer(conn, thread_id, actor, recipient, version, summary, note, *, notif
             raise PermissionError("负责人或版本已变化，请刷新后重试")
         if current and current["pending"]:
             raise ValueError("已有待接手交接，请先完成或取消")
+        if current and current["assignment_authority"] == "leadsgen":
+            raise ValueError("请在客户工作台调整负责人，此处仅同步邮件访问权限")
         at = datetime.now(UTC).isoformat()
         conn.execute(
             "INSERT INTO followup VALUES(?,?,?,?,?,?,?) ON CONFLICT(thread_id) DO UPDATE SET "

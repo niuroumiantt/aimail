@@ -1,6 +1,7 @@
 # aimail：邮件沟通与销售交接
 
-2026-09-25 用户确认的边界。本文件是目标与验收清单，不是上线声明。
+2026-10-01 跨仓库职责校准。本文件包含目标与历史验证记录，不是新版本上线声明。
+当前合同见 [销售工作流](https://github.com/niuroumiantt/infra/blob/main/docs/sales-workflow.md)。
 
 ## 责任
 
@@ -8,7 +9,7 @@
 - aimail 负责邮件收发、AI 翻译与阅读、回复建议，以及任何阶段的销售交接。
 - sales@glocalstorage.com 只收信；客户沟通从获授权的个人邮箱发出。
 - 同一个员工可以读取多个获授权邮箱；读取权限不授予发件身份。
-- CRM、正式客户建档、报价和合同以后实施。leadsgen 不承担这些职责。
+- Leadsgen 已承担轻量获客 CRM：客户资料、分配、跟进阶段和下一步。正式企业/联系人/机会模型、报价和合同仍待实施。
 - OA 保留组织、审批、待办和通知；重复收件箱需核对数据与调用后退役。
 
 ## 两条入口
@@ -37,7 +38,10 @@
 
 infra PR #255/#256 已完成旧迁移恢复代码退役和生产兼容清理。阿里云新版安装器和 systemd 写路径边界已部署；复验 SQLite 在线备份后，旧停止容器、`/srv/mail2leads-data` 符号链接及 Aimail 旧网络 alias 均已移除。规范数据目录 `/srv/aimail-data`、SQLite 原文件名和所有备份均保留。名称迁移未触碰 Authentik 的稳定用户 subject、OIDC client 或会话数据。生产证据见 `docs/delivery-milestones.md` 与 infra `docs/production-state.md`。
 
-## 当前候选能力与生产验收边界
+## 2026-09-25 部署与验收记录（历史快照）
+
+以下版本号和员工配置属于当时记录；后续状态以
+[2026-09-27 交付记录](https://github.com/niuroumiantt/infra/blob/main/docs/handoff/sales-workspace-ui.md) 为准。
 
 交接、潜客分配、相关邮件与附件访问、跨邮箱回复关联、个人未读状态及未决发送保护均已进入已部署 Aimail 版本。代码、自动化测试、部署和人工业务验收是不同状态；真人交接、摘要、附件、接手后续跟进仍需浏览器场景确认。
 

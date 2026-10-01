@@ -294,6 +294,8 @@ def install(
     @app.post("/api/followups/{tid}/offer")
     def offer(tid: int, body: Offer, request: Request):
         user, state = access(request, tid, manage=True)
+        if state and state["assignment_authority"] == "leadsgen":
+            raise HTTPException(409, "请在客户工作台调整负责人，此处仅同步邮件访问权限")
         recipient = body.recipient.strip().lower()
         if recipient not in members or recipient == user:
             raise HTTPException(422, "请选择其他已登记跟进人员")
