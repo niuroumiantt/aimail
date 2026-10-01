@@ -3,7 +3,8 @@ import { EmptyState } from "./empty-state";
 const GHOST = ["w-2/3", "w-1/2", "w-3/5", "w-2/5", "w-1/2"];
 
 /** 右侧没选中线程时:淡淡铺一张"读数卡"的骨架,提示这里会出现什么。 */
-export function InboxEmpty({ count }: { count: number }) {
+export function InboxEmpty({ count, loading = false, error }: { count: number; loading?: boolean; error?: string }) {
+  if (loading || error) return <EmptyState title={loading ? "正在加载邮箱" : "邮箱暂时无法加载"} subtitle={loading ? "正在读取收件列表，请稍候。" : "请刷新页面重试，已有邮件不会受影响。"} />;
   return (
     <EmptyState
       title={count > 0 ? "从左边选一封询盘" : "收件箱是空的"}

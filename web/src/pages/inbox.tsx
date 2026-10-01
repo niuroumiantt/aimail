@@ -29,7 +29,7 @@ export default function InboxPage() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, assistant, askAssistant, clearAssistant } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, assistant, askAssistant, clearAssistant } =
     useData();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
@@ -49,12 +49,17 @@ export default function InboxPage() {
 
   return (
     <AppShell
-      sidebar={<Sidebar counts={countBy(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={selectMailbox} onSync={sync} syncing={syncing} />}
-      list={<ThreadList threads={visible} folder={folder} search={search} />}
+      sidebar={<Sidebar counts={countBy(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
+        if (address === mailbox.address) return;
+        navigate(`/${search}`);
+        setAssistantOpen(false);
+        await selectMailbox(address);
+      }} onSync={sync} syncing={syncing} />}
+      list={<ThreadList threads={visible} folder={folder} search={search} loading={loading} error={error} />}
       detail={
         selected ? (
           <ThreadDetail
-            key={selected.id}
+            key={`${mailbox.address}:${selected.id}`}
             thread={selected}
             backSearch={search}
             reply={reply}
@@ -64,11 +69,12 @@ export default function InboxPage() {
             onAnalyze={() => analyzeThread(selected.id)}
           />
         ) : (
-          <InboxEmpty count={visible.length} />
+          <InboxEmpty count={visible.length} loading={loading} error={error} />
         )
       }
       assistant={<AiReadingPanel open={assistantOpen} mailbox={mailbox.address} load={loadAssistant} ask={submitAssistant} clear={clearAssistantTurns} onClose={() => setAssistantOpen(false)} onCitation={(threadId) => { navigate(`/t/${threadId}`); void openThread(threadId); }} />}
       assistantOpen={assistantOpen}
+      readerKey={`${mailbox.address}:${id ?? ""}`}
       showDetail={Boolean(selected)}
     />
   );
