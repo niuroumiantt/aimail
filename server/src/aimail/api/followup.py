@@ -63,6 +63,10 @@ class LeadsgenAccessGrant(BaseModel):
     recipient: str = Field(min_length=3, max_length=320)
 
 
+class VersionedAccessGrant(LeadsgenAccessGrant):
+    assignment_version: int = Field(ge=1, strict=True)
+
+
 def install(
     app,
     conn,
@@ -153,8 +157,7 @@ def install(
             )
         return {"version": "followups@1", "items": items}
 
-    @app.post("/v1/followups/access")
-    def leadsgen_access_grant(request: Request, body: LeadsgenAccessGrant):
+    def grant_access(request: Request, body: LeadsgenAccessGrant, assignment_version=None):
         authorization = request.headers.get("authorization", "")
         if not import_token or not secrets.compare_digest(authorization, "Bearer " + import_token):
             raise HTTPException(401, "需要集成令牌")
@@ -169,7 +172,11 @@ def install(
             raise HTTPException(404, "共享邮箱线程不存在")
         try:
             current = followup.grant_from_leadsgen(
-                conn, body.thread_id, recipient, body.external_id
+                conn,
+                body.thread_id,
+                recipient,
+                body.external_id,
+                assignment_version=assignment_version,
             )
         except PermissionError as exc:
             raise HTTPException(409, "邮件线程已有其他跟进负责人") from exc
@@ -180,6 +187,17 @@ def install(
             "thread_id": str(body.thread_id),
             "owner": current["owner"],
             "version": current["version"],
+        }
+
+    @app.post("/v1/followups/access")
+    def leadsgen_access_grant(request: Request, body: LeadsgenAccessGrant):
+        return grant_access(request, body)
+
+    @app.post("/v2/followups/access")
+    def versioned_access_grant(request: Request, body: VersionedAccessGrant):
+        return {
+            **grant_access(request, body, body.assignment_version),
+            "assignment_version": body.assignment_version,
         }
 
     def actor(request):

@@ -119,20 +119,44 @@ def transfer(conn, thread_id, actor, recipient, version, summary, note, *, notif
     return get(conn, thread_id)
 
 
-def grant_from_leadsgen(conn, thread_id, recipient, external_id):
+def grant_from_leadsgen(conn, thread_id, recipient, external_id, *, assignment_version=None):
     """Make one confirmed leadsgen assignment readable without granting its mailbox."""
     external_id = str(external_id).strip()
     if not external_id or len(external_id) > 200:
         raise ValueError("invalid external lead id")
+    if assignment_version is not None and (
+        type(assignment_version) is not int or assignment_version < 1
+    ):
+        raise ValueError("invalid assignment version")
     note = "leadsgen:" + external_id
     at = datetime.now(UTC).isoformat()
     conn.execute("BEGIN IMMEDIATE")
     try:
         current = get(conn, thread_id)
         if current:
-            if current["pending"] or current["note"] != note:
+            if (
+                current["pending"]
+                or current["assignment_authority"] != "leadsgen"
+                or current["assignment_account_id"] != external_id
+            ):
                 raise PermissionError("thread already has a different follow-up owner")
-            if current["owner"] == recipient:
+            event = conn.execute(
+                "SELECT payload FROM followup_event WHERE thread_id=? AND actor='leadsgen' "
+                "AND action IN ('assigned','reassigned') ORDER BY version DESC LIMIT 1",
+                (thread_id,),
+            ).fetchone()
+            previous_assignment = json.loads(event["payload"]).get("assignment_version", 0)
+            if assignment_version is None:
+                if previous_assignment:
+                    raise PermissionError("versioned assignment cannot be overwritten by v1")
+                unchanged = current["owner"] == recipient
+            else:
+                if assignment_version < previous_assignment or (
+                    assignment_version == previous_assignment and current["owner"] != recipient
+                ):
+                    raise PermissionError("assignment version is stale or conflicting")
+                unchanged = assignment_version == previous_assignment
+            if unchanged:
                 conn.commit()
                 return current
             version = current["version"] + 1
@@ -151,6 +175,11 @@ def grant_from_leadsgen(conn, thread_id, recipient, external_id):
                             "external_id": external_id,
                             "previous_owner": current["owner"],
                             "recipient": recipient,
+                            **(
+                                {"assignment_version": assignment_version}
+                                if assignment_version is not None
+                                else {}
+                            ),
                         }
                     ),
                     at,
@@ -165,7 +194,21 @@ def grant_from_leadsgen(conn, thread_id, recipient, external_id):
         conn.execute(
             "INSERT INTO followup_event(thread_id,version,actor,action,payload,at) "
             "VALUES(?,1,'leadsgen','assigned',?,?)",
-            (thread_id, json.dumps({"external_id": external_id, "recipient": recipient}), at),
+            (
+                thread_id,
+                json.dumps(
+                    {
+                        "external_id": external_id,
+                        "recipient": recipient,
+                        **(
+                            {"assignment_version": assignment_version}
+                            if assignment_version is not None
+                            else {}
+                        ),
+                    }
+                ),
+                at,
+            ),
         )
         conn.commit()
     except Exception:

@@ -8,7 +8,6 @@ from datetime import UTC, datetime, timedelta
 
 from aimail.ingest.parse import parse
 from aimail.ingest.run import store_raw
-from aimail.store import repo
 
 SENDING_GRACE = timedelta(minutes=10)
 
@@ -90,8 +89,10 @@ def resolve(
             raise ValueError("待核对邮件收件人与当前会话不匹配")
         if (
             not parsed.in_reply_to
-            or repo.thread_of_message_id(conn, attempt["mailbox_id"], parsed.in_reply_to)
-            != thread_id
+            or not conn.execute(
+                "SELECT 1 FROM message WHERE message_id=? AND thread_id=? AND direction='in'",
+                (parsed.in_reply_to, thread_id),
+            ).fetchone()
         ):
             raise ValueError("待核对邮件未引用当前会话，记录保持锁定")
 

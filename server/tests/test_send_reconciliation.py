@@ -1,5 +1,7 @@
 import sqlite3
 from datetime import UTC, datetime, timedelta
+from email import policy
+from email.parser import BytesParser
 
 import pytest
 from fastapi.testclient import TestClient
@@ -183,3 +185,39 @@ def test_owner_only_confirmation_and_stale_sending_timeout(conn):
         f"/api/followups/{thread_id}", headers=headers("larry@glocalstorage.com")
     ).json()
     assert detail["unresolved_send"] is None
+
+
+def test_reference_to_another_thread_cannot_unlock_uncertain_send(conn):
+    mailbox_id, thread_id, attempt_id, raw = pending_attempt(conn)
+    other_pk, _ = store_raw(
+        conn,
+        mailbox_id,
+        make_raw(message_id="<other-thread@example.test>", subject="Other RFQ"),
+        "in",
+        datetime.now(UTC),
+        new_thread=True,
+    )
+    assert (
+        conn.execute(
+            "SELECT thread_id FROM message WHERE id=?",
+            (other_pk,),
+        ).fetchone()[0]
+        != thread_id
+    )
+    message = BytesParser(policy=policy.default).parsebytes(raw)
+    message.replace_header("In-Reply-To", "<other-thread@example.test>")
+    conn.execute("UPDATE reply_attempt SET raw=? WHERE id=?", (message.as_bytes(), attempt_id))
+    with pytest.raises(ValueError, match="未引用当前会话"):
+        resolve(
+            conn,
+            thread_id=thread_id,
+            attempt_id=attempt_id,
+            actor="larry@glocalstorage.com",
+            outcome="sent",
+            evidence_reference="provider delivery log 123456",
+        )
+    assert conn.execute("SELECT state FROM reply_attempt WHERE id=?", (attempt_id,)).fetchone()[
+        0
+    ] == ("unknown")
+    assert conn.execute("SELECT COUNT(*) FROM reply_resolution").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM outbound").fetchone()[0] == 0

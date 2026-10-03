@@ -22,6 +22,9 @@ Leadsgen 承担轻量获客 CRM：发现、客户资料、分配和早期跟进�
 开启后也仅执行已确认的首封和 +7/+14/+28/+60/+90 天固定内容。
 规则、上线门槛与已知限制见 [ADR 0008](docs/adr/0008-approved-outreach-sequences.md)。
 
+客户工作台的会话授权使用来源分配版本防止迟到请求恢复前任权限；接口兼容性、
+升级顺序及跨邮箱回复规则见 [ADR 0009](docs/adr/0009-versioned-thread-access.md)。
+
 ```bash
 uv sync                      # Python 3.12,一个 venv
 bash tools/precommit.sh      # 提交前必须整条跑完,跑子集不算;CI 跑的就是它
