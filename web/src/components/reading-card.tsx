@@ -1,4 +1,4 @@
-import { Ban, CircleAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { Ban, FileText, Sparkles, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Attribution, Reading } from "@/data/types";
 import { cn } from "@/lib/cn";
@@ -6,6 +6,7 @@ import { fullTime } from "@/lib/text";
 import { Pill, type Tone } from "./pill";
 import { Tip } from "./tip";
 import { Button } from "./button";
+import { MAIL_LABEL, mailType } from "./mail-label";
 
 /** 署名:谁算的、哪个版本、什么时候。没有署名的读数不渲染——宪法第三条。 */
 function Signature({ a }: { a: Attribution }) {
@@ -13,7 +14,7 @@ function Signature({ a }: { a: Attribution }) {
     <Tip label={`${a.model} · ${a.task_version} · ${fullTime(a.produced_at)}`}>
       <span
         data-testid="attribution"
-        className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-2xs text-ink-2"
+        className="inline-flex min-w-0 flex-wrap items-center gap-1 break-all font-mono text-2xs text-ink-2"
       >
         {a.model}
         <span className="text-ink-3">·</span>
@@ -56,7 +57,7 @@ function Frame({
           {icon}
         </span>
         <h3 className="text-sm font-semibold text-ink">{title}</h3>
-        <span className="ml-auto flex items-center gap-2">{aside}</span>
+        <span className="ml-auto flex min-w-0 flex-wrap items-center gap-2">{aside}</span>
       </header>
       <div className="grid gap-3 px-4 py-3">{children}</div>
     </section>
@@ -105,29 +106,29 @@ export function ReadingCard({ reading, onAnalyze, analyzing = false, error = "" 
   }
 
   const suspect = reading.unverified.length > 0;
-  const tone: Tone = !reading.is_inquiry ? "neutral" : suspect ? "warn" : "brand";
-  const icon = !reading.is_inquiry ? (
-    <CircleAlert {...ICON} />
-  ) : suspect ? (
+  const tone: Tone = suspect ? "warn" : reading.is_inquiry ? "brand" : "neutral";
+  const icon = suspect ? (
     <TriangleAlert {...ICON} />
-  ) : (
+  ) : reading.is_inquiry ? (
     <Sparkles {...ICON} />
-  );
+  ) : <FileText {...ICON} />;
 
   return (
     <Frame
       icon={icon}
       tone={tone}
-      title={reading.is_inquiry ? "AI 读数" : "AI 判断:这不是询盘"}
+      title={`AI 摘要 · ${MAIL_LABEL[mailType(reading) ?? "other"]}`}
       aside={
         <>
           <Signature a={reading} />
           <Pill mono>{reading.language}</Pill>
+          {onAnalyze && <Button size="sm" variant="ghost" disabled={analyzing} onClick={() => void onAnalyze()}>{analyzing ? "正在分析…" : "重新分析"}</Button>}
         </>
       }
       testId="reading-ok"
     >
       {suspect && <Alarm numbers={reading.unverified} />}
+      {error && <p role="alert" className="text-xs text-danger-text">{error}</p>}
       {/* 已判定不可信的摘要退到警告后面并调暗:照常排版等于替模型背书 */}
       <div data-testid="summary" data-suspect={suspect || undefined} className={cn(suspect && "opacity-60")}>
         <p className="text-sm leading-relaxed text-ink">{reading.summary_zh}</p>

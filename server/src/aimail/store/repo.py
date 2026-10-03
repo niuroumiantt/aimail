@@ -7,6 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 from aimail.ingest.parse import Parsed
+from aimail.store import mail_state
 
 
 def now_iso() -> str:
@@ -134,6 +135,9 @@ def insert_message(
         ),
     )
     message_pk = int(cur.lastrowid)
+    if direction == "in":
+        # 只有真正新增的来信重新唤起会话；重复同步不会复活已删除的旧邮件。
+        mail_state.change(conn, thread_id, "new_message", "system:ingest")
     for a in parsed.attachments:
         conn.execute(
             "INSERT INTO attachment (message_id, filename, content_type, size, sha256, content) "
@@ -144,11 +148,23 @@ def insert_message(
 
 
 def list_threads(
-    conn: sqlite3.Connection, mailbox_id: int, folder: str | None = None
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    folder: str | None = None,
+    *,
+    include_trash: bool = False,
 ) -> list[sqlite3.Row]:
     sql = "SELECT * FROM thread WHERE mailbox_id = ?"
     args: list[object] = [mailbox_id]
-    if folder:
+    deleted = (
+        "EXISTS (SELECT 1 FROM thread_mail_state s "
+        "WHERE s.thread_id=thread.id AND s.deleted_at<>'')"
+    )
+    if folder == "trash":
+        sql += " AND " + deleted
+    elif not include_trash:
+        sql += " AND NOT " + deleted
+    if folder and folder != "trash":
         sql += " AND folder = ?"
         args.append(folder)
     sql += " ORDER BY last_at DESC"

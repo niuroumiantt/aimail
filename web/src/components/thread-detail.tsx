@@ -1,4 +1,4 @@
-import { ArrowLeft, Archive, Reply, Sparkles, Tag } from "lucide-react";
+import { ArrowLeft, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { AttachmentText, Thread } from "@/data/types";
@@ -11,6 +11,7 @@ import { Pill } from "./pill";
 import { ReadingCard } from "./reading-card";
 import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
 import { Tip } from "./tip";
+import { MailLabel } from "./mail-label";
 
 /** 线程页。有 reply(接上了数据源)才能回信;页面按线程 id 加 key,切线程时回信框状态归零。 */
 export function ThreadDetail({
@@ -21,6 +22,7 @@ export function ThreadDetail({
   assistantOpen = false,
   onAssistant,
   onAnalyze,
+  onOrganize,
 }: {
   thread: Thread;
   backSearch: string;
@@ -30,10 +32,21 @@ export function ThreadDetail({
   assistantOpen?: boolean;
   onAssistant?: () => void;
   onAnalyze?: () => Promise<string>;
+  onOrganize?: (action: "trash" | "restore") => Promise<string>;
 }) {
   const [replying, setReplying] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
+  const [organizing, setOrganizing] = useState(false);
+  const [organizeError, setOrganizeError] = useState("");
+  const organize = async () => {
+    if (!onOrganize || organizing) return;
+    setOrganizing(true);
+    setOrganizeError("");
+    try { setOrganizeError(await onOrganize(thread.deleted_at ? "restore" : "trash")); }
+    catch (e) { setOrganizeError(e instanceof Error ? e.message : String(e)); }
+    finally { setOrganizing(false); }
+  };
   return (
     <>
       <header className="flex flex-wrap items-start gap-3 border-b border-line bg-surface px-5 py-4">
@@ -44,7 +57,7 @@ export function ThreadDetail({
         >
           <ArrowLeft size={16} strokeWidth={2} />
         </Link>
-        <Avatar name={thread.contact} size="lg" muted={thread.folder === "invalid"} />
+        <Avatar name={thread.contact} size="lg" />
         <div className="min-w-0 flex-1 basis-48">
           <h2 className="text-base font-semibold leading-snug text-ink text-balance">{thread.subject}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
@@ -56,11 +69,12 @@ export function ThreadDetail({
             <span className="font-mono">{thread.email}</span>
           </p>
         </div>
-        <div className="flex basis-full shrink-0 items-center justify-end gap-1.5 md:basis-auto">
-          {import.meta.env.VITE_DATA_SOURCE === "api" && <Link to={`/followups/${thread.id}`}>分配 / 转交</Link>}
-          <Pill tone={FOLDER_TONE[thread.folder]} dot>
+        <div className="flex basis-full shrink-0 flex-wrap items-center justify-end gap-1.5 md:basis-auto">
+          {!thread.deleted_at && import.meta.env.VITE_DATA_SOURCE === "api" && <Link to={`/followups/${thread.id}`}>分配 / 转交</Link>}
+          <MailLabel thread={thread} />
+          {["quote", "replied"].includes(thread.folder) && <Pill tone={FOLDER_TONE[thread.folder]} dot>
             {FOLDER_LABEL[thread.folder]}
-          </Pill>
+          </Pill>}
           {thread.history?.length === 0 && <Pill tone="brand">第一次来信</Pill>}
           {onAssistant && <Button size="sm" variant={assistantOpen ? "soft" : "outline"} aria-pressed={assistantOpen} icon={<Sparkles size={14} />} onClick={onAssistant}>AI 阅读</Button>}
           <Tip label={reply ? "回复这封信" : "回复(要接上服务端)"}>
@@ -75,19 +89,23 @@ export function ThreadDetail({
               回复
             </Button>
           </Tip>
-          <Tip label="改标签">
-            <Button size="sm" variant="ghost" aria-label="改标签" icon={<Tag size={15} strokeWidth={1.75} />} />
-          </Tip>
-          <Tip label="归档">
-            <Button size="sm" variant="ghost" aria-label="归档" icon={<Archive size={15} strokeWidth={1.75} />} />
-          </Tip>
+          {onOrganize && <Tip label={thread.deleted_at ? "恢复到收件列表" : "整条会话移入 Aimail 回收站，邮箱原件保留"}>
+            <Button size="sm" variant="outline" disabled={organizing} onClick={() => void organize()}
+              icon={thread.deleted_at ? <RotateCcw size={14} /> : <Trash2 size={14} />}>
+              {organizing ? "处理中…" : thread.deleted_at ? "恢复" : "删除"}
+            </Button>
+          </Tip>}
         </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto grid max-w-3xl gap-5 px-5 py-5">
+          {thread.deleted_at && <div role="status" className="rounded-md border border-line bg-surface-2 px-4 py-3 text-sm text-ink-2">
+            已移入 Aimail 回收站，可点击“恢复”。邮箱服务商中的原件仍保留；此会话收到新回复时会重新出现在收件列表。
+          </div>}
+          {organizeError && <p role="alert" className="text-sm text-danger-text">{organizeError}</p>}
           {thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
-          <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />
+          <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />
           {thread.messages.map((m) => (
             <MessageView key={m.id} message={m} onAttachment={onAttachment} />
           ))}

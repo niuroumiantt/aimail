@@ -25,7 +25,7 @@ export function Avatar({
 }: {
   name: string;
   size?: keyof typeof SIZES;
-  /** 无效线程等场景:灰掉 */
+  /** 辅助场景的低强调头像 */
   muted?: boolean;
   className?: string;
 }) {

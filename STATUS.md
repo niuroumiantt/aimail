@@ -21,7 +21,7 @@
 | 守卫:派生表必须有署名字段 | ✅ | test_derived_table_missing_attribution_is_caught, test_nullable_attribution_column_is_caught, test_unmarked_table_is_not_a_derived_table |
 | 跳过的测试导致 CI 失败 | ✅ | test_skipped_test_fails_the_run |
 | web 工具链:构建、测试、lint 可跑 | ✅ | shell renders the product name |
-| 读数卡:四种状态,署名可见,可疑摘要压在警告下并调暗 | ✅ | shows who produced the reading, puts the warning above a summary with unverified numbers and dims it, renders the failure state instead of an empty summary, labels a non-inquiry as such, says plainly when there is no reading yet |
+| 读数卡:四种状态,署名可见,可疑摘要压在警告下并调暗 | ✅ | shows who produced the reading, puts the warning above a summary with unverified numbers and dims it, renders the failure state instead of an empty summary, labels a newsletter without judging its value, says plainly when there is no reading yet |
 | 主题:亮 / 暗 / 跟随系统,显式选择盖过系统偏好 | ✅ | theme toggle stamps data-theme on the root and clears it for system |
 | 字体:全站统一的自托管 Inter + Noto Sans SC,包与清单一致,主题与包同一字体栈,不从 Google Fonts 取字 | ✅ | font package matches its manifest byte for byte, theme and font package declare the same stack and nothing loads from Google Fonts |
 | 头像:同一个人永远同一色,中日韩名取首字 | ✅ | gives the same person the same tint every time, uses the first character for CJK names |
@@ -39,7 +39,7 @@
 | 后端:模型不合规时报错、只重试一次、绝不编结果 | ✅ | test_truncated_json_is_rejected_rather_than_guessed, test_bad_output_gets_exactly_one_repair_attempt, test_wrong_types_are_rejected_not_coerced, test_unknown_backend_name_is_rejected_loudly |
 | 后端:发给网关的字节正确(路径、Bearer、模型名、温度 0、字段模板) | ✅ | test_request_lands_on_the_openai_chat_completions_path, test_api_key_is_sent_as_a_bearer_token, test_payload_carries_model_zero_temperature_and_shape, test_fenced_answer_from_a_real_socket_is_parsed |
 | 核对:模型引用的数字回原文核对,千分位不误判 | ✅ | test_number_absent_from_source_is_flagged, test_thousands_separator_is_not_a_hallucination, test_chinese_comma_and_whitespace_normalized |
-| 读数:落库带署名,失败也落库且显形,不是询盘归 invalid | ✅ | test_reading_is_stored_with_attribution, test_failed_reading_is_stored_as_failed_not_empty, test_non_inquiry_moves_thread_to_invalid, test_unverified_numbers_are_recorded_not_hidden |
+| 读数:落库带署名,失败也落库且显形,类型不覆盖销售状态 | ✅ | test_reading_is_stored_with_attribution, test_failed_reading_is_stored_as_failed_not_empty, test_non_inquiry_preserves_thread_folder, test_unverified_numbers_are_recorded_not_hidden |
 | 读数:核对依据与模型输入是同一份文本;只读来信;读数失败不挡收信 | ✅ | test_quoted_history_is_part_of_the_verified_source, test_ingest_reads_incoming_only, test_reader_failure_does_not_block_ingest |
 | API:读数以界面形状暴露 | ✅ | test_api_exposes_reading_in_the_web_shape |
 | 线索:询盘读数后自动提建议、带署名;提取失败也记录、可数 | ✅ | test_inquiry_reading_creates_an_open_suggestion_with_attribution, test_non_inquiry_creates_no_suggestion, test_failed_extraction_is_recorded_not_silent, test_unverified_numbers_in_a_suggestion_are_kept |
@@ -69,6 +69,10 @@
 | 任务表:一个邮箱开哪些任务由配置定;只读的邮箱不提线索、不起草;read 永远开;不认识的名字启动即炸 | ✅ | test_tasks_profile_turns_lead_suggestions_off, test_drafting_is_off_for_a_mailbox_that_only_reads, test_tasks_env_is_validated |
 | 界面:侧栏显示真实邮箱地址;没开线索任务藏起线索入口;没开起草的回信框没有 AI 起草 | ✅ | shows the mailbox address and hides leads for a mailbox that only reads, keeps the leads entry for a mailbox that suggests leads, offers no AI draft when the mailbox does not draft |
 | 界面:回信框——占位没换发不出;署名、可疑数字、追问先看见;失败不留白;只经人发;草稿可找回 | ✅ | refuses to send while the name placeholder is still in the body, shows who drafted and which numbers are unverified before anyone sends, shows the failure instead of an empty draft, sends only what the person wrote through their handler and then closes, keeps the composer open and shows the reason when the server refuses, asks for a name before drafting or sending, restores the latest stored draft when reopened, decides the hard rules in code before anything reaches the server |
+
+| 邮件类型保留通用用途，不覆盖销售状态 | ✅ | test_mail_type_does_not_overwrite_sales_state, keeps ordinary mail readable and highlights only potential leads |
+| Aimail 回收站、恢复、审计与邮箱隔离 | ✅ | test_trash_restore_preserves_business_evidence_and_is_idempotent, test_trash_requires_person_and_selected_mailbox_authorization, test_reopen_is_additive_and_trash_survives_restart, deletes a conversation into a visible recoverable trash and restores it |
+| 新回复唤起会话、重复同步不恢复 | ✅ | test_new_reply_restores_thread_but_duplicate_ingest_does_not |
 
 ## 里程碑
 

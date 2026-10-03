@@ -141,13 +141,13 @@ const READINGS: Array<[string, Reading | undefined]> = [
     },
   ],
   [
-    "不是询盘",
+    "业务往来",
     {
       ...base,
       status: "ok",
       is_inquiry: false,
       language: "en",
-      summary_zh: "这是丢单通知,不是询盘。",
+      summary_zh: "客户告知本次选择其他供应商。",
       summary_en: "A lost-deal notice, not an inquiry.",
       facts: ["输在交期"],
       quoted_numbers: [],

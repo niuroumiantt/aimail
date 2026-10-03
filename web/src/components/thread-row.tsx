@@ -3,12 +3,13 @@ import type { Thread } from "@/data/types";
 import { cn } from "@/lib/cn";
 import { relativeTime } from "@/lib/text";
 import { Avatar } from "./avatar";
+import { isLeadThread, MailLabel } from "./mail-label";
 import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
 import { Pill } from "./pill";
 import { StatusGlyph } from "./status-glyph";
 
 export function ThreadRow({ thread, search }: { thread: Thread; search: string }) {
-  const lost = thread.folder === "invalid";
+  const lead = isLeadThread(thread);
   return (
     <NavLink
       to={{ pathname: `/t/${thread.id}`, search }}
@@ -17,14 +18,15 @@ export function ThreadRow({ thread, search }: { thread: Thread; search: string }
           "grid grid-cols-row gap-x-3 border-b border-line px-4 py-3 transition-colors",
           "hover:bg-surface-2",
           isActive && "bg-brand-wash/60 hover:bg-brand-wash/60",
-          lost && "opacity-70",
+          lead && "border-l-2 border-l-brand",
         )
       }
     >
-      <Avatar name={thread.contact} muted={lost} className="row-span-3 mt-0.5" />
+      <Avatar name={thread.contact} className="row-span-3 mt-0.5" />
       <div className="flex min-w-0 items-center gap-2">
         <span className="truncate text-sm font-semibold text-ink">{thread.company}</span>
-        <Pill tone={FOLDER_TONE[thread.folder]}>{FOLDER_LABEL[thread.folder]}</Pill>
+        <MailLabel thread={thread} />
+        {["quote", "replied"].includes(thread.folder) && <Pill tone={FOLDER_TONE[thread.folder]}>{FOLDER_LABEL[thread.folder]}</Pill>}
       </div>
       <time className="text-2xs tabular-nums text-ink-2" dateTime={thread.updated_at}>
         {relativeTime(thread.updated_at)}

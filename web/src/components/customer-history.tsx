@@ -13,7 +13,7 @@ export function CustomerHistory({ items }: { items: HistoryItem[] }) {
   const lost = items.filter((h) => h.lead_status === "lost").length;
   return (
     <section
-      aria-label="这位客户"
+      aria-label="此前往来"
       data-testid="customer-history"
       className="rounded-lg border border-line bg-surface shadow-sm"
     >
@@ -21,7 +21,7 @@ export function CustomerHistory({ items }: { items: HistoryItem[] }) {
         <span className="inline-flex size-6 items-center justify-center rounded-sm bg-surface-3 text-ink-2">
           <History size={14} strokeWidth={2} />
         </span>
-        <h3 className="text-sm font-semibold text-ink">这位客户</h3>
+        <h3 className="text-sm font-semibold text-ink">此前往来</h3>
         <span className="text-xs text-ink-2">
           此前 <span className="font-mono tabular-nums text-ink">{items.length}</span> 次往来
           {won > 0 && (
@@ -57,7 +57,7 @@ export function CustomerHistory({ items }: { items: HistoryItem[] }) {
                     {lead.label}
                   </Pill>
                 ) : (
-                  <Pill tone={FOLDER_TONE[h.folder]}>{FOLDER_LABEL[h.folder]}</Pill>
+                  ["quote", "replied"].includes(h.folder) && <Pill tone={FOLDER_TONE[h.folder]}>{FOLDER_LABEL[h.folder]}</Pill>
                 )}
               </span>
             </li>

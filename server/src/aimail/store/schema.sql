@@ -23,6 +23,29 @@ CREATE TABLE IF NOT EXISTS thread (
 CREATE INDEX IF NOT EXISTS thread_recent ON thread (mailbox_id, last_at DESC);
 CREATE INDEX IF NOT EXISTS thread_key ON thread (mailbox_id, subject_key, contact_email);
 
+-- Aimail 回收站独立于销售进度、原文与 IMAP，同一邮箱的授权成员共享。
+CREATE TABLE IF NOT EXISTS thread_mail_state (
+  thread_id INTEGER PRIMARY KEY REFERENCES thread(id),
+  deleted_at TEXT NOT NULL DEFAULT '',
+  deleted_by TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE IF NOT EXISTS thread_mail_event (
+  id INTEGER PRIMARY KEY,
+  thread_id INTEGER NOT NULL REFERENCES thread(id),
+  action TEXT NOT NULL CHECK (action IN ('trash', 'restore', 'new_message')),
+  actor TEXT NOT NULL CHECK (length(trim(actor)) > 0),
+  at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS thread_mail_event_recent ON thread_mail_event(thread_id, id);
+CREATE TRIGGER IF NOT EXISTS thread_mail_event_no_update BEFORE UPDATE ON thread_mail_event
+BEGIN
+  SELECT RAISE(ABORT, '邮件整理记录不允许 UPDATE');
+END;
+CREATE TRIGGER IF NOT EXISTS thread_mail_event_no_delete BEFORE DELETE ON thread_mail_event
+BEGIN
+  SELECT RAISE(ABORT, '邮件整理记录不允许 DELETE');
+END;
+
 -- Persist before SMTP: uncertain sends must survive restarts and block blind retries.
 CREATE TABLE IF NOT EXISTS reply_attempt (
   id INTEGER PRIMARY KEY,
@@ -172,6 +195,7 @@ CREATE TABLE IF NOT EXISTS lead (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS lead_recent ON lead (mailbox_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS lead_thread ON lead (thread_id);
 
 -- derived
 CREATE TABLE IF NOT EXISTS reply_draft (

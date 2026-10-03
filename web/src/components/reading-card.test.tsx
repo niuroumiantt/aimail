@@ -52,9 +52,9 @@ describe("读数卡", () => {
     expect(screen.queryByTestId("summary")).not.toBeInTheDocument();
   });
 
-  it("labels a non-inquiry as such", () => {
-    show({ ...ok, is_inquiry: false, summary_zh: "这是推销。" });
-    expect(screen.getByRole("heading", { name: "AI 判断:这不是询盘" })).toBeInTheDocument();
+  it("labels a newsletter without judging its value", () => {
+    show({ ...ok, is_inquiry: false, mail_type: "newsletter", summary_zh: "这是推销。" });
+    expect(screen.getByRole("heading", { name: "AI 摘要 · 新闻订阅" })).toBeInTheDocument();
   });
 
   it("says plainly when there is no reading yet", () => {

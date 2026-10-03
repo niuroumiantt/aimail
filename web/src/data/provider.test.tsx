@@ -28,6 +28,9 @@ function Probe() {
     <button onClick={() => void data.selectMailbox(SALES)}>Sales</button>
     <button onClick={() => void data.selectMailbox(LARRY)}>Larry</button>
     <button onClick={() => void data.openThread("1")}>Read</button>
+    <button onClick={() => void data.analyzeThread("1")}>Analyze</button>
+    <button onClick={() => void data.organizeThread("1", "trash")}>Delete</button>
+    <output aria-label="deleted">{data.details["1"]?.deleted_at ?? ""}</output>
   </>;
 }
 function serve(override: (path: string, address: string) => Promise<Response> | undefined = () => undefined) {
@@ -37,7 +40,7 @@ function serve(override: (path: string, address: string) => Promise<Response> | 
     if (custom) return custom;
     const values: Record<string, unknown> = {
       "/api/mailboxes": { default: SALES, items: [info(SALES), info(LARRY)] },
-      "/api/mailbox": info(address), "/api/threads": [thread(address)],
+      "/api/mailbox": info(address), "/api/threads?include_trash=true": [thread(address)],
       "/api/leads/suggestions": [], "/api/leads/failed": { count: 0 }, "/api/leads": [],
       "/api/outbox": { configured: false, pending: 0, failed: 0, delivered: 0, last_error: "" },
       "/api/threads/1": thread(address),
@@ -49,6 +52,34 @@ function serve(override: (path: string, address: string) => Promise<Response> | 
 }
 beforeEach(() => localStorage.clear());
 afterEach(() => vi.unstubAllGlobals());
+
+it.each(["Read", "Analyze"])("does not let a late %s response undo a successful deletion", async operation => {
+  const slow = deferred<Response>();
+  const deleted = { ...thread(SALES), deleted_at: "deleted" };
+  serve(path => path === (operation === "Read" ? "/api/threads/1" : "/api/threads/1/analyze") ? slow.promise
+    : path === "/api/threads/1/trash" ? Promise.resolve(Response.json(deleted)) : undefined);
+  render(<DataProvider><Probe /></DataProvider>);
+  await waitFor(() => expect(screen.getByLabelText("threads")).toHaveTextContent(SALES));
+  fireEvent.click(screen.getByText(operation));
+  fireEvent.click(screen.getByText("Delete"));
+  await waitFor(() => expect(screen.getByLabelText("deleted")).toHaveTextContent("deleted"));
+  await act(async () => slow.resolve(Response.json(thread(SALES))));
+  expect(screen.getByLabelText("deleted")).toHaveTextContent("deleted");
+});
+
+it("keeps an in-flight deletion scoped to its original mailbox", async () => {
+  const slow = deferred<Response>();
+  const fetcher = serve(path => path === "/api/threads/1/trash" ? slow.promise : undefined);
+  render(<DataProvider><Probe /></DataProvider>);
+  await waitFor(() => expect(screen.getByLabelText("threads")).toHaveTextContent(SALES));
+  fireEvent.click(screen.getByText("Delete"));
+  fireEvent.click(screen.getByText("Larry"));
+  await waitFor(() => expect(screen.getByLabelText("threads")).toHaveTextContent(LARRY));
+  await act(async () => slow.resolve(Response.json({ ...thread(SALES), deleted_at: "deleted" })));
+  expect(screen.getByLabelText("deleted")).toBeEmptyDOMElement();
+  const call = fetcher.mock.calls.find(([path]) => path === "/api/threads/1/trash")!;
+  expect(new Headers(call[1]?.headers).get("X-Mailbox-Address")).toBe(SALES);
+});
 
 it("shows mail before slow secondary lead data completes", async () => {
   const slow = deferred<Response>();
@@ -63,7 +94,7 @@ it("switches the label immediately and ignores both late lists and late details"
   const slowList = deferred<Response>();
   const slowDetail = deferred<Response>();
   const fetcher = serve((path, address) => {
-    if (path === "/api/threads" && address === LARRY) return slowList.promise;
+    if (path === "/api/threads?include_trash=true" && address === LARRY) return slowList.promise;
     if (path === "/api/threads/1") return slowDetail.promise;
   });
   render(<DataProvider><Probe /></DataProvider>);
@@ -88,7 +119,7 @@ it("switches the label immediately and ignores both late lists and late details"
 });
 
 it("clears old mail and surfaces a denied mailbox instead of retaining private data", async () => {
-  serve((path, address) => path === "/api/threads" && address === LARRY
+  serve((path, address) => path === "/api/threads?include_trash=true" && address === LARRY
     ? Promise.resolve(Response.json({ detail: "不能访问这个邮箱" }, { status: 403 })) : undefined);
   render(<DataProvider><Probe /></DataProvider>);
   await waitFor(() => expect(screen.getByLabelText("threads")).toHaveTextContent(SALES));

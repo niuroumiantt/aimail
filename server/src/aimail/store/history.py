@@ -41,7 +41,7 @@ PUBLIC_MAIL_DOMAINS = frozenset(
     }
 )
 
-FOLDER_WORD = {"inbox": "待处理", "quote": "待报价", "replied": "已回复", "invalid": "无效"}
+FOLDER_WORD = {"inbox": "收件箱", "quote": "待报价", "replied": "已回复", "invalid": "其他邮件"}
 LEAD_WORD = {
     "quote": "待报价",
     "quoted": "已报价",
@@ -87,7 +87,9 @@ def related_threads(
     key = company_key(me["contact_email"])
     rows = conn.execute(
         "SELECT id, subject, contact_email, first_at, last_at, folder FROM thread "
-        "WHERE mailbox_id = ? AND id <> ? ORDER BY last_at DESC, id DESC",
+        "WHERE mailbox_id = ? AND id <> ? AND NOT EXISTS "
+        "(SELECT 1 FROM thread_mail_state s WHERE s.thread_id=thread.id AND s.deleted_at<>'') "
+        "ORDER BY last_at DESC, id DESC",
         (mailbox_id, thread_id),
     ).fetchall()
     items: list[HistoryItem] = []

@@ -1,6 +1,7 @@
 /** 界面看到的数据形状。服务端(M2 起)的 JSON 与这里一致;样本(fixtures/)也照这个写。 */
 
 export type Folder = "inbox" | "quote" | "replied" | "invalid";
+export type MailType = "inquiry" | "newsletter" | "promotion" | "billing" | "notification" | "business" | "other";
 
 export type Attribution = {
   /** 谁算的,例如 "Spark · fast" —— 宪法第三条:派生物有署名 */
@@ -15,6 +16,7 @@ export type Reading =
   | (Attribution & {
       status: "ok";
       is_inquiry: boolean;
+      mail_type?: MailType;
       language: string;
       summary_zh: string;
       summary_en: string;
@@ -138,6 +140,8 @@ export type Thread = {
   /** 一句话的规模提示,列表里显示,例如 "48 台 · 2U" */
   scale: string;
   folder: Folder;
+  deleted_at?: string;
+  has_lead?: boolean;
   updated_at: string;
   /** 详情才有;列表里是空数组 */
   messages: Message[];

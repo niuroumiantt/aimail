@@ -84,6 +84,7 @@ def main() -> int:
             judge_client = anthropic.Anthropic()
 
     malformed = hallucinated = inquiry_ok = covered_total = facts_total = 0
+    type_ok = type_total = 0
     lines = ["id\ttrap\t不合规\t幻觉\tis_inquiry对\t覆盖\t摘要"]
     for row in rows:
         ref = row["reference"]
@@ -100,6 +101,13 @@ def main() -> int:
         hallucinated += int(bad)
         right = s.is_inquiry == ref["is_inquiry"]
         inquiry_ok += int(right)
+        predicted_type = (
+            "inquiry" if s.is_inquiry else (s.mail_type if s.mail_type != "inquiry" else "other")
+        )
+        if "mail_type" in ref:
+            type_total += 1
+            type_ok += int(predicted_type == ref["mail_type"])
+            print(f"  {row['id']}  mail_type={predicted_type} expected={ref['mail_type']}")
         cov = "-"
         if judge_client:
             covered = judge(judge_client, s.summary_zh, ref["facts"])
@@ -123,11 +131,15 @@ def main() -> int:
             f"  幻觉率      {hallucinated}/{answered} = {hallucinated / answered:.1%}  ← 及格线 0%"
         )
         print(f"  is_inquiry  {inquiry_ok}/{answered} = {inquiry_ok / answered:.1%}")
+    if type_total:
+        print(f"  mail_type   {type_ok}/{type_total} = {type_ok / type_total:.1%}")
     if facts_total:
         print("\n=== 估计值(裁判 Claude,务必抽查)===")
         print(f"  事实覆盖率  {covered_total}/{facts_total} = {covered_total / facts_total:.1%}")
     print(f"\n逐条对照:{args.out}")
-    return 1 if (hallucinated or malformed) else 0
+    return (
+        1 if (hallucinated or malformed or inquiry_ok != answered or type_ok != type_total) else 0
+    )
 
 
 if __name__ == "__main__":
