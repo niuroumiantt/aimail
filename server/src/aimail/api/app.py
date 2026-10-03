@@ -28,7 +28,7 @@ from aimail import send as send_mod
 from aimail.config import DEFAULT_TASKS
 from aimail.ingest import attachments
 from aimail.send.accounts import SendingAccount
-from aimail.store import assistant, followup, history, leads, outbox, repo
+from aimail.store import assistant, followup, history, leads, mail_state, outbox, repo
 from aimail.tasks import ask_mailbox
 from aimail.tasks import draft as draft_mod
 from aimail.tasks.read import read_message
@@ -215,6 +215,11 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
         "region": "",
         "scale": f"{len(messages)} 封",
         "folder": row["folder"],
+        "deleted_at": mail_state.deleted_at(conn, int(row["id"])),
+        "has_lead": conn.execute(
+            "SELECT 1 FROM lead WHERE thread_id=? LIMIT 1", (int(row["id"]),)
+        ).fetchone()
+        is not None,
         "updated_at": row["last_at"],
         "reading": reading,
         "messages": [],
@@ -421,12 +426,16 @@ def create_app(
         }
 
     @app.get("/api/threads")
-    def threads(request: Request, folder: str | None = None) -> list[dict]:
+    def threads(
+        request: Request, folder: str | None = None, include_trash: bool = False
+    ) -> list[dict]:
         db = _inbox_conn(request)
         selected = _mailbox_row(request)
         return [
             _thread_out(db, row, with_messages=False)
-            for row in repo.list_threads(db, int(selected["id"]), folder)
+            for row in repo.list_threads(
+                db, int(selected["id"]), folder, include_trash=include_trash
+            )
         ]
 
     @app.get("/api/threads/{thread_id}")
@@ -437,6 +446,23 @@ def create_app(
         if row is None:
             raise HTTPException(404, "没有这条线程")
         return _thread_out(db, row, with_messages=True)
+
+    def _organize_thread(thread_id: int, request: Request, action: str) -> dict:
+        user = _person(request)
+        selected = _mailbox_row(request)
+        row = repo.get_thread(conn, thread_id, int(selected["id"]))
+        if row is None:
+            raise HTTPException(404, "没有这条线程")
+        mail_state.change(conn, thread_id, action, user)
+        return _thread_out(conn, row, with_messages=True)
+
+    @app.post("/api/threads/{thread_id}/trash")
+    def trash_thread(thread_id: int, request: Request) -> dict:
+        return _organize_thread(thread_id, request, "trash")
+
+    @app.post("/api/threads/{thread_id}/restore")
+    def restore_thread(thread_id: int, request: Request) -> dict:
+        return _organize_thread(thread_id, request, "restore")
 
     @app.post("/api/threads/{thread_id}/analyze")
     def analyze_thread(thread_id: int, request: Request) -> dict:
@@ -498,7 +524,9 @@ def create_app(
         ]
         rows = conn.execute(
             "SELECT id,thread_id,subject,from_email,sent_at,body_new FROM message "
-            "WHERE mailbox_id=? ORDER BY sent_at DESC,id DESC",
+            "WHERE mailbox_id=? AND NOT EXISTS "
+            "(SELECT 1 FROM thread_mail_state s WHERE s.thread_id=message.thread_id "
+            "AND s.deleted_at<>'') ORDER BY sent_at DESC,id DESC",
             (mailbox_id_for_assistant,),
         ).fetchall()
         included = rows[:60]

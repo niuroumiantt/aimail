@@ -47,6 +47,7 @@ type State = {
   /** 附件里读出来的文字,点开才取 */
   attachmentText: (attachmentId: string) => Promise<AttachmentText>;
   analyzeThread: (threadId: string) => Promise<string>;
+  organizeThread: (threadId: string, action: "trash" | "restore") => Promise<string>;
   assistant: () => Promise<AssistantState>;
   askAssistant: (question: string) => Promise<AssistantState>;
   clearAssistant: () => Promise<AssistantState>;
@@ -64,6 +65,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const activeSource = useRef<DataSource | undefined>(undefined);
   const refreshVersion = useRef(0);
   const pendingDetails = useRef(new Map<string, Promise<void>>());
+  const detailVersions = useRef(new Map<string, number>());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string>();
@@ -107,6 +109,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const activate = useCallback((src: DataSource, info: MailboxInfo) => {
     activeSource.current = src;
     pendingDetails.current = new Map();
+    detailVersions.current = new Map();
     setSource(src);
     setMailbox(info);
     setLoading(true);
@@ -169,10 +172,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!source || activeSource.current !== source) return;
       const pending = pendingDetails.current;
       if (pending.has(id)) return pending.get(id);
+      const version = detailVersions.current.get(id) ?? 0;
       const request = (async () => {
         try {
           const t = await source.thread(id);
-          if (t && activeSource.current === source) setDetails((d) => ({ ...d, [id]: t }));
+          if (t && activeSource.current === source && version === (detailVersions.current.get(id) ?? 0)) setDetails((d) => ({ ...d, [id]: t }));
         } catch {
           /* 列表里那份先顶着;下次刷新再试 */
         } finally {
@@ -258,9 +262,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
       analyzeThread: async (id) => {
         if (!source) return "还没加载完";
+        const version = detailVersions.current.get(id) ?? 0;
         try {
           const thread = await source.analyzeThread(id);
-          if (activeSource.current === source) setDetails((value) => ({ ...value, [id]: thread }));
+          if (activeSource.current === source && version === (detailVersions.current.get(id) ?? 0)) setDetails((value) => ({ ...value, [id]: thread }));
+          await refresh(source);
+          return "";
+        } catch (e) {
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      organizeThread: async (id, action) => {
+        if (!source) return "还没加载完";
+        try {
+          const thread = await source.organizeThread(id, action, user);
+          if (activeSource.current === source) {
+            detailVersions.current.set(id, (detailVersions.current.get(id) ?? 0) + 1);
+            ++refreshVersion.current;
+            setDetails(value => ({ ...value, [id]: thread }));
+            setThreads(value => value.map(item => item.id === id ? { ...item, deleted_at: thread.deleted_at } : item));
+          }
           await refresh(source);
           return "";
         } catch (e) {

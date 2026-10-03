@@ -1,6 +1,7 @@
-import { Ban, CircleAlert, Sparkles, TriangleAlert } from "lucide-react";
+import { Ban, FileText, Sparkles, TriangleAlert } from "lucide-react";
 import type { Reading } from "@/data/types";
 import { Tip } from "./tip";
+import { MAIL_LABEL, mailType } from "./mail-label";
 
 /** 列表里那一个小图标:读数是什么状态,一眼看到。 */
 export function StatusGlyph({ reading }: { reading?: Reading }) {
@@ -12,10 +13,10 @@ export function StatusGlyph({ reading }: { reading?: Reading }) {
         <Ban {...props} className="text-danger-text" aria-label="读数失败" />
       </Tip>
     );
-  if (!reading.is_inquiry)
+  if (!reading.is_inquiry && reading.unverified.length === 0)
     return (
-      <Tip label="AI 判断:不是询盘">
-        <CircleAlert {...props} className="text-ink-3" aria-label="不是询盘" />
+      <Tip label={MAIL_LABEL[mailType(reading) ?? "other"]}>
+        <FileText {...props} className="text-ink-2" aria-label="已摘要" />
       </Tip>
     );
   if (reading.unverified.length > 0)

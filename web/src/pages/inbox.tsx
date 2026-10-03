@@ -2,23 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AppShell } from "@/components/app-shell";
 import { AiReadingPanel } from "@/components/ai-reading-panel";
-import { FOLDER_ORDER, type FolderKey } from "@/components/folders";
+import { countFolders, FOLDER_ORDER, inFolder, type FolderKey } from "@/components/folders";
 import { InboxEmpty } from "@/components/inbox-empty";
 import type { ReplyHandlers } from "@/components/reply-composer";
 import { Sidebar } from "@/components/sidebar";
 import { ThreadDetail } from "@/components/thread-detail";
 import { ThreadList } from "@/components/thread-list";
 import { useData } from "@/data/provider";
-import type { Thread } from "@/data/types";
 
 function folderOf(value: string | null): FolderKey {
   return FOLDER_ORDER.includes(value as FolderKey) ? (value as FolderKey) : "all";
-}
-
-function countBy(threads: Thread[]): Record<FolderKey, number> {
-  const counts = { all: threads.length, inbox: 0, quote: 0, replied: 0, invalid: 0 };
-  for (const t of threads) counts[t.folder] += 1;
-  return counts;
 }
 
 /** 页面只排版:哪个组件放哪儿。颜色、边框、圆角全在组件里(ADR-0002 第三条)。 */
@@ -29,7 +22,7 @@ export default function InboxPage() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, assistant, askAssistant, clearAssistant } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant } =
     useData();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
@@ -44,12 +37,12 @@ export default function InboxPage() {
     [user, setUser, canDraft, latestDraft, makeDraft, send],
   );
 
-  const visible = folder === "all" ? threads : threads.filter((t) => t.folder === folder);
+  const visible = threads.filter(t => inFolder(t, folder));
   const selected = id ? (details[id] ?? threads.find((t) => t.id === id)) : undefined;
 
   return (
     <AppShell
-      sidebar={<Sidebar counts={countBy(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
+      sidebar={<Sidebar counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
         if (address === mailbox.address) return;
         navigate(`/${search}`);
         setAssistantOpen(false);
@@ -62,11 +55,12 @@ export default function InboxPage() {
             key={`${mailbox.address}:${selected.id}`}
             thread={selected}
             backSearch={search}
-            reply={reply}
+            reply={selected.deleted_at ? undefined : reply}
             onAttachment={attachmentText}
             assistantOpen={assistantOpen}
             onAssistant={() => setAssistantOpen((value) => !value)}
             onAnalyze={() => analyzeThread(selected.id)}
+            onOrganize={action => organizeThread(selected.id, action)}
           />
         ) : (
           <InboxEmpty count={visible.length} loading={loading} error={error} />

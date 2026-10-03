@@ -44,6 +44,7 @@ export interface DataSource {
   /** 返回独立的邮箱作用域；在途请求（包括两步发送）保留原邮箱。 */
   selectMailbox(address: string): DataSource;
   analyzeThread(threadId: string): Promise<Thread>;
+  organizeThread(threadId: string, action: "trash" | "restore", user: string): Promise<Thread>;
   assistant(): Promise<AssistantState>;
   askAssistant(question: string, user: string): Promise<AssistantState>;
   clearAssistant(user: string): Promise<AssistantState>;
@@ -95,14 +96,16 @@ function fakeDraft(t: Thread): ReplyDraft {
     produced_at: new Date().toISOString(),
   };
   const r = t.reading;
-  if (!r || r.status !== "ok" || !r.is_inquiry) {
-    const reason = r?.status === "failed" ? "读数失败的信不起草:模型看不懂原文" : "不是询盘,没有可回的内容";
+  if (!r || r.status !== "ok") {
+    const reason = "请先阅读原文，或重新分析后再起草";
     return { ...base, status: "failed", reason };
   }
   const zh = r.language.startsWith("zh");
   const first = t.contact.split(/\s+/)[0] || t.contact;
   const echo = r.unverified.length ? r.unverified[0] : "";
-  const body = zh
+  const body = !r.is_inquiry
+    ? `Dear ${first},\n\nThank you for your message. We will review the details and get back to you.\n\nBest regards,\n[姓名]`
+    : zh
     ? `${t.contact} 您好,\n\n感谢来信。${echo ? `您提到的 ${echo} 我们已记录。` : ""}我们正在核对库存与交期,尽快给您正式报价。请问交货地址和期望到货时间是?\n\n[姓名]`
     : `Dear ${first},\n\nThank you for your inquiry.${echo ? ` We have noted the ${echo} you mentioned.` : ""} We are checking stock and lead time for the configuration you listed and will revert with a formal quotation shortly.\n\nCould you confirm the delivery address and your target delivery date?\n\nBest regards,\n[姓名]`;
   return {
@@ -217,6 +220,14 @@ export async function fixtureSource(): Promise<DataSource> {
     }] }),
     selectMailbox: () => source,
     analyzeThread: async (id) => threads.find((t) => t.id === id)!,
+    organizeThread: async (id, action, user) => {
+      requirePerson(user, "整理邮件");
+      const found = threads.find(t => t.id === id);
+      if (!found) throw new Error("没有这条会话");
+      const changed = { ...found, deleted_at: action === "trash" ? new Date().toISOString() : "" };
+      threads = threads.map(t => t.id === id ? changed : t);
+      return changed;
+    },
     assistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
     askAssistant: async () => { throw new Error("设计样本不调用真实模型"); },
     clearAssistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
@@ -253,7 +264,7 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
   };
   return {
     sync: () => api("/api/sync", { method: "POST" }),
-    threads: () => api<Thread[]>("/api/threads"),
+    threads: () => api<Thread[]>("/api/threads?include_trash=true"),
     thread: (id) => api<Thread>(`/api/threads/${id}`),
     suggestions: () => api<LeadSuggestion[]>("/api/leads/suggestions"),
     failedSuggestions: async () => (await api<{ count: number }>("/api/leads/failed")).count,
@@ -283,6 +294,7 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
       return apiSource(address);
     },
     analyzeThread: (id) => api<Thread>(`/api/threads/${id}/analyze`, { method: "POST" }),
+    organizeThread: (id, action, user) => api<Thread>(`/api/threads/${id}/${action}`, asPerson(user)),
     assistant: () => api<AssistantState>("/api/assistant"),
     askAssistant: (question, user) => api<AssistantState>("/api/assistant", asPerson(user, { question }, "POST")),
     clearAssistant: (user) => api<AssistantState>("/api/assistant/clear", asPerson(user)),

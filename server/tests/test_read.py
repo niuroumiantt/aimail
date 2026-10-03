@@ -1,4 +1,4 @@
-"""攻击读数落库:署名、失败显形、不是询盘归 invalid、不挡收信。"""
+"""攻击读数落库:署名、失败显形、类型不覆盖销售状态、不挡收信。"""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def test_reading_is_stored_with_attribution(conn, mailbox, monkeypatch):
     assert read_message(conn, pk, NOW) == "ok"
     row = repo.latest_reading(conn, pk)
     assert row["model"] == "Spark · fast"
-    assert row["task_version"] == "summarize_inquiry@3"
+    assert row["task_version"] == "summarize_inquiry@4"
     assert row["produced_at"] == "2026-09-19T00:00:00+00:00"
     assert json.loads(row["payload"])["unverified"] == []
 
@@ -68,11 +68,24 @@ def test_failed_reading_is_stored_as_failed_not_empty(conn, mailbox, monkeypatch
     assert row["model"] == "Spark · fast"
 
 
-def test_non_inquiry_moves_thread_to_invalid(conn, mailbox, monkeypatch):
+def test_non_inquiry_preserves_thread_folder(conn, mailbox, monkeypatch):
     _answer(monkeypatch, {**GOOD, "is_inquiry": False, "quoted_numbers": []})
     pk = _incoming(conn, mailbox, body="Unsubscribe me")
     read_message(conn, pk, NOW)
-    assert conn.execute("SELECT folder FROM thread").fetchone()[0] == "invalid"
+    assert conn.execute("SELECT folder FROM thread").fetchone()[0] == "inbox"
+
+
+@pytest.mark.parametrize("folder", ["quote", "replied", "invalid"])
+@pytest.mark.parametrize("kind", ["newsletter", "billing", "notification", "promotion", "business"])
+def test_mail_type_does_not_overwrite_sales_state(conn, mailbox, monkeypatch, folder, kind):
+    _answer(monkeypatch, {**GOOD, "is_inquiry": False, "mail_type": kind, "quoted_numbers": []})
+    pk = _incoming(conn, mailbox)
+    tid = conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0]
+    repo.set_folder(conn, tid, folder)
+    read_message(conn, pk, NOW)
+    assert conn.execute("SELECT folder FROM thread WHERE id=?", (tid,)).fetchone()[0] == folder
+    assert json.loads(repo.latest_reading(conn, pk)["payload"])["mail_type"] == kind
+    assert conn.execute("SELECT COUNT(*) FROM lead_suggestion").fetchone()[0] == 0
 
 
 def test_inquiry_keeps_thread_in_inbox(conn, mailbox, monkeypatch):

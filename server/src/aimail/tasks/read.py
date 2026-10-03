@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from aimail import backends
 from aimail.config import DEFAULT_TASKS
 from aimail.ingest import attachments
-from aimail.store import history, leads, repo
+from aimail.store import history, leads
 from aimail.tasks import extract_lead as lead_task
 from aimail.tasks.summarize import TASK_VERSION, compose_source, summarize
 
@@ -24,7 +24,7 @@ def read_message(
     *,
     tasks: frozenset[str] = DEFAULT_TASKS,
 ) -> str:
-    """返回 'ok' 或 'failed'。不是询盘的线程移到 invalid。tasks 里没有 leads 就只读不提。"""
+    """返回 'ok' 或 'failed'。类型只进入读数，不改变销售进度。"""
     now = now or datetime.now(UTC)
     row = conn.execute(
         "SELECT mailbox_id, thread_id, subject, body_new, body_quoted FROM message WHERE id = ?",
@@ -58,6 +58,9 @@ def read_message(
     s = result.summary
     payload = {
         "is_inquiry": s.is_inquiry,
+        "mail_type": "inquiry"
+        if s.is_inquiry
+        else (s.mail_type if s.mail_type != "inquiry" else "other"),
         "language": s.detected_language,
         "summary_zh": s.summary_zh,
         "summary_en": s.summary_en,
@@ -78,7 +81,6 @@ def read_message(
         ),
     )
     if not s.is_inquiry:
-        repo.set_folder(conn, int(row["thread_id"]), "invalid")
         return "ok"
     if "leads" in tasks:
         suggest_lead(conn, message_pk, int(row["thread_id"]), source, produced_at)
