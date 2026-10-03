@@ -27,13 +27,20 @@ def read_message(
     """返回 'ok' 或 'failed'。类型只进入读数，不改变销售进度。"""
     now = now or datetime.now(UTC)
     row = conn.execute(
-        "SELECT mailbox_id, thread_id, subject, body_new, body_quoted FROM message WHERE id = ?",
+        "SELECT m.mailbox_id,m.thread_id,m.subject,m.body_new,m.body_quoted,"
+        "t.mailbox_id AS thread_mailbox_id FROM message m "
+        "JOIN thread t ON t.id=m.thread_id WHERE m.id=?",
         (message_pk,),
     ).fetchone()
     if row is None:
         raise KeyError(f"没有 message {message_pk}")
     # 这位客户的往来(M6):同一邮箱里同一地址/同一公司域的其他线程,原文摘录 + 我们记的状态
-    past = history.for_thread(conn, int(row["mailbox_id"]), int(row["thread_id"]))
+    # 个人来信可归入已接手的共享会话；这不授权读取任一邮箱的其它客户历史。
+    past = (
+        history.for_thread(conn, int(row["mailbox_id"]), int(row["thread_id"]))
+        if row["mailbox_id"] == row["thread_mailbox_id"]
+        else ""
+    )
     attachments.extract_for_message(conn, message_pk, now)  # M7 之前收的信在这里补读
     source = compose_source(
         row["subject"],

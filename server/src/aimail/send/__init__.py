@@ -189,7 +189,7 @@ def send(
         conn.execute("UPDATE reply_attempt SET state='unknown' WHERE id=?", (attempt,))
         conn.commit()
         raise ValueError("发送结果待核对，请检查已发送邮件，禁止自动重试") from None
-    pk, _ = store_raw(conn, mailbox_id, raw, "out", now)
+    pk, _ = store_raw(conn, mailbox_id, raw, "out", now, target_thread_id=thread_id)
     if pk is None:
         raise RuntimeError("发出去的信没能落库(重复的 Message-ID?)")
     conn.execute("UPDATE thread SET folder = 'replied' WHERE id = ?", (thread_id,))
