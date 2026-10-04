@@ -16,9 +16,9 @@ it("resizes by keyboard, clamps, persists and resets without changing the reader
   expect(handle).toHaveAttribute("aria-valuenow", "600");
   view.unmount();
   render(<AppShell {...props} />);
-  expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", "600");
-  fireEvent.doubleClick(screen.getByRole("separator"));
-  expect(screen.getByRole("separator")).toHaveAttribute("aria-valuenow", "352");
+  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "600");
+  fireEvent.doubleClick(screen.getByRole("separator", { name: "调整邮件列表宽度" }));
+  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "352");
   expect(screen.getByText("Reading")).toBeInTheDocument();
 });
 

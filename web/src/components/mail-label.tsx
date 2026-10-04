@@ -1,5 +1,6 @@
 import type { MailType, Reading, Thread } from "@/data/types";
 import { Pill } from "./pill";
+import { Zap } from "lucide-react";
 
 export const MAIL_LABEL: Record<MailType, string> = {
   inquiry: "客户询价", newsletter: "新闻订阅", promotion: "广告推销",
@@ -13,12 +14,12 @@ export function mailType(reading?: Reading): MailType | undefined {
 }
 
 export function isLeadThread(thread: Thread): boolean {
-  return Boolean(thread.has_lead || mailType(thread.reading) === "inquiry");
+  return Boolean(thread.has_lead || thread.has_trade || ["inquiry", "business"].includes(mailType(thread.reading) ?? ""));
 }
 
 export function MailLabel({ thread }: { thread: Thread }) {
   const type = mailType(thread.reading);
   const lead = isLeadThread(thread);
-  const label = thread.has_lead ? "客户线索" : lead ? "潜在线索" : type ? MAIL_LABEL[type] : "待识别";
-  return <Pill tone={lead ? "brand" : "neutral"} dot={lead}>{label}</Pill>;
+  if (lead) return <span className="mail-sales-lead" title={thread.has_lead ? "已确认客户线索" : "买卖相关往来，业务信息需核对"}><Zap size={12} strokeWidth={1.75} />SALES LEAD</span>;
+  return <Pill tone="neutral">{type ? MAIL_LABEL[type] : "待识别"}</Pill>;
 }

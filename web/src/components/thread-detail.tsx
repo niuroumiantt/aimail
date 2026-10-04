@@ -1,6 +1,6 @@
 import { ArrowLeft, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router";
 import type { AttachmentText, Thread } from "@/data/types";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
@@ -23,6 +23,8 @@ export function ThreadDetail({
   onAssistant,
   onAnalyze,
   onOrganize,
+  externalContext = false,
+  draftScope,
 }: {
   thread: Thread;
   backSearch: string;
@@ -33,12 +35,19 @@ export function ThreadDetail({
   onAssistant?: () => void;
   onAnalyze?: () => Promise<string>;
   onOrganize?: (action: "trash" | "restore") => Promise<string>;
+  externalContext?: boolean;
+  draftScope?: string;
 }) {
   const [replying, setReplying] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [organizing, setOrganizing] = useState(false);
   const [organizeError, setOrganizeError] = useState("");
+  const { hash } = useLocation();
+  useEffect(() => {
+    const match = /^#mail-(\d+)$/.exec(hash);
+    if (match && thread.messages.some(message => message.id === match[1])) document.getElementById(`mail-${match[1]}`)?.scrollIntoView({ block: "center" });
+  }, [hash, thread.messages]);
   const organize = async () => {
     if (!onOrganize || organizing) return;
     setOrganizing(true);
@@ -57,7 +66,7 @@ export function ThreadDetail({
         >
           <ArrowLeft size={16} strokeWidth={2} />
         </Link>
-        <Avatar name={thread.contact} size="lg" />
+        <Avatar name={thread.contact} size="lg" muted />
         <div className="min-w-0 flex-1 basis-48">
           <h2 className="text-base font-semibold leading-snug text-ink text-balance">{thread.subject}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
@@ -104,13 +113,13 @@ export function ThreadDetail({
             已移入 Aimail 回收站，可点击“恢复”。邮箱服务商中的原件仍保留；此会话收到新回复时会重新出现在收件列表。
           </div>}
           {organizeError && <p role="alert" className="text-sm text-danger-text">{organizeError}</p>}
-          {thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
-          <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />
+          {!externalContext && thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
+          {!externalContext && <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />}
           {thread.messages.map((m) => (
             <MessageView key={m.id} message={m} onAttachment={onAttachment} />
           ))}
           {replying && reply && (
-            <ReplyComposer thread={thread} reply={reply} onClose={() => setReplying(false)} />
+            <ReplyComposer thread={thread} reply={reply} cacheKey={draftScope} onClose={() => setReplying(false)} />
           )}
         </div>
       </div>

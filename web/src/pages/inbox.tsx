@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/sidebar";
 import { ThreadDetail } from "@/components/thread-detail";
 import { ThreadList } from "@/components/thread-list";
 import { useData } from "@/data/provider";
+import { CustomerWorkspace } from "@/components/customer-workspace";
 
 function folderOf(value: string | null): FolderKey {
   return FOLDER_ORDER.includes(value as FolderKey) ? (value as FolderKey) : "all";
@@ -22,7 +23,7 @@ export default function InboxPage() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext } =
     useData();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
@@ -61,6 +62,8 @@ export default function InboxPage() {
             onAssistant={() => setAssistantOpen((value) => !value)}
             onAnalyze={() => analyzeThread(selected.id)}
             onOrganize={action => organizeThread(selected.id, action)}
+            externalContext
+            draftScope={`${mailbox.address}:${user}:${selected.id}`}
           />
         ) : (
           <InboxEmpty count={visible.length} loading={loading} error={error} />
@@ -70,6 +73,7 @@ export default function InboxPage() {
       assistantOpen={assistantOpen}
       readerKey={`${mailbox.address}:${id ?? ""}`}
       showDetail={Boolean(selected)}
+      customer={selected ? <CustomerWorkspace thread={selected} mailbox={mailbox.address} revision={threads.filter(thread => thread.email.trim().toLowerCase() === selected.email.trim().toLowerCase()).map(thread => `${thread.id}:${thread.updated_at}:${thread.scale}:${thread.deleted_at ?? ""}`).sort().join("|")} load={customerContext} refresh={refreshCustomerContext} onAnalyze={() => analyzeThread(selected.id)} /> : undefined}
     />
   );
 }

@@ -28,7 +28,17 @@ from aimail import send as send_mod
 from aimail.config import DEFAULT_TASKS
 from aimail.ingest import attachments
 from aimail.send.accounts import SendingAccount
-from aimail.store import assistant, followup, history, leads, mail_state, outbox, repo
+from aimail.store import (
+    assistant,
+    customer_workspace,
+    followup,
+    history,
+    leads,
+    mail_state,
+    outbox,
+    repo,
+)
+from aimail.store.db import connect
 from aimail.tasks import ask_mailbox
 from aimail.tasks import draft as draft_mod
 from aimail.tasks.read import read_message
@@ -220,6 +230,16 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
             "SELECT 1 FROM lead WHERE thread_id=? LIMIT 1", (int(row["id"]),)
         ).fetchone()
         is not None,
+        "has_trade": conn.execute(
+            "SELECT 1 FROM message m JOIN message_reading r ON r.id="
+            "(SELECT id FROM message_reading WHERE source_id=m.id "
+            "ORDER BY produced_at DESC,id DESC LIMIT 1) WHERE m.thread_id=? AND r.status='ok' "
+            "AND (json_extract(r.payload,'$.is_inquiry')=1 "
+            "OR json_extract(r.payload,'$.is_trade')=1 "
+            "OR json_extract(r.payload,'$.mail_type')='business') LIMIT 1",
+            (int(row["id"]),),
+        ).fetchone()
+        is not None,
         "updated_at": row["last_at"],
         "reading": reading,
         "messages": [],
@@ -297,7 +317,13 @@ def create_app(
         path = request.url.path
         inbox_read = request.method == "GET" and (
             path in read_paths
-            or (path.startswith("/api/threads/") and path.removeprefix("/api/threads/").isdigit())
+            or (
+                path.startswith("/api/threads/")
+                and (
+                    path.removeprefix("/api/threads/").isdigit()
+                    or (path.endswith("/customer") and path.split("/")[-2].isdigit())
+                )
+            )
         )
         if inbox_read and database_path:
             reader = sqlite3.connect(
@@ -446,6 +472,49 @@ def create_app(
         if row is None:
             raise HTTPException(404, "没有这条线程")
         return _thread_out(db, row, with_messages=True)
+
+    def _customer_contact(db: sqlite3.Connection, thread_id: int, selected: sqlite3.Row) -> str:
+        row = repo.get_thread(db, thread_id, int(selected["id"]))
+        if row is None:
+            raise HTTPException(404, "没有这条线程")
+        return str(row["contact_email"])
+
+    @app.get("/api/threads/{thread_id}/customer")
+    def customer_context(thread_id: int, request: Request) -> dict:
+        db = _inbox_conn(request)
+        selected = _mailbox_row(request)
+        contact = _customer_contact(db, thread_id, selected)
+        return customer_workspace.context(db, int(selected["id"]), contact)
+
+    def _run_customer_jobs(jobs: list[dict]) -> None:
+        worker = connect(database_path) if database_path else conn
+        try:
+            for job in jobs:
+                try:
+                    payload = customer_workspace.generate(job)
+                except Exception:
+                    payload = None
+                    logging.getLogger(__name__).warning("客户摘要更新失败，thread_id=%d", job["id"])
+                if database_path:
+                    customer_workspace.finish(worker, job, payload)
+                else:
+                    with api_connection_lock:
+                        customer_workspace.finish(worker, job, payload)
+        finally:
+            if database_path:
+                worker.close()
+
+    @app.post("/api/threads/{thread_id}/customer")
+    def refresh_customer_context(thread_id: int, request: Request, retry: bool = False) -> dict:
+        selected = _mailbox_row(request)
+        contact = _customer_contact(conn, thread_id, selected)
+        ready, _ = backends.ready()
+        if not ready:
+            raise HTTPException(503, "AI 尚未配置，仍可阅读邮件原文。")
+        jobs = customer_workspace.claim(conn, int(selected["id"]), contact, retry=retry)
+        if jobs:
+            threading.Thread(target=_run_customer_jobs, args=(jobs,), daemon=True).start()
+        return {"queued": len(jobs)}
 
     def _organize_thread(thread_id: int, request: Request, action: str) -> dict:
         user = _person(request)

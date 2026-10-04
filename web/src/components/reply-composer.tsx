@@ -112,23 +112,28 @@ function DraftNote({ draft, hasPlaceholder }: { draft: ReplyDraft; hasPlaceholde
 }
 
 /** 回信框。模型只起草;改和发都是人。发之前的硬规矩在 sendProblem 里,是代码不是提示词。 */
+const localDrafts = new Map<string, { to: string; subject: string; body: string; draft: ReplyDraft | null }>();
 export function ReplyComposer({
   thread,
   reply,
   onClose,
+  cacheKey,
 }: {
   thread: Thread;
   reply: ReplyHandlers;
   onClose: () => void;
+  cacheKey?: string;
 }) {
-  const [to, setTo] = useState(thread.email);
-  const [subject, setSubject] = useState(replySubject(thread.subject));
-  const [body, setBody] = useState("");
-  const [draft, setDraft] = useState<ReplyDraft | null>(null);
+  const saved = cacheKey ? localDrafts.get(cacheKey) : undefined;
+  const [to, setTo] = useState(saved?.to ?? thread.email);
+  const [subject, setSubject] = useState(saved?.subject ?? replySubject(thread.subject));
+  const [body, setBody] = useState(saved?.body ?? "");
+  const [draft, setDraft] = useState<ReplyDraft | null>(saved?.draft ?? null);
   const [busy, setBusy] = useState<"" | "draft" | "send">("");
   const [problem, setProblem] = useState("");
   const root = useRef<HTMLElement>(null);
   const restored = useRef(false);
+  useEffect(() => { if (cacheKey) localDrafts.set(cacheKey, { to, subject, body, draft }); }, [cacheKey, to, subject, body, draft]);
 
   // 打开时把上次的草稿找回来:真模型要几十秒,不能因为切了一下线程就丢
   useEffect(() => {
@@ -188,7 +193,7 @@ export function ReplyComposer({
     const err = await reply.send(thread.id, request);
     setBusy("");
     if (err) setProblem(err);
-    else onClose();
+    else { if (cacheKey) localDrafts.delete(cacheKey); onClose(); }
   };
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {

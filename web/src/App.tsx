@@ -6,6 +6,7 @@ import InboxPage from "@/pages/inbox";
 const KitPage = lazy(() => import("@/pages/kit"));
 const LeadsPage = lazy(() => import("@/pages/leads"));
 const DesignStudio = lazy(() => import("@/components/design-studio").then(module => ({ default: module.DesignStudio })));
+const InboxDesignReview = lazy(() => import("@/components/inbox-design-review").then(module => ({ default: module.InboxDesignReview })));
 const OutreachWorkspace = lazy(() => import("@/components/outreach-workspace").then(module => ({ default: module.OutreachWorkspace })));
 const FollowupWorkspace = lazy(() => import("@/components/followup-workspace").then(module => ({ default: module.FollowupWorkspace })));
 const RealMailbox = lazy(() => import("@/components/real-mailbox").then(module => ({ default: module.RealMailbox })));
@@ -27,6 +28,7 @@ export default function App() {
             ? <Navigate replace to="/" />
             : <Suspense fallback={<p role="status">正在打开真实邮箱…</p>}><RealMailbox /></Suspense>} />
           <Route path="/design" element={<DesignStudio />} />
+          <Route path="/design/inbox" element={<InboxDesignReview />} />
           <Route path="*" element={
             <DataProvider>
               <Routes>

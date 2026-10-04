@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { CircleUserRound, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { PaneResize } from "./pane-resize";
 import "@/tokens/mail-layout.css";
 import { cn } from "@/lib/cn";
@@ -27,6 +27,7 @@ export function AppShell({
   assistantOpen = false,
   showDetail = false,
   readerKey = "",
+  customer,
 }: {
   sidebar: ReactNode;
   list?: ReactNode;
@@ -36,20 +37,34 @@ export function AppShell({
   assistantOpen?: boolean;
   showDetail?: boolean;
   readerKey?: string;
+  customer?: ReactNode;
 }) {
   const [layout, setLayout] = useState(loadLayout);
   const [hidden, setHidden] = useState(false);
   const [expandedFor, setExpandedFor] = useState<string>();
+  const [navigation, setNavigation] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem("aimail-navigation-layout") ?? "{}"); return { width: Number.isFinite(saved.width) ? Math.max(180, Math.min(280, saved.width)) : 204, collapsed: saved.collapsed === true }; }
+    catch { return { width: 204, collapsed: false }; }
+  });
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [navigationOverlay, setNavigationOverlay] = useState(false);
+  const compactNavigation = Boolean(customer) && window.innerWidth < 1300;
+  const navigationVisible = compactNavigation ? navigationOverlay : !navigation.collapsed;
   const collapsed = showDetail && (hidden || (layout.autoHide && expandedFor !== readerKey));
   useEffect(() => {
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* 私密浏览仍可调整当前布局。 */ }
   }, [layout]);
+  useEffect(() => { try { localStorage.setItem("aimail-navigation-layout", JSON.stringify(navigation)); } catch { /* 当前布局仍可用。 */ } }, [navigation]);
   const expand = () => { setHidden(false); setExpandedFor(readerKey); };
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-canvas">
+    <div className={cn("mail-app-shell flex h-full min-h-0 w-full flex-col bg-canvas", Boolean(customer) && "mail-customer-workspace", assistantOpen && "mail-assistant-open")}>
       <AccountMenu />
-      <div className="flex min-h-0 flex-1">
-        <div className={cn("hidden md:flex", assistantOpen && "md:hidden 2xl:flex")}>{sidebar}</div>
+      <div className="mail-app-panes flex min-h-0 flex-1">
+        <div className="mail-navigation" data-collapsed={navigation.collapsed} data-overlay={navigationOverlay} style={{ "--mail-nav-width": `${navigation.width}px` } as CSSProperties}>
+          <button className="mail-navigation-toggle" type="button" aria-label={navigationVisible ? "隐藏左侧导航" : "展开左侧导航"} onClick={() => { if (compactNavigation) setNavigationOverlay(value => !value); else setNavigation(value => ({ ...value, collapsed: !value.collapsed })); }}>{navigationVisible ? <PanelLeftClose size={17} strokeWidth={1.75} /> : <PanelLeftOpen size={17} strokeWidth={1.75} />}</button>
+          <div className="mail-navigation-content">{sidebar}</div>
+          {!navigation.collapsed && <PaneResize label="调整左侧导航宽度" value={navigation.width} min={180} max={280} onChange={width => setNavigation(value => ({ ...value, width }))} onReset={() => setNavigation(value => ({ ...value, width: 204 }))} />}
+        </div>
         {main ? (
           <main className="min-w-0 flex-1 overflow-y-auto">{main}</main>
         ) : (
@@ -87,9 +102,11 @@ export function AppShell({
                 onChange={width => setLayout(value => ({ ...value, width }))}
                 onReset={() => setLayout(value => ({ ...value, width: DEFAULT_WIDTH }))} />
             </section>
-            <main className={cn("min-w-0 flex-1 flex-col md:flex", showDetail ? "flex" : "hidden")}>
+            <main className={cn("mail-reader-pane min-w-0 flex-1 flex-col md:flex", showDetail ? "flex" : "hidden")}>
+              {customer && <div className="mail-customer-mobile-bar"><button type="button" onClick={() => setCustomerOpen(true)} aria-expanded={customerOpen}><CircleUserRound size={17} strokeWidth={1.75} />客户需求</button></div>}
               {detail}
             </main>
+            {customer && <aside className="mail-customer-pane" data-open={customerOpen} aria-label="客户需求栏"><header><span><CircleUserRound size={17} strokeWidth={1.75} />客户工作区</span><button type="button" aria-label="返回邮件原文" onClick={() => setCustomerOpen(false)}><X size={17} strokeWidth={1.75} /></button></header><div className="mail-customer-scroll">{customer}</div></aside>}
             {assistant}
           </>
         )}

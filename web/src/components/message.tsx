@@ -135,9 +135,9 @@ export function MessageView({
     : undefined;
 
   return (
-    <article className="grid gap-2">
+    <article id={`mail-${message.id}`} className="mail-original-message grid gap-2">
       <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Avatar name={message.from_name} size="sm" muted={out} />
+        <Avatar name={message.from_name} size="sm" muted />
         <span className="text-sm font-medium text-ink">{message.from_name}</span>
         {out && <Pill tone="brand">我方</Pill>}
         <span className="truncate text-xs text-ink-2">{message.from_email}</span>

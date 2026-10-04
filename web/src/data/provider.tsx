@@ -4,6 +4,7 @@ import { chooseSource, type DataSource } from "./source";
 import type {
   AttachmentText,
   AssistantState,
+  CustomerContext,
   Lead,
   MailboxInfo,
   OutboxStatus,
@@ -51,6 +52,8 @@ type State = {
   assistant: () => Promise<AssistantState>;
   askAssistant: (question: string) => Promise<AssistantState>;
   clearAssistant: () => Promise<AssistantState>;
+  customerContext: (id: string) => Promise<CustomerContext>;
+  refreshCustomerContext: (id: string, retry?: boolean) => Promise<{ queued: number }>;
 };
 
 const NO_OUTBOX: OutboxStatus = { configured: false, pending: 0, failed: 0, delivered: 0, last_error: "" };
@@ -223,6 +226,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [source, user, refresh, openThread],
   );
 
+  const customerContext = useCallback(async (id: string) => {
+    if (!source) throw new Error("还没加载完");
+    return source.customerContext(id);
+  }, [source]);
+  const refreshCustomerContext = useCallback(async (id: string, retry = false) => {
+    if (!source) throw new Error("还没加载完");
+    return source.refreshCustomerContext(id, retry);
+  }, [source]);
+
   const value = useMemo<State>(
     () => ({
       loading,
@@ -300,8 +312,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!source) throw new Error("还没加载完");
         return source.clearAssistant(user);
       },
+      customerContext,
+      refreshCustomerContext,
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, customerContext, refreshCustomerContext],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
