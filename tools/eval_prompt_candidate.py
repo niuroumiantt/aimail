@@ -9,7 +9,7 @@ the resolved upstream model ID, so a route match does not prove its weights are 
 Use --source-base64 to transfer public candidate source through argv when the
 container cannot access GitHub. Offline data has the same URL, hash and AST checks.
 The candidate defaults to the next installed version. --candidate-version can
-explicitly select a later numbered version while retaining the same checks.
+select a later version or requalify the identical installed prompt and contract.
 An explicit archived-baseline bundle can restore a genuine older report after a
 container replacement. Its report and original task source are hash-checked data;
 the original contract must match the installed contract and no baseline is rerun.
@@ -203,7 +203,7 @@ def main() -> int:
     parser.add_argument("--source-base64", help="public candidate source; disable network fetching")
     parser.add_argument(
         "--candidate-version",
-        help="explicit numbered task version newer than the installed version",
+        help="explicit numbered task version; same version requires an identical installed prompt",
     )
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--baseline", type=Path, required=True)
@@ -303,10 +303,8 @@ def main() -> int:
     expected_version = f"summarize_inquiry@{int(version.group(1)) + 1}"
     if args.candidate_version is not None:
         selected_version = re.fullmatch(r"summarize_inquiry@([1-9]\d*)", args.candidate_version)
-        if not selected_version or int(selected_version.group(1)) <= int(version.group(1)):
-            stop(
-                "explicit candidate version must be numbered summarize_inquiry newer than installed"
-            )
+        if not selected_version or int(selected_version.group(1)) < int(version.group(1)):
+            stop("explicit candidate version must be numbered summarize_inquiry at least installed")
         expected_version = args.candidate_version
     if args.source_base64 is not None:
         candidate_bytes, source_sha = offline_source(
@@ -318,6 +316,8 @@ def main() -> int:
     candidate_system, candidate_version = prompt_constants(candidate_tree, expected_version)
     if contract_ast(candidate_tree) != contract_ast(parsed_module(installed_bytes, "installed")):
         stop("InquirySummary changed; this driver permits a prompt/version experiment only")
+    if candidate_version == task.TASK_VERSION and candidate_system != task.SYSTEM:
+        stop("same-version qualification requires the identical installed SYSTEM literal")
     candidate_system_hash = checksum(candidate_system.encode())
     print(
         f"Baseline: route={baseline['model']}; task={baseline['task_version']}; "
