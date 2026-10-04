@@ -18,12 +18,13 @@ function loadLayout(): { width: number; autoHide: boolean } {
 }
 
 /** Shared brand, location and account bar on every application page. */
-export function ApplicationHeader({ title = "邮箱", onNavigation, navigation }: {
-  title?: string; onNavigation?: () => void; navigation?: ReactNode;
+export function ApplicationHeader({ title = "邮箱", onNavigation, navigation, modelControl }: {
+  title?: string; onNavigation?: () => void; navigation?: ReactNode; modelControl?: ReactNode;
 }) {
   return <div className="mail-topbar">
     {onNavigation && <button className="mail-topbar-menu mail-icon-button" type="button" aria-label="展开主导航" onClick={onNavigation}><Menu size={18} /></button>}
     <a href="/" className="mail-product-mark" aria-label="Aimail 首页"><span><Inbox size={17} /></span>aimail</a>
+    {modelControl}
     <span className="mail-topbar-location">{title}</span>
     {navigation}
     <AccountMenu />
@@ -42,6 +43,7 @@ export function AppShell({
   readerKey = "",
   customer,
   title,
+  modelControl,
 }: {
   sidebar: ReactNode;
   list?: ReactNode;
@@ -53,6 +55,7 @@ export function AppShell({
   readerKey?: string;
   customer?: ReactNode;
   title?: string;
+  modelControl?: ReactNode;
 }) {
   const [layout, setLayout] = useState(loadLayout);
   const [hidden, setHidden] = useState(false);
@@ -79,7 +82,7 @@ export function AppShell({
   const expand = () => { setHidden(false); setExpandedFor(readerKey); };
   return (
     <div className={cn("mail-app-shell flex h-full min-h-0 w-full flex-col bg-canvas", Boolean(customer) && "mail-customer-workspace", assistantOpen && "mail-assistant-open")}>
-      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => setNavigationOverlay(value => !value)} />
+      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => setNavigationOverlay(value => !value)} modelControl={modelControl} />
       <div className="mail-app-panes flex min-h-0 flex-1">
         <div className="mail-navigation" data-collapsed={navigation.collapsed} data-overlay={navigationOverlay} style={{ "--mail-nav-width": `${navigation.width}px` } as CSSProperties}>
           <button className="mail-navigation-toggle" type="button" aria-label={navigationVisible ? "隐藏左侧导航" : "展开左侧导航"} onClick={() => { if (compactNavigation) setNavigationOverlay(value => !value); else setNavigation(value => ({ ...value, collapsed: !value.collapsed })); }}>{navigationVisible ? <PanelLeftClose size={17} strokeWidth={1.75} /> : <PanelLeftOpen size={17} strokeWidth={1.75} />}</button>

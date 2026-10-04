@@ -78,6 +78,14 @@ export type MailboxAccess = {
   items: MailboxInfo[];
 };
 
+export type ModelProvider = "local" | "codex_cli" | "claude_code_cli";
+export type ModelSelection = {
+  /** Legacy service defaults can use other IDs; changing selection accepts ModelProvider only. */
+  selected: string;
+  model: string;
+  options: { id: ModelProvider; label: string; available: boolean; model: string; reason: string }[];
+};
+
 export type AssistantFinding = {
   text: string;
   quote: string;

@@ -20,10 +20,14 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import httpx
 from pydantic import BaseModel, ValidationError
+
+from . import routing
 
 DEFAULT_LOCAL_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_CLAUDE_MODEL = "claude-opus-5"
@@ -34,15 +38,36 @@ class LLMError(RuntimeError):
 
 
 def backend() -> str:
-    value = os.environ.get("LLM_BACKEND", "local").strip().lower()
-    if value not in {"local", "claude", "codex_cli", "claude_code_cli"}:
-        raise LLMError("LLM_BACKEND 只能是 local、claude、codex_cli 或 claude_code_cli")
-    return value
+    try:
+        return routing.selected(os.environ.get("LLM_BACKEND", "local"))
+    except routing.SelectionError as exc:
+        raise LLMError(str(exc)) from None
+
+
+@contextmanager
+def use_backend(name: str, *, model: str | None = None) -> Iterator[str]:
+    """Select a trusted provider id for this task and restore it on exit or failure."""
+    try:
+        routing.validate(name)
+    except routing.SelectionError as exc:
+        raise LLMError(str(exc)) from None
+    if model is not None:
+        resolved_model = model
+    elif routing.selected_override() == name and routing.selected_model() is not None:
+        resolved_model = routing.selected_model()
+    else:
+        with routing.use_backend(name):
+            resolved_model = model_name()
+    with routing.use_backend(name, model=resolved_model):
+        yield name
 
 
 def model_name(override: str | None = None) -> str:
     if override:
         return override.strip()
+    scoped = routing.selected_model()
+    if scoped is not None:
+        return scoped
     if backend() == "local":
         return os.environ.get("LOCAL_MODEL", "").strip()
     if backend() in {"codex_cli", "claude_code_cli"}:
@@ -86,7 +111,7 @@ def ready() -> tuple[bool, str]:
     if backend() in {"codex_cli", "claude_code_cli"}:
         from . import cli
 
-        return cli.ready(backend())
+        return cli.ready(backend(), model=model_name())
     if backend() == "local":
         if not model_name():
             return False, "没有设置 LOCAL_MODEL(网关路由名,例如 fast 或 brain)"
@@ -94,6 +119,62 @@ def ready() -> tuple[bool, str]:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return False, "没有设置 ANTHROPIC_API_KEY"
     return True, f"Claude {model_name()}"
+
+
+def provider_catalog() -> list[dict[str, str | bool]]:
+    """Mailbox choices with public state only; no calls, commands, URLs or credentials.
+
+    `available` means configured on this runtime, not a fresh paid inference/health
+    check. CLI connection/login remains checked by the actual task call.
+    """
+    labels = {"local": "Spark", "codex_cli": "Codex CLI", "claude_code_cli": "Claude Code CLI"}
+    choices: list[dict[str, str | bool]] = []
+    for name in routing.MAILBOX_PROVIDERS:
+        with routing.use_backend(name):
+            model = model_name()
+            with use_backend(name, model=model):
+                configured, _ = ready()
+        # Model ids are intended public attribution. Misconfigured URLs and control
+        # characters must not turn this field into a route/credential disclosure.
+        public_model = model if _public_model_id(model) else ""
+        if model and not public_model:
+            configured = False
+        if not public_model:
+            reason = "尚未指定模型"
+        elif name == "local":
+            reason = "使用已配置的本地模型服务" if configured else "本地模型服务尚未配置完成"
+        else:
+            from . import cli_bridge
+
+            if cli_bridge.enabled():
+                reason = (
+                    "通过已连接的 CLI 工作站分析" if configured else "CLI 工作站未连接或型号未就绪"
+                )
+            else:
+                reason = (
+                    "CLI 已配置；登录及连接在任务运行时核验"
+                    if configured
+                    else "CLI 未安装或运行配置未完成"
+                )
+        choices.append(
+            {
+                "id": name,
+                "label": labels[name],
+                "available": configured,
+                "model": public_model,
+                "reason": reason,
+            }
+        )
+    return choices
+
+
+def _public_model_id(model: str) -> bool:
+    return (
+        bool(model)
+        and len(model) <= 200
+        and not any(ord(char) < 32 or char in "@?#" for char in model)
+        and "://" not in model
+    )
 
 
 def _shape_hint(model_cls: type[BaseModel]) -> str:
@@ -222,6 +303,26 @@ def complete(
     model: str | None = None,
 ) -> BaseModel:
     """跑一次任务,拿回一个校验过的对象。校验不过给一次改正机会,再不过就报错。"""
+    with use_backend(backend(), model=model_name(model)):
+        return _complete_scoped(
+            system,
+            user,
+            model_cls,
+            max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+            model=model,
+        )
+
+
+def _complete_scoped(
+    system: str,
+    user: str,
+    model_cls: type[BaseModel],
+    *,
+    max_tokens: int | None,
+    reasoning_effort: str | None,
+    model: str | None,
+) -> BaseModel:
     shape = _shape_hint(model_cls)
 
     def call(system, user, shape):
@@ -239,7 +340,7 @@ def complete(
 
             try:
                 return cli.complete(
-                    backend(), system, user, model_cls.model_json_schema(), model=model
+                    backend(), system, user, model_cls.model_json_schema(), model=model_name(model)
                 )
             except cli.CLIError as exc:
                 raise LLMError(str(exc)) from None

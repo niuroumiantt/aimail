@@ -50,6 +50,31 @@ svg.lucide { stroke-width: 1.75; }
 .mail-icon-button:hover { color: var(--color-ink); background: var(--color-surface-3); }
 .mail-icon-button svg { width: 18px; height: 18px; }
 .mail-button svg { width: 16px; height: 16px; stroke-width: 1.75; }
+.mail-model-selector { flex-shrink: 0; min-width: 0; max-width: 260px; }
+.mail-model-trigger { display: flex; align-items: center; gap: var(--ui-space-2); height: var(--ui-control-height-small); min-width: 0; max-width: 100%; padding: 0 var(--ui-space-3); border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink-2); font-size: var(--ui-font-body); cursor: pointer; }
+.mail-model-trigger:hover, .mail-model-trigger[data-state="open"] { color: var(--color-ink); border-color: var(--color-brand-line); }
+.mail-model-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-model-trigger > svg:last-child { margin-left: auto; }
+.mail-model-menu { width: 320px; max-width: calc(100vw - 32px); padding: var(--ui-space-2); z-index: 60; border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-lg); outline: none; }
+.mail-model-menu > header { display: flex; gap: var(--ui-space-2); align-items: flex-start; padding: var(--ui-space-3); }
+.mail-model-menu > header > div { flex: 1; min-width: 0; }
+.mail-model-menu > header > button { width: 28px; height: 28px; }
+.mail-model-menu > header > button:disabled { opacity: .45; cursor: default; }
+.mail-model-menu h2 { font-size: var(--ui-font-body); font-weight: 600; color: var(--color-ink); }
+.mail-model-menu small { display: block; margin-top: var(--ui-space-1); font-size: var(--ui-font-meta); line-height: 1.6; color: var(--color-ink-2); overflow-wrap: anywhere; }
+.mail-model-menu > p, .mail-model-error { padding: var(--ui-space-3); font-size: var(--ui-font-meta); line-height: 1.7; }
+.mail-model-option { display: flex; align-items: flex-start; gap: var(--ui-space-3); width: 100%; padding: var(--ui-space-3); border-radius: var(--radius-md); text-align: left; cursor: pointer; }
+.mail-model-option > svg { margin-top: 2px; color: var(--color-ink-2); }
+.mail-model-option > span { flex: 1; min-width: 0; }
+.mail-model-option strong { font-size: var(--ui-font-body); font-weight: 500; color: var(--color-ink); }
+.mail-model-option:hover { background: var(--color-surface-2); }
+.mail-model-option[aria-pressed="true"] { background: var(--color-brand-wash); }
+.mail-model-option[aria-pressed="true"] > svg { color: var(--color-brand-text); }
+.mail-model-option:disabled { cursor: default; }
+.mail-model-option:disabled strong, .mail-model-option:disabled > svg { color: var(--color-ink-3); }
+.mail-model-error { color: var(--color-danger-text); }
+.mail-model-error > button { display: flex; gap: var(--ui-space-2); align-items: center; margin-top: var(--ui-space-2); cursor: pointer; }
+.mail-model-menu > footer { margin-top: var(--ui-space-2); padding: var(--ui-space-3); border-top: 1px solid var(--color-line); font-size: var(--ui-font-meta); line-height: 1.7; color: var(--color-ink-2); }
 .mail-sidebar { gap: var(--ui-space-6); padding: var(--ui-space-6) var(--ui-space-3) var(--ui-space-4); font-size: var(--ui-font-body); }
 .mail-sidebar-mailbox { display: grid; gap: var(--ui-space-2); padding: 0 var(--ui-space-2); }
 .mail-sidebar-mailbox > div { display: flex; align-items: center; gap: var(--ui-space-2); min-width: 0; }
@@ -76,6 +101,10 @@ svg.lucide { stroke-width: 1.75; }
   .mail-topbar-location { display: none; }
   .mail-product-mark { font-size: 17px; }
   .mail-topbar > header summary > span:nth-child(2) { display: none; }
+  .mail-topbar:has(.mail-model-selector) > header { flex: 0 0 auto; }
+  .mail-model-selector { flex: 1; max-width: 180px; }
+  .mail-model-trigger { width: 100%; padding: 0 var(--ui-space-2); font-size: var(--ui-font-meta); }
+  .mail-model-trigger > svg:first-child { display: none; }
   .mail-app-panes { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
   .mail-page-body { padding: var(--ui-space-5); }
 }

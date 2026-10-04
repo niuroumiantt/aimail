@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from aimail import backends
 from aimail.config import DEFAULT_TASKS
 from aimail.ingest import attachments
-from aimail.store import history, leads
+from aimail.store import history, leads, model_selection
 from aimail.tasks import extract_lead as lead_task
 from aimail.tasks.summarize import TASK_VERSION, compose_source, summarize
 
@@ -18,6 +18,23 @@ log = logging.getLogger("aimail.read")
 
 
 def read_message(
+    conn: sqlite3.Connection,
+    message_pk: int,
+    now: datetime | None = None,
+    *,
+    tasks: frozenset[str] = DEFAULT_TASKS,
+    backend: str | None = None,
+    model: str | None = None,
+) -> str:
+    """Analyze this original under one captured mailbox provider, without a scan."""
+    row = conn.execute("SELECT mailbox_id FROM message WHERE id=?", (message_pk,)).fetchone()
+    if row is None:
+        raise KeyError(f"没有 message {message_pk}")
+    with model_selection.use(conn, int(row["mailbox_id"]), backend=backend, model=model):
+        return _read_message(conn, message_pk, now, tasks=tasks)
+
+
+def _read_message(
     conn: sqlite3.Connection,
     message_pk: int,
     now: datetime | None = None,

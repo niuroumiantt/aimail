@@ -10,6 +10,7 @@ import { ThreadDetail } from "@/components/thread-detail";
 import { ThreadList } from "@/components/thread-list";
 import { useData } from "@/data/provider";
 import { CustomerWorkspace } from "@/components/customer-workspace";
+import { ModelSelector } from "@/components/model-selector";
 
 function folderOf(value: string | null): FolderKey {
   return FOLDER_ORDER.includes(value as FolderKey) ? (value as FolderKey) : "all";
@@ -23,7 +24,7 @@ export default function InboxPage() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
     useData();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
@@ -43,6 +44,7 @@ export default function InboxPage() {
 
   return (
     <AppShell
+      modelControl={mailbox.address && <ModelSelector mailbox={mailbox.address} load={modelSelection} save={setModelSelection} />}
       sidebar={<Sidebar counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
         if (address === mailbox.address) return;
         navigate(`/${search}`);

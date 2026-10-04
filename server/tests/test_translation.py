@@ -37,3 +37,15 @@ def test_translation_keeps_identifiers_and_failure_is_visible(tmp_path, monkeypa
 
 def test_numeric_contract_is_not_empty():
     assert _numbers("500 pcs on 2026-10-01") == {"500", "2026-10-01"}
+
+
+def test_local_translation_model_does_not_override_a_selected_cli(monkeypatch):
+    from aimail import backends
+    from aimail.tasks.translate_mail import routed_model
+
+    monkeypatch.setenv("MAIL_TRANSLATION_MODEL", "brain")
+    with backends.use_backend("local"):
+        assert routed_model() == "brain"
+    for provider in ("codex_cli", "claude_code_cli", "claude"):
+        with backends.use_backend(provider):
+            assert routed_model() is None

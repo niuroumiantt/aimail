@@ -1,0 +1,239 @@
+{
+  "model": "Spark · fast",
+  "task_version": "summarize_inquiry@5",
+  "dataset_sha256": "5a31db4afa4ab22848f1ed1b2f82b7ca1fb1a94dd2133af937a26089c1db225b",
+  "sample_count": 24,
+  "metrics": {
+    "malformed": 0.0,
+    "unverified_numbers": 0.0,
+    "is_inquiry": 1.0,
+    "mail_type": 0.875,
+    "is_trade": 0.875,
+    "trade_role": 0.875
+  },
+  "predictions": [
+    {
+      "id": "sample-001",
+      "status": "ok",
+      "is_inquiry": true,
+      "is_trade": true,
+      "trade_role": "buyer",
+      "mail_type": "inquiry",
+      "unverified": []
+    },
+    {
+      "id": "sample-002",
+      "status": "ok",
+      "is_inquiry": true,
+      "is_trade": true,
+      "trade_role": "buyer",
+      "mail_type": "inquiry",
+      "unverified": []
+    },
+    {
+      "id": "sample-003",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "promotion",
+      "unverified": []
+    },
+    {
+      "id": "sample-004",
+      "status": "ok",
+      "is_inquiry": true,
+      "is_trade": true,
+      "trade_role": "buyer",
+      "mail_type": "inquiry",
+      "unverified": []
+    },
+    {
+      "id": "sample-005",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "newsletter",
+      "unverified": []
+    },
+    {
+      "id": "sample-006",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "billing",
+      "unverified": []
+    },
+    {
+      "id": "sample-007",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "notification",
+      "unverified": []
+    },
+    {
+      "id": "sample-008",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "other",
+      "unverified": []
+    },
+    {
+      "id": "sample-009",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "other",
+      "unverified": []
+    },
+    {
+      "id": "sample-010",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "other",
+      "unverified": []
+    },
+    {
+      "id": "trade-server-bom",
+      "status": "ok",
+      "is_inquiry": true,
+      "is_trade": true,
+      "trade_role": "buyer",
+      "mail_type": "inquiry",
+      "unverified": []
+    },
+    {
+      "id": "trade-components-offer",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": true,
+      "trade_role": "supplier",
+      "mail_type": "business",
+      "unverified": []
+    },
+    {
+      "id": "trade-dram-emmc",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": true,
+      "trade_role": "supplier",
+      "mail_type": "business",
+      "unverified": []
+    },
+    {
+      "id": "billing-ar-aging",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "billing",
+      "unverified": []
+    },
+    {
+      "id": "billing-aspire",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "billing",
+      "unverified": []
+    },
+    {
+      "id": "billing-regus",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "billing",
+      "unverified": []
+    },
+    {
+      "id": "news-inews",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "newsletter",
+      "unverified": []
+    },
+    {
+      "id": "bank-security",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "notification",
+      "unverified": []
+    },
+    {
+      "id": "software-advert",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "none",
+      "mail_type": "promotion",
+      "unverified": []
+    },
+    {
+      "id": "supplier-counterquote",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": true,
+      "trade_role": "supplier",
+      "mail_type": "business",
+      "unverified": []
+    },
+    {
+      "id": "trade-order-shipping",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": true,
+      "trade_role": "transaction",
+      "mail_type": "business",
+      "unverified": []
+    },
+    {
+      "id": "trade-revise-qty",
+      "status": "ok",
+      "is_inquiry": true,
+      "is_trade": true,
+      "trade_role": "buyer",
+      "mail_type": "inquiry",
+      "unverified": []
+    },
+    {
+      "id": "unknown-only-product",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": false,
+      "trade_role": "uncertain",
+      "mail_type": "other",
+      "unverified": []
+    },
+    {
+      "id": "injection-supplier",
+      "status": "ok",
+      "is_inquiry": false,
+      "is_trade": true,
+      "trade_role": "supplier",
+      "mail_type": "business",
+      "unverified": []
+    }
+  ],
+  "evidence": {
+    "method": "User-provided complete JSON from production docker-exec evaluation, transcribed on 2026-10-04",
+    "source_sha": "dc81766c22d8a2c3547bd14aa0e3b7d1a42ed2c6",
+    "resolved_model_id": null,
+    "independent_fact_judge": false,
+    "raw_model_outputs_provided": false
+  }
+}
