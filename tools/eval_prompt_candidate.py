@@ -6,12 +6,16 @@ The tool can also be passed via stdin to an already running container. No downlo
 is imported, compiled or executed. Existing production files and the DB stay untouched.
 Reports identify the configured backend/model route. The adapter does not expose
 the resolved upstream model ID, so a route match does not prove its weights are unchanged.
+Use --source-base64 to transfer public candidate source through argv when the
+container cannot access GitHub. Offline data has the same URL, hash and AST checks.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -25,6 +29,7 @@ import urllib.request
 from pathlib import Path
 
 MAX_BYTES = 128 * 1024
+MAX_BASE64_BYTES = 96 * 1024
 FIELDS = ("is_inquiry", "mail_type", "is_trade", "trade_role")
 
 
@@ -89,7 +94,7 @@ class NoRedirects(urllib.request.HTTPRedirectHandler):
         raise urllib.error.HTTPError(req.full_url, code, "redirect rejected", headers, fp)
 
 
-def download_source(url: str, expected_hash: str) -> tuple[bytes, str]:
+def source_reference(url: str, expected_hash: str) -> str:
     parts = urllib.parse.urlsplit(url)
     allowed_path = re.fullmatch(
         r"/niuroumiantt/aimail/([0-9a-f]{40})/server/src/aimail/tasks/summarize\.py",
@@ -104,15 +109,35 @@ def download_source(url: str, expected_hash: str) -> tuple[bytes, str]:
         or not re.fullmatch(r"[0-9a-f]{64}", expected_hash)
     ):
         stop("use the immutable aimail raw commit URL and its 64-character SHA256")
+    return allowed_path.group(1)
+
+
+def verify_source(data: bytes, expected_hash: str) -> bytes:
+    if len(data) > MAX_BYTES or checksum(data) != expected_hash:
+        stop("candidate is over 128 KiB or its SHA256 does not match")
+    return data
+
+
+def offline_source(url: str, expected_hash: str, encoded: str) -> tuple[bytes, str]:
+    source_sha = source_reference(url, expected_hash)
+    if not encoded or len(encoded) > MAX_BASE64_BYTES:
+        stop("offline source must be nonempty Base64 and at most 96 KiB encoded")
+    try:
+        data = base64.b64decode(encoded.encode("ascii"), validate=True)
+    except (UnicodeError, ValueError, binascii.Error):
+        stop("offline source must be valid ASCII Base64 without whitespace")
+    return verify_source(data, expected_hash), source_sha
+
+
+def download_source(url: str, expected_hash: str) -> tuple[bytes, str]:
+    source_sha = source_reference(url, expected_hash)
     request = urllib.request.Request(url, headers={"User-Agent": "aimail-synthetic-eval/1"})
     try:
         with urllib.request.build_opener(NoRedirects).open(request, timeout=30) as response:
             data = response.read(MAX_BYTES + 1)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         stop(f"candidate download failed ({type(exc).__name__}); production is untouched")
-    if len(data) > MAX_BYTES or checksum(data) != expected_hash:
-        stop("candidate is over 128 KiB or its SHA256 does not match")
-    return data, allowed_path.group(1)
+    return verify_source(data, expected_hash), source_sha
 
 
 def failed_samples(report: dict, rows: list[dict], label: str) -> None:
@@ -134,6 +159,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("source_url")
     parser.add_argument("source_sha256")
+    parser.add_argument("--source-base64", help="public candidate source; disable network fetching")
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
@@ -197,7 +223,12 @@ def main() -> int:
         stop("installed task must declare a numbered summarize_inquiry version")
     expected_version = f"summarize_inquiry@{int(version.group(1)) + 1}"
     installed_bytes = Path(task.__file__).read_bytes()
-    candidate_bytes, source_sha = download_source(args.source_url, args.source_sha256)
+    if args.source_base64 is not None:
+        candidate_bytes, source_sha = offline_source(
+            args.source_url, args.source_sha256, args.source_base64
+        )
+    else:
+        candidate_bytes, source_sha = download_source(args.source_url, args.source_sha256)
     candidate_tree = parsed_module(candidate_bytes, "candidate")
     candidate_system, candidate_version = prompt_constants(candidate_tree, expected_version)
     if contract_ast(candidate_tree) != contract_ast(parsed_module(installed_bytes, "installed")):
@@ -268,6 +299,9 @@ def main() -> int:
             {
                 "candidate_source_sha": source_sha,
                 "candidate_source_file_sha256": args.source_sha256,
+                "candidate_transport": "offline_base64"
+                if args.source_base64 is not None
+                else "https",
                 "system_sha256": candidate_system_hash,
                 "schema_sha256": schema_hash,
                 "baseline_task_version": baseline["task_version"],

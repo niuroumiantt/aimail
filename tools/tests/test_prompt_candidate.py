@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import base64
 import hashlib
 import json
 import runpy
@@ -119,8 +120,9 @@ def candidate_source() -> bytes:
     "mismatch",
     ["missing", "model", "dataset", "task", "ids", "count", "metrics", "system", "schema"],
 )
+@pytest.mark.parametrize("offline", [False, True])
 def test_candidate_baseline_mismatch_stops_before_network_or_model(
-    experiment, monkeypatch, mismatch
+    experiment, monkeypatch, mismatch, offline
 ):
     _, _, path, report, _, output, calls = experiment
     if mismatch == "missing":
@@ -144,6 +146,11 @@ def test_candidate_baseline_mismatch_stops_before_network_or_model(
     monkeypatch.setattr(
         candidate, "download_source", lambda *args: pytest.fail("must not download candidate")
     )
+    if offline:
+        monkeypatch.setattr(sys, "argv", [*sys.argv, "--source-base64", "UHVibGljIHNvdXJjZQ=="])
+        monkeypatch.setattr(
+            candidate, "offline_source", lambda *args: pytest.fail("must not inspect candidate")
+        )
     with pytest.raises(SystemExit) as stopped:
         candidate.main()
     assert stopped.value.code == 2 and not calls and not output.exists()
@@ -166,6 +173,60 @@ def test_candidate_reads_download_as_data_and_restores_process_state(experiment,
     assert out.exists() and report["baseline_task_version"] == original_version
     assert report["task_version"] != original_version
     assert report["system_sha256"] and report["schema_sha256"]
+
+
+def test_candidate_offline_transfer_uses_same_checks_without_network(
+    experiment, monkeypatch, capsys
+):
+    _, rows, _, _, _, report_path, calls = experiment
+    payload = candidate_source()
+    encoded = base64.b64encode(payload).decode("ascii")
+    args = [*sys.argv, "--source-base64", encoded]
+    args[2] = candidate.checksum(payload)
+    monkeypatch.setattr(sys, "argv", args)
+    monkeypatch.setattr(candidate, "download_source", lambda *args: pytest.fail("no network"))
+    monkeypatch.setattr(
+        candidate.urllib.request, "build_opener", lambda *args: pytest.fail("no network opener")
+    )
+    assert candidate.main() == 0
+    assert len(calls) == len(rows)
+    report = json.loads(report_path.read_text("utf-8"))
+    assert report["candidate_source_file_sha256"] == candidate.checksum(payload)
+    assert report["candidate_source_sha"] == "a" * 40
+    assert report["candidate_transport"] == "offline_base64"
+    output = capsys.readouterr()
+    assert encoded not in output.out + output.err
+
+
+@pytest.mark.parametrize("encoded", ["", "not base64!", "é", "YWJj\n", "YQ"])
+def test_candidate_offline_malformed_stops_without_network(monkeypatch, encoded):
+    monkeypatch.setattr(
+        candidate.urllib.request, "build_opener", lambda *args: pytest.fail("no network")
+    )
+    with pytest.raises(SystemExit) as stopped:
+        candidate.offline_source(URL, "b" * 64, encoded)
+    assert stopped.value.code == 2
+
+
+def test_candidate_offline_hash_mismatch_and_size_limits(monkeypatch):
+    monkeypatch.setattr(
+        candidate.urllib.request, "build_opener", lambda *args: pytest.fail("no network")
+    )
+    with pytest.raises(SystemExit):
+        candidate.offline_source(URL, "b" * 64, base64.b64encode(b"different bytes").decode())
+    with pytest.raises(SystemExit):
+        candidate.offline_source(URL, "b" * 64, "A" * (candidate.MAX_BASE64_BYTES + 1))
+    monkeypatch.setattr(candidate, "MAX_BYTES", 2)
+    with pytest.raises(SystemExit):
+        candidate.offline_source(URL, candidate.checksum(b"abc"), base64.b64encode(b"abc").decode())
+
+
+def test_candidate_offline_still_rejects_mutable_source_url(monkeypatch):
+    monkeypatch.setattr(
+        candidate.urllib.request, "build_opener", lambda *args: pytest.fail("no network")
+    )
+    with pytest.raises(SystemExit):
+        candidate.offline_source(URL.replace("a" * 40, "main"), candidate.checksum(b"abc"), "YWJj")
 
 
 def test_candidate_changed_contract_stops_before_model(experiment, monkeypatch):
