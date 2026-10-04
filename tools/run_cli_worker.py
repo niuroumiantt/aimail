@@ -100,14 +100,54 @@ REMOTE_CHECK_SCRIPT = (
     b"from aimail.backends import cli_bridge\n"
     b'print(json.dumps({"enabled": cli_bridge.enabled()}))\n'
 )
+REMOTE_REASON_CODES = frozenset(
+    {
+        "unknown",
+        "request_unavailable",
+        "ssh_unavailable",
+        "ssh_timeout",
+        "ssh_cancelled",
+        "ssh_nonzero_exit",
+        "ssh_io_error",
+        "response_limit",
+        "invalid_json",
+        "invalid_response",
+        "bridge_disabled",
+        "model_mismatch",
+        "worker_conflict",
+        "invalid_request",
+        "queue_unavailable",
+        "invalid_configuration",
+        "remote_operation_failed",
+    }
+)
 
 
 class RemoteError(RuntimeError):
     """A fixed safe transport failure, without remote output or source content."""
 
-    def __init__(self, message: str, *, retryable: bool = True) -> None:
+    def __init__(
+        self, message: str, *, retryable: bool = True, reason_code: str = "unknown"
+    ) -> None:
         super().__init__(message)
         self.retryable = retryable
+        self.reason_code = (
+            reason_code
+            if isinstance(reason_code, str) and reason_code in REMOTE_REASON_CODES
+            else "unknown"
+        )
+
+
+def _remote_failure_details(phase: str, error: RemoteError) -> str:
+    """Format closed metadata only, even if an exception's attributes were changed."""
+    safe_phase = (
+        phase
+        if isinstance(phase, str) and phase in {"check", "heartbeat", "claim", "finish", "worker"}
+        else "unknown"
+    )
+    reason = getattr(error, "reason_code", None)
+    safe_reason = reason if isinstance(reason, str) and reason in REMOTE_REASON_CODES else "unknown"
+    return f"phase={safe_phase}; reason={safe_reason}"
 
 
 def _stop_process(process: subprocess.Popen[bytes]) -> None:
@@ -126,7 +166,12 @@ def _run_ssh(
 ) -> bytes:
     """Bound stdout while it is read, discard stderr and stop the process group."""
     if len(request) > MAX_REQUEST_BYTES or (cancel is not None and cancel.is_set()):
-        raise RemoteError("Remote request unavailable")
+        raise RemoteError(
+            "Remote request unavailable",
+            reason_code="ssh_cancelled"
+            if cancel is not None and cancel.is_set()
+            else "request_unavailable",
+        )
     try:
         process = subprocess.Popen(
             arguments,
@@ -137,7 +182,7 @@ def _run_ssh(
             shell=False,
         )
     except OSError as exc:
-        raise RemoteError("SSH unavailable") from exc
+        raise RemoteError("SSH unavailable", reason_code="ssh_unavailable") from exc
     assert process.stdin is not None and process.stdout is not None
     output = bytearray()
     offset = 0
@@ -151,7 +196,12 @@ def _run_ssh(
             while selector.get_map():
                 remaining = deadline - time.monotonic()
                 if remaining <= 0 or (cancel is not None and cancel.is_set()):
-                    raise RemoteError("SSH request interrupted or timed out")
+                    raise RemoteError(
+                        "SSH request interrupted or timed out",
+                        reason_code="ssh_cancelled"
+                        if cancel is not None and cancel.is_set()
+                        else "ssh_timeout",
+                    )
                 for key, _ in selector.select(min(remaining, 0.1)):
                     if key.data == "stdin":
                         try:
@@ -168,23 +218,35 @@ def _run_ssh(
                             continue
                         output.extend(chunk)
                         if len(output) > MAX_RESPONSE_BYTES:
-                            raise RemoteError("SSH response exceeded limit")
+                            raise RemoteError(
+                                "SSH response exceeded limit", reason_code="response_limit"
+                            )
             remaining = deadline - time.monotonic()
             if remaining <= 0 or (cancel is not None and cancel.is_set()):
-                raise RemoteError("SSH request interrupted or timed out")
+                raise RemoteError(
+                    "SSH request interrupted or timed out",
+                    reason_code="ssh_cancelled"
+                    if cancel is not None and cancel.is_set()
+                    else "ssh_timeout",
+                )
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0 or (cancel is not None and cancel.is_set()):
-                    raise RemoteError("SSH request interrupted or timed out")
+                    raise RemoteError(
+                        "SSH request interrupted or timed out",
+                        reason_code="ssh_cancelled"
+                        if cancel is not None and cancel.is_set()
+                        else "ssh_timeout",
+                    )
                 try:
                     code = process.wait(timeout=min(remaining, 0.1))
                     break
                 except subprocess.TimeoutExpired:
                     continue
             if code:
-                raise RemoteError("SSH request failed")
+                raise RemoteError("SSH request failed", reason_code="ssh_nonzero_exit")
     except OSError as exc:
-        raise RemoteError("SSH request failed") from exc
+        raise RemoteError("SSH request failed", reason_code="ssh_io_error") from exc
     finally:
         _stop_process(process)
         for stream in (process.stdin, process.stdout):
@@ -231,9 +293,15 @@ class SSHTransport:
         """Check remote import/access and opt-in before spending a model probe."""
         response = self._request(self._arguments("-"), REMOTE_CHECK_SCRIPT)
         if response.get("enabled") is False:
-            raise RemoteError("Remote CLI bridge is disabled", retryable=False)
+            raise RemoteError(
+                "Remote CLI bridge is disabled", retryable=False, reason_code="bridge_disabled"
+            )
         if response.get("enabled") is not True:
-            raise RemoteError("Remote CLI bridge readiness unavailable", retryable=False)
+            raise RemoteError(
+                "Remote CLI bridge readiness unavailable",
+                retryable=False,
+                reason_code="invalid_response",
+            )
 
     def call(
         self,
@@ -259,10 +327,10 @@ class SSHTransport:
         output = _run_ssh(arguments, request, self.timeout, cancel)
         try:
             response = json.loads(output)
-        except (ValueError, UnicodeDecodeError) as exc:
-            raise RemoteError("SSH response was not JSON") from exc
+        except (ValueError, UnicodeDecodeError, RecursionError) as exc:
+            raise RemoteError("SSH response was not JSON", reason_code="invalid_json") from exc
         if not isinstance(response, dict):
-            raise RemoteError("SSH response was not an object")
+            raise RemoteError("SSH response was not an object", reason_code="invalid_response")
         if "error" in response:
             # Even a compromised/misconfigured remote must not make us log its
             # arbitrary error strings, which could contain mail text or secrets.
@@ -274,12 +342,16 @@ class SSHTransport:
                 ),
                 "worker_conflict": ("Another CLI worker is active; waiting for its lease", True),
                 "invalid_request": ("CLI worker protocol or configuration is invalid", False),
+                "queue_unavailable": ("Remote CLI queue is unavailable", True),
+                "invalid_configuration": ("Remote CLI bridge configuration is invalid", True),
             }
             code = response["error"]
             if isinstance(code, str) and code in safe_errors:
                 message, retryable = safe_errors[code]
-                raise RemoteError(message, retryable=retryable)
-            raise RemoteError("Remote worker operation unavailable")
+                raise RemoteError(message, retryable=retryable, reason_code=code)
+            raise RemoteError(
+                "Remote worker operation unavailable", reason_code="remote_operation_failed"
+            )
         return response
 
 
@@ -433,7 +505,7 @@ class Worker:
             cancel=cancel,
         )
         if result.get("ok") is not True:
-            raise RemoteError("Remote heartbeat was not accepted")
+            raise RemoteError("Remote heartbeat was not accepted", reason_code="invalid_response")
 
     def _pulse(self) -> None:
         while not self._stop.wait(self.heartbeat_seconds):
@@ -441,18 +513,22 @@ class Worker:
                 self.heartbeat(cancel=self._stop)
             except RemoteError as exc:
                 if not self._stop.is_set():
-                    print(f"{exc}; reconnecting", flush=True)
+                    print(
+                        "Remote heartbeat unavailable; "
+                        f"{_remote_failure_details('heartbeat', exc)}; reconnecting",
+                        flush=True,
+                    )
 
     def _job_payload(self, job: Any) -> dict[str, Any]:
         if not isinstance(job, dict):
-            raise RemoteError("Invalid remote job")
+            raise RemoteError("Invalid remote job", reason_code="invalid_response")
         job_id = job.get("id")
         if type(job_id) is not int or job_id <= 0:
-            raise RemoteError("Invalid remote job")
+            raise RemoteError("Invalid remote job", reason_code="invalid_response")
         for field in ("nonce", "lease_token"):
             value = job.get(field)
             if not isinstance(value, str) or not re.fullmatch(r"[a-fA-F0-9]{1,256}", value):
-                raise RemoteError("Invalid remote job")
+                raise RemoteError("Invalid remote job", reason_code="invalid_response")
         return {
             "worker_id": self.worker_id,
             "id": job_id,
@@ -502,13 +578,18 @@ class Worker:
             try:
                 result = self.transport.call("finish", payload)
                 if type(result.get("accepted")) is not bool:
-                    raise RemoteError("Remote completion acknowledgement unavailable")
+                    raise RemoteError(
+                        "Remote completion acknowledgement unavailable",
+                        reason_code="invalid_response",
+                    )
                 outcome = "accepted" if result["accepted"] else "expired or rejected"
                 print(f"Job {payload['id']}: {outcome}", flush=True)
                 return
-            except RemoteError:
+            except RemoteError as exc:
                 print(
-                    "Completion acknowledgement unavailable; retaining result for retry", flush=True
+                    "Completion acknowledgement unavailable; retaining result for retry; "
+                    f"{_remote_failure_details('finish', exc)}",
+                    flush=True,
                 )
                 if self._stop.wait(self.retry_seconds):
                     return
@@ -524,7 +605,11 @@ class Worker:
             except RemoteError as exc:
                 if once or not exc.retryable:
                     raise
-                print(f"{exc}; reconnecting", flush=True)
+                print(
+                    f"Remote heartbeat unavailable; {_remote_failure_details('heartbeat', exc)}; "
+                    "reconnecting",
+                    flush=True,
+                )
                 if self._stop.wait(self.retry_seconds):
                     return
         pulse = threading.Thread(target=self._pulse, name="aimail-worker-heartbeat", daemon=True)
@@ -534,14 +619,20 @@ class Worker:
                 try:
                     response = self.transport.call("claim", {"worker_id": self.worker_id})
                     if "job" not in response:
-                        raise RemoteError("Remote claim response unavailable")
+                        raise RemoteError(
+                            "Remote claim response unavailable", reason_code="invalid_response"
+                        )
                     job = response["job"]
                     if job is not None:
                         self._finish(self._execute(job))
                     if once:
                         return
-                except RemoteError:
-                    print("Remote queue unavailable; reconnecting", flush=True)
+                except RemoteError as exc:
+                    print(
+                        f"Remote queue unavailable; {_remote_failure_details('claim', exc)}; "
+                        "reconnecting",
+                        flush=True,
+                    )
                     if once:
                         raise
                 if self._stop.wait(self.retry_seconds):
@@ -597,6 +688,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     mode.add_argument("--once", action="store_true", help="Register and claim at most one job")
     args = parser.parse_args(argv)
+    phase = "check"
     try:
         transport = SSHTransport(args.ssh_host, args.container, ssh_sudo=args.ssh_sudo)
         readiness_transport = replace(transport, timeout=args.ssh_check_timeout)
@@ -644,10 +736,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         worker = Worker(transport, capabilities)
         print(f"Worker {worker.worker_id}: starting SSH pull connection", flush=True)
+        phase = "worker"
         worker.serve(once=args.once)
         return 0
     except RemoteError as exc:
-        print(str(exc), flush=True)
+        print(f"Remote request unavailable; {_remote_failure_details(phase, exc)}", flush=True)
         return 2
     except KeyboardInterrupt:
         print("Worker stopped", flush=True)

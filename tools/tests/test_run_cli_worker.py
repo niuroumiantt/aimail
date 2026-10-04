@@ -356,7 +356,7 @@ def test_bridge_disabled_is_reported_safely_without_claiming(monkeypatch, capsys
     monkeypatch.setattr(worker, "_run_ssh", run)
     assert worker.main(["--once"]) == 2
     assert calls == ["-"]
-    assert "Remote CLI bridge is disabled" in capsys.readouterr().out
+    assert "phase=check; reason=bridge_disabled" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("response", [b"PRIVATE_MAIL", b'{"enabled":1}', b"{}"])
@@ -384,11 +384,11 @@ def test_ssh_or_docker_permission_failure_prevents_paid_model_probes(monkeypatch
     def run(arguments, request, timeout, cancel):
         assert arguments[arguments.index("aliyun") + 1 :][:2] == ["sudo", "-n"]
         assert request == worker.REMOTE_CHECK_SCRIPT
-        raise worker.RemoteError("SSH request failed")
+        raise worker.RemoteError("SSH request failed", reason_code="ssh_nonzero_exit")
 
     monkeypatch.setattr(worker, "_run_ssh", run)
     assert worker.main(["--once", "--ssh-sudo"]) == 2
-    assert "SSH request failed" in capsys.readouterr().out
+    assert "phase=check; reason=ssh_nonzero_exit" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("check_timeout", [None, "60", "0.05"])
@@ -456,7 +456,7 @@ def test_check_only_uses_one_readonly_request_without_model_configuration_or_reg
 
 def test_check_only_timeout_reports_readiness_stage_without_model_probes(monkeypatch, capsys):
     def run(*args):
-        raise worker.RemoteError("SSH request interrupted or timed out")
+        raise worker.RemoteError("SSH request interrupted or timed out", reason_code="ssh_timeout")
 
     monkeypatch.setattr(worker, "_run_ssh", run)
     monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
@@ -464,7 +464,7 @@ def test_check_only_timeout_reports_readiness_stage_without_model_probes(monkeyp
     assert worker.main(["--check-only", "--ssh-check-timeout", "60"]) == 2
     logs = capsys.readouterr()
     assert "Checking remote CLI bridge (up to 60s); no model call yet" in logs.out
-    assert "SSH request interrupted or timed out" in logs.out
+    assert "phase=check; reason=ssh_timeout" in logs.out
     assert "Read-only connection check complete" not in logs.out
 
 
@@ -518,6 +518,8 @@ def test_preflight_script_only_checks_opt_in_without_creating_any_database(tmp_p
         ("model_mismatch", "Local CLI model does not match the server configuration", False),
         ("worker_conflict", "Another CLI worker is active; waiting for its lease", True),
         ("invalid_request", "CLI worker protocol or configuration is invalid", False),
+        ("queue_unavailable", "Remote CLI queue is unavailable", True),
+        ("invalid_configuration", "Remote CLI bridge configuration is invalid", True),
     ],
 )
 def test_known_remote_errors_have_clear_fixed_messages(monkeypatch, code, message, retryable):
@@ -527,6 +529,7 @@ def test_known_remote_errors_have_clear_fixed_messages(monkeypatch, code, messag
         worker.SSHTransport().call("heartbeat", {})
     assert str(failure.value) == message
     assert failure.value.retryable is retryable
+    assert failure.value.reason_code == code
     assert "PRIVATE_MAIL" not in str(failure.value)
 
 
@@ -563,6 +566,116 @@ def test_shell_fragments_cannot_be_used_as_ssh_alias_or_container(name):
         worker.SSHTransport(container=name)
 
 
+@pytest.mark.parametrize(
+    "reason", ["ssh_timeout", "queue_unavailable", "unknown", "PRIVATE_MAIL", None, [], {}, True]
+)
+def test_remote_reason_metadata_is_closed_even_if_exception_attributes_change(reason):
+    failure = worker.RemoteError("PRIVATE_MAIL", reason_code=reason)
+    expected = (
+        reason if isinstance(reason, str) and reason in worker.REMOTE_REASON_CODES else "unknown"
+    )
+    assert failure.reason_code == expected
+    failure.reason_code = {"PRIVATE_MAIL": "credential"}
+    assert worker._remote_failure_details("claim", failure) == "phase=claim; reason=unknown"
+
+
+@pytest.mark.parametrize(
+    ("response", "reason"),
+    [
+        (b"PRIVATE_MAIL", "invalid_json"),
+        (b'["PRIVATE_MAIL"]', "invalid_response"),
+        (b'{"error":"PRIVATE_MAIL","detail":"credential"}', "remote_operation_failed"),
+        (b'{"error":["PRIVATE_MAIL"]}', "remote_operation_failed"),
+        (b'{"error":"queue_unavailable","detail":"PRIVATE_MAIL"}', "queue_unavailable"),
+        (b'{"error":"invalid_configuration"}', "invalid_configuration"),
+    ],
+)
+def test_transport_response_failures_have_closed_metadata(monkeypatch, response, reason):
+    monkeypatch.setattr(worker, "_run_ssh", lambda *args: response)
+    with pytest.raises(worker.RemoteError) as failure:
+        worker.SSHTransport().call("claim", {})
+    assert failure.value.reason_code == reason
+    assert "PRIVATE_MAIL" not in worker._remote_failure_details("claim", failure.value)
+    assert "credential" not in worker._remote_failure_details("claim", failure.value)
+
+
+class UnprintableRemoteError(worker.RemoteError):
+    def __str__(self):
+        raise AssertionError("Exception message must never be formatted into logs")
+
+
+def test_readiness_failure_logs_only_phase_and_reason_before_any_model(monkeypatch, capsys):
+    def failed(*args):
+        raise UnprintableRemoteError("PRIVATE_MAIL", reason_code="ssh_timeout")
+
+    monkeypatch.setattr(worker, "_run_ssh", failed)
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Paid probe"))
+    assert worker.main(["--check-only"]) == 2
+    output = capsys.readouterr()
+    assert "phase=check; reason=ssh_timeout" in output.out
+    assert "PRIVATE_MAIL" not in output.out + output.err
+
+
+@pytest.mark.parametrize("phase", ["heartbeat", "claim", "finish"])
+def test_worker_error_logs_preserve_retries_without_exposing_exception_or_repeating_model(
+    monkeypatch, capsys, phase
+):
+    calls = []
+    inferred = []
+
+    def call(action, payload, *, cancel=None):
+        calls.append((action, copy.deepcopy(payload)))
+        count = sum(name == action for name, _ in calls)
+        if action == phase and count == 1:
+            raise UnprintableRemoteError("PRIVATE_MAIL credential", reason_code="queue_unavailable")
+        if action == "heartbeat":
+            return {"ok": True}
+        if action == "claim":
+            if phase == "finish":
+                return {"job": copy.deepcopy(JOB)}
+            instance._stop.set()
+            return {"job": None}
+        instance._stop.set()
+        return {"accepted": True}
+
+    instance = worker.Worker(
+        SimpleNamespace(call=call), CAPABILITIES, heartbeat_seconds=100, retry_seconds=0
+    )
+    monkeypatch.setattr(
+        worker.cli, "complete", lambda *args, **kwargs: inferred.append(args) or '{"result":42}'
+    )
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Paid probe"))
+    instance.serve()
+    assert sum(action == phase for action, _ in calls) == 2
+    assert len(inferred) == (1 if phase == "finish" else 0)
+    finishes = [payload for action, payload in calls if action == "finish"]
+    if finishes:
+        assert finishes[0] == finishes[1]
+    output = capsys.readouterr()
+    assert f"phase={phase}; reason=queue_unavailable" in output.out
+    assert "PRIVATE_MAIL" not in output.out + output.err
+    assert "credential" not in output.out + output.err
+    assert "abc123" not in output.out + output.err
+
+
+def test_background_heartbeat_logs_do_not_format_exception_messages(capsys):
+    calls = []
+
+    def call(action, payload, *, cancel=None):
+        calls.append(action)
+        if len(calls) == 1:
+            raise UnprintableRemoteError("PRIVATE_MAIL", reason_code="ssh_timeout")
+        instance._stop.set()
+        return {"ok": True}
+
+    instance = worker.Worker(SimpleNamespace(call=call), CAPABILITIES, heartbeat_seconds=0.001)
+    instance._pulse()
+    assert calls == ["heartbeat", "heartbeat"]
+    output = capsys.readouterr()
+    assert "phase=heartbeat; reason=ssh_timeout" in output.out
+    assert "PRIVATE_MAIL" not in output.out + output.err
+
+
 def _local_process(monkeypatch, program):
     original = subprocess.Popen
     calls = []
@@ -591,26 +704,52 @@ def test_ssh_process_receives_only_json_stdin_and_discards_private_stderr(monkey
     assert capsys.readouterr().err == ""
 
 
+def test_actual_nonzero_process_is_distinct_from_timeout_and_hides_private_output(monkeypatch):
+    _local_process(
+        monkeypatch,
+        "import sys; sys.stdin.read(); sys.stdout.write('PRIVATE_MAIL'); "
+        "sys.stderr.write('credential'); sys.exit(23)",
+    )
+    with pytest.raises(worker.RemoteError) as failure:
+        worker.SSHTransport().call("claim", {})
+    assert failure.value.reason_code == "ssh_nonzero_exit"
+    assert str(failure.value) == "SSH request failed"
+
+
+def test_ssh_launch_failure_does_not_expose_os_error(monkeypatch):
+    def launch(*args, **kwargs):
+        raise OSError("PRIVATE_MAIL credential")
+
+    monkeypatch.setattr(worker.subprocess, "Popen", launch)
+    with pytest.raises(worker.RemoteError) as failure:
+        worker.SSHTransport().call("claim", {})
+    assert failure.value.reason_code == "ssh_unavailable"
+    assert str(failure.value) == "SSH unavailable"
+
+
 def test_ssh_stdout_limit_kills_oversized_response_before_it_is_parsed(monkeypatch):
     monkeypatch.setattr(worker, "MAX_RESPONSE_BYTES", 1024)
     _local_process(
         monkeypatch,
         "import sys,time; sys.stdout.write('x'*4096); sys.stdout.flush(); time.sleep(5)",
     )
-    with pytest.raises(worker.RemoteError, match="exceeded limit"):
+    with pytest.raises(worker.RemoteError, match="exceeded limit") as failure:
         worker.SSHTransport(timeout=1).call("claim", {"worker_id": "test"})
+    assert failure.value.reason_code == "response_limit"
 
 
 def test_ssh_timeout_and_cancellation_stop_without_private_output(monkeypatch):
     _local_process(monkeypatch, "import time; time.sleep(5)")
-    with pytest.raises(worker.RemoteError, match="timed out"):
+    with pytest.raises(worker.RemoteError, match="timed out") as failure:
         worker.SSHTransport(timeout=0.05).call("claim", {"worker_id": "test"})
+    assert failure.value.reason_code == "ssh_timeout"
     cancel = threading.Event()
     timer = threading.Timer(0.02, cancel.set)
     timer.start()
     try:
-        with pytest.raises(worker.RemoteError, match="interrupted"):
+        with pytest.raises(worker.RemoteError, match="interrupted") as failure:
             worker.SSHTransport(timeout=1).call("heartbeat", {}, cancel=cancel)
+        assert failure.value.reason_code == "ssh_cancelled"
     finally:
         timer.join()
 

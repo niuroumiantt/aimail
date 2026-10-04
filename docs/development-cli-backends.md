@@ -236,3 +236,29 @@ ChatGPT base URL、认证 headers，以及 `OPENAI_BASE_URL` 环境覆盖。
 每条命令有超时和输出上限，不调用模型、不执行 SSH、不写服务器配置、不领取任务。
 可选 TOML 配置检查使用标准库 `tomllib`；Python 3.10 没有该模块时明确报告不可用，
 不安装解析器。这份预检仍不能证明指定模型的远端权限或推理网络连通。
+
+随后 m5 运行 `2c93dc9` 客户端：初始只读检查在 8.89 秒通过，实际隔离合成请求
+验证了 `codex_cli / gpt-6.1-sol`，首次远端 heartbeat 被接受，客户端打印
+`CLI workstation registered; waiting for mail tasks`。这已经证明当次 Codex 推理和
+工作站注册成功，Claude Code 尚未通过验收。之后连续出现队列连接错误，并夹杂 SSH
+超时；尚未确认任何服务器经 m5 返回的完整任务，因此不能宣称邮件任务已稳定连通。
+
+空队列的正常响应是 `{"job":null}`，客户端静默等待，不视为失败。失败日志现在分别
+报告 `phase=heartbeat|claim|finish` 和固定 `reason`，区分 SSH 超时、非零退出、
+响应格式及服务器 `queue_unavailable` 等原因；未知原因只显示 `unknown`，不输出
+原始异常、远端输出或任务内容。数据库建连失败也统一返回安全队列错误，避免这一类
+SQLite 异常直接导致协议进程退出。这些是已确认的错误处理缺陷，尚未证实是该次
+m5 连接失败的根因；持续 RPC 仍为 20 秒，租约和重试规则保持原值。
+
+排查已注册工作站时，保留原进程和 SSH 设置，在另一终端运行固定的只读诊断。
+仅对既有独立队列使用 SQLite `mode=ro`、`query_only`，读取工作站租约并验证领取
+查询可以执行；不读取邮件正文、任务输入或输出，不调用模型、heartbeat、claim、
+`ready()` 或 `_database()`。只读检查通过不能证明领取时的写事务或后续 SSH 一定成功。
+不要通过反复重启两个 CLI、改变连接复用或重扫历史邮件来试错。
+
+该 worker 随后被操作员停止。停止后的实际只读检查返回 `enabled=true`、
+`db_exists=true`、`worker_matches=true`、`queue_check=ok`、SSH 退出 0；
+`worker_active=false` 且心跳年龄为 318 秒，说明检查时租约已经过期。
+这证明队列读取和领取查询通过，不证明此前写事务、持续心跳或任务通信已恢复。
+需要单独核验领取协议时，可用随机且从未注册的 worker 标识调用一次 `claim`；
+它不会领取其他工作站的任务或调用模型，但会执行队列的正常过期清理，并非只读检查。
