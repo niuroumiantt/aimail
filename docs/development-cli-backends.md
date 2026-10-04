@@ -55,6 +55,11 @@ Codex 的 `item.completed` / `item.type=error` 可以是官方的非致命警告
 同时约束 stdout 与 stderr。超时或输出超限会结束整个子进程组，包括子进程。
 CLI 的 stderr 和错误信封可能回显邮件或登录信息，因此不会进入日志、界面或派生失败
 记录。调用失败给出后端名称、退出码和检查方向；结构错误沿用现有一次 JSON 修复机会。
+Codex 的 `failure_kind` 只从有界 stdout 中最后的致命 JSONL 消息提取固定指纹类别，
+例如 `schema_rejected`、`model_unavailable`、`auth_401`、`access_403`、`rate_429`、
+`server_error`、`network_error` 或 `tls_error`；无法分类时为 `unknown`。
+这些类别来自消息中的错误代码或文本指纹，不是 CLI 提供的类型化 HTTP 状态，不能
+单独确认根因。stderr 仍只计入输出上限并丢弃，原始消息不会记录或返回界面。
 
 ## 验证与当前实机限制
 
@@ -99,11 +104,19 @@ Docker 镜像把应用安装在项目虚拟环境中，因此远端调用使用 
 CLI 本身仍须在 m5 预先安装、登录，并能使用指定型号。不要复制 CLI 登录文件到服务器。
 
 m5（在已解压的 worker 代码包根目录；现有 SSH 别名为 `aliyun`，生产容器已核验为
-`mainland-aimail-1`，本机账号能访问下列明确型号）：
+`mainland-aimail-1`）：
 
 ```bash
-python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 --codex-model gpt-5.4 --claude-model sonnet
+python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 --codex-from-config --backend codex_cli
 ```
+
+`--codex-from-config` 只提取本机 `CODEX_HOME/config.toml`（默认 `~/.codex/config.toml`）
+的 `model`，以及已选默认 profile 中覆盖它的 `model`，使用配置中的准确模型 ID。
+它与 `--codex-model` 互斥；缺失或不合规的 ID 在推理前明确失败，不猜显示名称、
+不回退其他型号。此读取使用标准库 `tomllib`，须 Python 3.11 或更新版本；Python 3.10
+可以使用显式 `--codex-model`，不会自动安装解析器。
+读取型号后，隔离推理仍使用 `--ignore-user-config`，不加载配置中的 provider、
+认证存储、工具或其他设置；配置文件和登录资料保持原样。
 
 该生产主机使用 `sudo docker`；`--ssh-sudo` 只在远端 Docker 命令前加固定的
 `sudo -n`，要求该 SSH 账号已有免密码执行权限，不能传入自定义 shell 命令或密码。
@@ -114,6 +127,9 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 队列或邮箱数据库，不注册工作站、不领取任务。SSH、Docker、应用导入或桥接开关
 检查失败时，不调用本机模型。检查通过后，才逐个检查本机可执行
 文件与型号，并调用一次不含邮件的合成 JSON 任务；仅注册实际成功的能力。
+合成探测的 schema 只要求封闭对象中一个必填布尔字段 `ok`，不使用 `const`；
+本地仍严格只接受恰好 `{"ok":true}`，拒绝 `false`、数字 `1`、额外字段和其他结构。
+这是减少探测 schema 特性的兼容性选择，不代表已经证实此前 `const` 不受支持。
 只安装了一种 CLI 时，仅传对应的型号选项也能运行。
 使用 `--backend codex_cli` 或 `--backend claude_code_cli` 明确只检查并服务一种后端；
 未选中的 CLI 不发起模型请求。重复传入同一后端也只探测一次。
@@ -152,6 +168,12 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 重建前还会核对本地镜像 ID 和源码署名；启用失败会关闭桥接并用同一镜像恢复此前
 健康的运行状态。重启会恢复应用原有的收信和后台调度，脚本不主动重算历史邮件。
 
+桥接已经启用时，使用 `bash tools/start_cli_worker_m5.sh PINNED_COMMIT40 --codex-only`。
+它先下载并核验固定客户端，再仅对本机配置选中的 Codex 做一次合成探测；通过后
+直接注册能力并持续等待邮件任务。不探测 Claude，不写服务器配置、不重建容器；
+远端只读启用检查或探测失败时停止，不注册、不改用其他模型。此模式同样独立于
+Spark 分类评测分数，连接通过不代表邮件分类准确率已经通过验收。
+
 桥接已启用但本机探测失败时，先核对实际 CLI 路径、版本、参数支持及登录状态。
 这类预检只使用帮助、版本和登录状态命令，不请求模型。不要反复启动两种模型
 来猜测失败原因，也不要输出登录文件、设置文件或原始错误文本。
@@ -164,7 +186,9 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 探测失败仅记录固定原因码，例如 `config_missing`、`nonzero_exit`、`timeout`、
 `invalid_envelope` 或 `probe_schema_mismatch`，进程退出码仅以整数显示。
 未知异常归为 `unexpected_local_failure`；不会将任意异常文本、stderr、JSON 警告、
-模型回答或凭据写进日志。原因码说明失败阶段，不证明具体账号或网络原因。
+模型回答或凭据写进日志。后续诊断客户端还显示上述固定 `failure_kind`，未知或
+非白名单类别只显示 `unknown`。原因码和指纹类别说明检查方向，不证明具体账号
+或网络原因。
 
 2026-10-04 m5 的实际启动输出已证明线上 `870ccbc` 健康且桥接开关已启用；
 当次 Codex 和 Claude 合成探测均失败、没有注册能力。该旧客户端只输出泛化错误，
@@ -173,6 +197,15 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 随后 m5 使用已核验的 `0dca357` 客户端，仅对 Codex 做合成探测；实际返回
 `reason=nonzero_exit; exit_code=1`，没有注册能力。该失败发生在 CLI 子进程返回阶段，
 不是非致命警告的结果解析问题；退出码本身不能区分认证、网关、模型权限或网络故障。
+
+随后 m5 的零推理预检确认实际 CLI 为 `0.160.0`、检查的隔离参数均支持，普通原生
+`login status` 显示 `CHATGPT` 且退出 0。`auth.json` 存在，认证存储是未显式配置的
+默认 `file`，未配置 `secret_auth_storage`，未发现自定义 provider、provider 或
+ChatGPT base URL、认证 headers，以及 `OPENAI_BASE_URL` 环境覆盖。
+预检的 `model_matches_probe=false` 表示本机所选型号与旧探测固定的 `gpt-5.4` 不同。
+用户确认日常选中显示名称为 **GPT-6.1 Sol**；新客户端从上述配置提取准确 ID，
+不把显示名称转换成猜测的请求型号。型号差异和探测 schema 的 `const` 都没有被
+证实为此前退出 1 的根因；上述元数据也不代表隔离推理或邮件任务已连通。
 
 官方 Codex 0.160 的 `--ignore-user-config` 会清空用户配置层；CLI 认证存储默认是
 `file`。因此用户显式设置的 `keyring`／`auto` 和自定义 provider 配置会被忽略。

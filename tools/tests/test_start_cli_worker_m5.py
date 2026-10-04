@@ -119,6 +119,7 @@ def test_download_hash_constants_match_the_frozen_public_sources():
     [
         [],
         [COMMIT, "extra"],
+        [COMMIT, "--codex-only", "extra"],
         ["main"],
         ["a" * 39],
         ["A" * 40],
@@ -201,8 +202,7 @@ def test_success_runs_two_fixed_ssh_operations_before_exact_worker_command(launc
         "--ssh-sudo",
         "--container",
         "mainland-aimail-1",
-        "--codex-model",
-        "gpt-5.4",
+        "--codex-from-config",
         "--claude-model",
         "sonnet",
     ]
@@ -223,8 +223,7 @@ def test_single_probe_mode_downloads_verified_client_without_server_mutations(la
         "--ssh-sudo",
         "--container",
         "mainland-aimail-1",
-        "--codex-model",
-        "gpt-5.4",
+        "--codex-from-config",
         "--claude-model",
         "sonnet",
         "--probe-only",
@@ -236,6 +235,32 @@ def test_single_probe_mode_downloads_verified_client_without_server_mutations(la
 @pytest.mark.parametrize("relative", PUBLIC_FILES)
 def test_single_probe_checksum_failure_prevents_model_and_ssh(launch, relative):
     result, calls, _ = launch([COMMIT, "--probe-only", "codex_cli"], TEST_BAD_HASH=relative)
+    assert result.returncode != 0
+    assert all(call["name"] != "ssh" and call.get("kind") != "worker" for call in calls)
+
+
+def test_codex_only_connects_verified_client_without_reconfiguration_or_duplicate_probe(launch):
+    result, calls, worker_home = launch([COMMIT, "--codex-only"])
+    assert result.returncode == 0, result.stderr
+    assert [call["relative"] for call in calls if call["name"] == "curl"] == list(PUBLIC_FILES)
+    assert not any(call["name"] == "ssh" for call in calls)
+    assert calls[-1]["kind"] == "worker"
+    assert calls[-1]["args"] == [
+        str(worker_home / ".local/share/aimail/cli-worker" / COMMIT / PUBLIC_FILES[0]),
+        "--ssh-host",
+        "aliyun",
+        "--ssh-sudo",
+        "--container",
+        "mainland-aimail-1",
+        "--codex-from-config",
+        "--backend",
+        "codex_cli",
+    ]
+
+
+@pytest.mark.parametrize("relative", PUBLIC_FILES)
+def test_codex_only_checksum_failure_prevents_all_remote_and_model_calls(launch, relative):
+    result, calls, _ = launch([COMMIT, "--codex-only"], TEST_BAD_HASH=relative)
     assert result.returncode != 0
     assert all(call["name"] != "ssh" and call.get("kind") != "worker" for call in calls)
 

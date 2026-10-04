@@ -135,7 +135,9 @@ def test_main_checks_remote_then_probes_before_registration_and_keeps_mail_on_st
     assert "abc123" not in log.out + log.err
 
 
-@pytest.mark.parametrize("answer", ['{"ok":1}', '{"ok":true,"secret":"x"}', "not json"])
+@pytest.mark.parametrize(
+    "answer", ['{"ok":false}', '{"ok":1}', '{"ok":true,"secret":"x"}', "not json"]
+)
 def test_failed_probe_never_registers_a_capability(monkeypatch, answer):
     configure_cli(monkeypatch, lambda *args, **kwargs: answer)
     contacted = []
@@ -563,6 +565,156 @@ def test_explicit_probe_model_does_not_change_environment_or_consult_remote_brid
     assert probes == [{"model": "argument-model", "allow_bridge": False}]
     assert worker.os.environ["CODEX_CLI_MODEL"] == "environment-model"
     assert worker.os.environ["LLM_CLI_BRIDGE_ENABLED"] == "1"
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        ('model = "gpt-6.1-sol"\n', "gpt-6.1-sol"),
+        ('model = "o3"\n', "o3"),
+        (
+            'model = "gpt-5.4"\nprofile = "daily"\n[profiles.daily]\nmodel = "gpt-6.1-sol"\n',
+            "gpt-6.1-sol",
+        ),
+        ('model = "gpt-6.1-sol"\nprofile = "daily"\n[profiles.daily]\n', "gpt-6.1-sol"),
+    ],
+)
+def test_codex_config_choice_is_bound_to_one_probe_and_registration_without_loading_settings(
+    monkeypatch, tmp_path, capsys, config, expected
+):
+    directory = tmp_path / "codex"
+    directory.mkdir()
+    (directory / "config.toml").write_text(
+        config + '\n[mcp_servers.private]\ncommand = "PRIVATE_COMMAND"\n'
+    )
+    monkeypatch.setenv("CODEX_HOME", str(directory))
+    monkeypatch.setenv("CODEX_CLI_MODEL", "gpt-environment-choice")
+    monkeypatch.setattr(worker.SSHTransport, "check", lambda self: None)
+    configs, inferred, registered = [], [], []
+
+    def configuration(backend, *, model):
+        configs.append((backend, model))
+        return SimpleNamespace(model=model)
+
+    def complete(*args, **kwargs):
+        inferred.append((args, kwargs))
+        return '{"ok":true}'
+
+    monkeypatch.setattr(worker.cli, "configuration", configuration)
+    monkeypatch.setattr(worker.cli, "complete", complete)
+    monkeypatch.setattr(
+        worker.Worker, "serve", lambda self, **kwargs: registered.append(self.capabilities)
+    )
+    assert worker.main(["--codex-from-config", "--backend", "codex_cli"]) == 0
+    assert configs == [("codex_cli", expected)]
+    assert len(inferred) == 1
+    assert inferred[0][1] == {"model": expected, "allow_bridge": False}
+    assert inferred[0][0][3]["properties"]["ok"] == {"type": "boolean"}
+    assert registered == [[{"backend": "codex_cli", "model": expected, "verified": True}]]
+    assert worker.os.environ["CODEX_CLI_MODEL"] == "gpt-environment-choice"
+    assert (directory / "config.toml").read_text().startswith(config)
+    logs = capsys.readouterr()
+    assert "PRIVATE_COMMAND" not in logs.out + logs.err
+
+
+def test_codex_config_defaults_to_operator_home(monkeypatch, tmp_path):
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    directory = tmp_path / ".codex"
+    directory.mkdir()
+    (directory / "config.toml").write_text('model = "gpt-6.1-sol"\n')
+    assert worker._codex_config_model() == "gpt-6.1-sol"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        None,
+        "",
+        'model = "PRIVATE_MODEL token-value"\n',
+        'model = "$(touch PRIVATE_FILE)"\n',
+        "model = false\n",
+        'model = "gpt-6.1-sol"\nprofile = false\n',
+        'model = "gpt-6.1-sol"\nprofile = "missing"\n',
+        'model = "gpt-6.1-sol"\nprofile = "daily"\nprofiles = "PRIVATE_CONFIG"\n',
+        'model = "gpt-6.1-sol"\n[PRIVATE_INVALID',
+        "# PRIVATE_CONFIG\n" + "x" * 131072,
+    ],
+)
+def test_missing_or_invalid_codex_config_stops_before_inference_and_registration(
+    monkeypatch, tmp_path, capsys, config
+):
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path))
+    if config is not None:
+        (tmp_path / "config.toml").write_text(config)
+    monkeypatch.setattr(worker.SSHTransport, "check", lambda self: None)
+    monkeypatch.setattr(
+        worker.cli, "configuration", lambda *args, **kwargs: pytest.fail("CLI configuration")
+    )
+    monkeypatch.setattr(worker.cli, "complete", lambda *args, **kwargs: pytest.fail("Model call"))
+    monkeypatch.setattr(worker.Worker, "serve", lambda *args, **kwargs: pytest.fail("Registration"))
+    assert worker.main(["--codex-from-config", "--backend", "codex_cli"]) == 2
+    logs = capsys.readouterr()
+    assert "reason=config_" in logs.out
+    assert "PRIVATE_" not in logs.out + logs.err
+    assert "token-value" not in logs.out + logs.err
+    assert "workstation registered" not in logs.out
+
+
+def test_config_source_does_not_read_config_or_probe_codex_when_only_claude_is_selected(
+    monkeypatch,
+):
+    monkeypatch.setattr(worker, "_codex_config_model", lambda: pytest.fail("Codex config read"))
+    monkeypatch.setattr(
+        worker.cli, "configuration", lambda backend, model: SimpleNamespace(model=model)
+    )
+    inferred = []
+    monkeypatch.setattr(
+        worker.cli, "complete", lambda *args, **kwargs: inferred.append(args[0]) or '{"ok":true}'
+    )
+    assert worker.probe_capabilities(
+        codex_from_config=True, claude_model="sonnet", backends=("claude_code_cli",)
+    ) == [{"backend": "claude_code_cli", "model": "sonnet", "verified": True}]
+    assert inferred == ["claude_code_cli"]
+
+
+def test_conflicting_codex_model_sources_fail_before_transport_or_models(monkeypatch):
+    monkeypatch.setattr(worker.SSHTransport, "check", lambda self: pytest.fail("SSH call"))
+    with pytest.raises(SystemExit) as failure:
+        worker.main(["--codex-model", "gpt-6.1-sol", "--codex-from-config"])
+    assert failure.value.code == 2
+    with pytest.raises(ValueError, match="explicit Codex model"):
+        worker.probe_capabilities(codex_model="gpt-6.1-sol", codex_from_config=True)
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["model_unavailable", "auth_401", "PRIVATE_ERROR", {"PRIVATE_ERROR": "token-value"}, None],
+)
+def test_probe_failure_kind_is_closed_and_cannot_print_arbitrary_values(monkeypatch, capsys, kind):
+    def complete(*args, **kwargs):
+        error = worker.cli.CLIError(
+            "PRIVATE_MESSAGE token-value", reason_code="nonzero_exit", exit_code=1
+        )
+        error.failure_kind = kind
+        raise error
+
+    configure_cli(monkeypatch, complete)
+    assert worker.probe_capabilities(backends=("codex_cli",)) == []
+    logs = capsys.readouterr()
+    expected = kind if isinstance(kind, str) and kind in worker.PROBE_FAILURE_KINDS else "unknown"
+    assert f"failure_kind={expected}" in logs.out
+    assert "PRIVATE_" not in logs.out + logs.err
+    assert "token-value" not in logs.out + logs.err
+
+
+def test_registration_confirmation_requires_an_accepted_remote_heartbeat(monkeypatch, capsys):
+    monkeypatch.setattr(worker.cli, "complete", lambda *args, **kwargs: pytest.fail("Model call"))
+    transport = FakeTransport()
+    transport.call = lambda *args, **kwargs: {"ok": False}
+    with pytest.raises(worker.RemoteError, match="not accepted"):
+        worker.Worker(transport, CAPABILITIES).serve(once=True)
+    assert "workstation registered" not in capsys.readouterr().out
 
 
 def test_result_larger_than_bridge_default_is_reported_as_failure(monkeypatch):
