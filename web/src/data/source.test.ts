@@ -1,0 +1,124 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { apiSource, type DataSource } from "./source";
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it("bounds a stalled GET, aborts it, and retries only when requested", async () => {
+  vi.useFakeTimers();
+  const stalled = deferred<Response>();
+  const fetcher = vi.fn().mockReturnValueOnce(stalled.promise)
+    .mockResolvedValueOnce(Response.json({ selected: "local", model: "Spark · fast", options: [] }));
+  vi.stubGlobal("fetch", fetcher);
+  const source = apiSource("sales@example.test");
+  const request = source.modelSelection();
+  const failure = expect(request).rejects.toThrow("读取超时，请检查连接后重试。");
+  const init = fetcher.mock.calls[0][1] as RequestInit;
+  const signal = init.signal!;
+  expect(new Headers(init.headers).get("X-Mailbox-Address")).toBe("sales@example.test");
+  await vi.advanceTimersByTimeAsync(19_999);
+  expect(signal.aborted).toBe(false);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(1);
+  await failure;
+  expect(signal.aborted).toBe(true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  await expect(source.modelSelection()).resolves.toMatchObject({ selected: "local" });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher.mock.calls.every(([, options]) => !options.method)).toBe(true);
+  expect(vi.getTimerCount()).toBe(0);
+  stalled.resolve(Response.json({ selected: "codex_cli" }));
+});
+
+it("turns a fetch AbortError into the safe read timeout", async () => {
+  vi.useFakeTimers();
+  vi.stubGlobal("fetch", vi.fn((_path: string, init: RequestInit) => new Promise<Response>((_, reject) => {
+    init.signal!.addEventListener("abort", () => reject(new DOMException("Private transport error", "AbortError")));
+  })));
+  const failure = expect(apiSource().mailbox()).rejects.toThrow("读取超时，请检查连接后重试。");
+  await vi.advanceTimersByTimeAsync(20_000);
+  await failure;
+});
+
+it.each([200, 503])("keeps the GET deadline through a stalled JSON body after HTTP %s headers", async status => {
+  vi.useFakeTimers();
+  const headers = deferred<Response>();
+  const body = deferred<unknown>();
+  const response = new Response(null, { status, statusText: status === 503 ? "Service Unavailable" : "OK" });
+  const json = vi.spyOn(response, "json").mockReturnValue(body.promise);
+  const fetcher = vi.fn().mockReturnValue(headers.promise);
+  vi.stubGlobal("fetch", fetcher);
+  const failure = expect(apiSource().threads()).rejects.toThrow("读取超时，请检查连接后重试。");
+  await vi.advanceTimersByTimeAsync(19_000);
+  headers.resolve(response);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(json).toHaveBeenCalledTimes(1);
+  const signal = (fetcher.mock.calls[0][1] as RequestInit).signal!;
+  await vi.advanceTimersByTimeAsync(999);
+  expect(signal.aborted).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+  await failure;
+  expect(signal.aborted).toBe(true);
+  expect(vi.getTimerCount()).toBe(0);
+  body.resolve(status === 200 ? [] : { detail: "Late server error" });
+});
+
+it("clears read deadlines after normal success or an HTTP error", async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ detail: "不能访问这个邮箱" }, { status: 403 }));
+  vi.stubGlobal("fetch", fetcher);
+  await expect(apiSource().threads()).resolves.toEqual([]);
+  await expect(apiSource().mailbox()).rejects.toThrow("不能访问这个邮箱");
+  expect(vi.getTimerCount()).toBe(0);
+  await vi.advanceTimersByTimeAsync(20_000);
+  expect(fetcher.mock.calls.every(([, init]) => !init.signal.aborted)).toBe(true);
+});
+
+const writes: [string, (source: DataSource) => Promise<unknown>][] = [
+  ["POST", source => source.analyzeThread("1")],
+  ["PATCH", source => source.updateLead("1", { next_step: "Follow up" }, "Operator")],
+  ["PUT", source => source.setModelSelection("codex_cli", "Operator")],
+];
+
+it.each(writes)("leaves %s pending without a read deadline, cancellation or automatic retry", async (method, start) => {
+  vi.useFakeTimers();
+  const response = deferred<Response>();
+  const fetcher = vi.fn().mockReturnValue(response.promise);
+  vi.stubGlobal("fetch", fetcher);
+  const request = start(apiSource());
+  let settled = false;
+  void request.then(() => { settled = true; });
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(settled).toBe(false);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(fetcher.mock.calls[0][1].method).toBe(method);
+  expect(fetcher.mock.calls[0][1].signal).toBeUndefined();
+  expect(vi.getTimerCount()).toBe(0);
+  response.resolve(Response.json({}));
+  await request;
+});
+
+it("does not cancel or repeat an uncertain send after the token was issued", async () => {
+  vi.useFakeTimers();
+  const sendResponse = deferred<Response>();
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ token: "once-only" }))
+    .mockReturnValueOnce(sendResponse.promise);
+  vi.stubGlobal("fetch", fetcher);
+  const request = apiSource("sales@example.test").send("1", { to: ["customer@example.test"], subject: "Reply", body: "Thanks." }, "Operator");
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual(["/api/threads/1/send-token", "/api/threads/1/send"]);
+  expect(fetcher.mock.calls.every(([, init]) => init.method === "POST" && init.signal === undefined)).toBe(true);
+  expect(vi.getTimerCount()).toBe(0);
+  sendResponse.resolve(Response.json({}));
+  await request;
+});
