@@ -10,6 +10,9 @@ Use --source-base64 to transfer public candidate source through argv when the
 container cannot access GitHub. Offline data has the same URL, hash and AST checks.
 The candidate defaults to the next installed version. --candidate-version can
 explicitly select a later numbered version while retaining the same checks.
+An explicit archived-baseline bundle can restore a genuine older report after a
+container replacement. Its report and original task source are hash-checked data;
+the original contract must match the installed contract and no baseline is rerun.
 """
 
 from __future__ import annotations
@@ -120,15 +123,51 @@ def verify_source(data: bytes, expected_hash: str) -> bytes:
     return data
 
 
-def offline_source(url: str, expected_hash: str, encoded: str) -> tuple[bytes, str]:
-    source_sha = source_reference(url, expected_hash)
+def offline_bytes(expected_hash: str, encoded: str) -> bytes:
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+        stop("offline data requires its 64-character SHA256")
     if not encoded or len(encoded) > MAX_BASE64_BYTES:
         stop("offline source must be nonempty Base64 and at most 96 KiB encoded")
     try:
         data = base64.b64decode(encoded.encode("ascii"), validate=True)
     except (UnicodeError, ValueError, binascii.Error):
         stop("offline source must be valid ASCII Base64 without whitespace")
-    return verify_source(data, expected_hash), source_sha
+    return verify_source(data, expected_hash)
+
+
+def offline_source(url: str, expected_hash: str, encoded: str) -> tuple[bytes, str]:
+    source_sha = source_reference(url, expected_hash)
+    return offline_bytes(expected_hash, encoded), source_sha
+
+
+def archived_baseline(args, installed_bytes: bytes, installed_version: int) -> tuple:
+    """Verify supplied historical evidence without importing its original task."""
+    payload = offline_bytes(args.baseline_sha256, args.baseline_base64)
+    try:
+        report = json.loads(payload.decode("utf-8"))
+        version = re.fullmatch(r"summarize_inquiry@([1-9]\d*)", report["task_version"])
+    except (ValueError, KeyError, TypeError):
+        stop("archived baseline must be a JSON report with a numbered task version")
+    if not version or int(version.group(1)) > installed_version:
+        stop("archived baseline version must not be newer than the installed task")
+    original_bytes, source_sha = offline_source(
+        args.baseline_source_url, args.baseline_source_sha256, args.baseline_source_base64
+    )
+    original_tree = parsed_module(original_bytes, "archived baseline original task")
+    system, _ = prompt_constants(original_tree, report["task_version"])
+    if contract_ast(original_tree) != contract_ast(parsed_module(installed_bytes, "installed")):
+        stop("archived baseline task contract differs from the installed InquirySummary")
+    return (
+        report,
+        payload,
+        checksum(system.encode()),
+        {
+            "baseline_transport": "offline_sha256_archive",
+            "baseline_file_sha256": args.baseline_sha256,
+            "baseline_task_source_sha": source_sha,
+            "baseline_task_source_file_sha256": args.baseline_source_sha256,
+        },
+    )
 
 
 def download_source(url: str, expected_hash: str) -> tuple[bytes, str]:
@@ -168,6 +207,11 @@ def main() -> int:
     )
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--baseline", type=Path, required=True)
+    parser.add_argument("--baseline-base64", help="explicit archived real evaluation report")
+    parser.add_argument("--baseline-sha256")
+    parser.add_argument("--baseline-source-url", help="immutable original baseline task source URL")
+    parser.add_argument("--baseline-source-sha256")
+    parser.add_argument("--baseline-source-base64", help="original baseline task source, as data")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--report-json", type=Path, required=True)
     args = parser.parse_args()
@@ -192,9 +236,41 @@ def main() -> int:
         rows = [
             json.loads(line) for line in dataset.read_text("utf-8").splitlines() if line.strip()
         ]
-        baseline = json.loads(args.baseline.read_text("utf-8"))
     except (OSError, ValueError):
-        stop("the installed dataset or baseline report is missing/invalid")
+        stop("the installed dataset is missing/invalid")
+    version = re.fullmatch(r"summarize_inquiry@([1-9]\d*)", task.TASK_VERSION)
+    if not version:
+        stop("installed task must declare a numbered summarize_inquiry version")
+    installed_bytes = Path(task.__file__).read_bytes()
+    bundle = [
+        args.baseline_base64,
+        args.baseline_sha256,
+        args.baseline_source_url,
+        args.baseline_source_sha256,
+        args.baseline_source_base64,
+    ]
+    archive_mode = any(value is not None for value in bundle)
+    if archive_mode and not all(value is not None for value in bundle):
+        stop("archived baseline requires the complete report/hash and original-task source bundle")
+    if archive_mode and args.source_base64 is None:
+        stop("archived baseline mode requires an offline candidate source; no network fetching")
+    if archive_mode:
+        baseline, baseline_payload, baseline_system_hash, baseline_provenance = archived_baseline(
+            args, installed_bytes, int(version.group(1))
+        )
+        baseline_task_version = baseline["task_version"]
+    else:
+        try:
+            baseline_payload = args.baseline.read_bytes()
+            baseline = json.loads(baseline_payload.decode("utf-8"))
+        except (OSError, ValueError):
+            stop("the installed baseline report is missing/invalid")
+        baseline_task_version = task.TASK_VERSION
+        baseline_system_hash = checksum(task.SYSTEM.encode())
+        baseline_provenance = {
+            "baseline_transport": "local_file",
+            "baseline_file_sha256": checksum(baseline_payload),
+        }
     dataset_hash = checksum(json.dumps(rows, ensure_ascii=False, sort_keys=True).encode())
     expected_ids = [row["id"] for row in rows]
     installed_system_hash = checksum(task.SYSTEM.encode())
@@ -208,12 +284,12 @@ def main() -> int:
             bool(rows)
             and baseline["dataset_sha256"] == dataset_hash
             and baseline["model"] == backends.describe()
-            and baseline["task_version"] == task.TASK_VERSION
+            and baseline["task_version"] == baseline_task_version
             and baseline["sample_count"] == len(rows)
             and [prediction["id"] for prediction in baseline["predictions"]] == expected_ids
             and isinstance(baseline["metrics"], dict)
             and {"malformed", "unverified_numbers", "is_inquiry"} <= baseline["metrics"].keys()
-            and baseline.get("system_sha256", installed_system_hash) == installed_system_hash
+            and baseline.get("system_sha256", baseline_system_hash) == baseline_system_hash
             and baseline.get("schema_sha256", schema_hash) == schema_hash
         )
     except (KeyError, TypeError):
@@ -224,9 +300,6 @@ def main() -> int:
     if backends.backend() != "local" or not ready:
         stop("this qualification requires the configured local model backend")
 
-    version = re.fullmatch(r"summarize_inquiry@([1-9]\d*)", task.TASK_VERSION)
-    if not version:
-        stop("installed task must declare a numbered summarize_inquiry version")
     expected_version = f"summarize_inquiry@{int(version.group(1)) + 1}"
     if args.candidate_version is not None:
         selected_version = re.fullmatch(r"summarize_inquiry@([1-9]\d*)", args.candidate_version)
@@ -235,7 +308,6 @@ def main() -> int:
                 "explicit candidate version must be numbered summarize_inquiry newer than installed"
             )
         expected_version = args.candidate_version
-    installed_bytes = Path(task.__file__).read_bytes()
     if args.source_base64 is not None:
         candidate_bytes, source_sha = offline_source(
             args.source_url, args.source_sha256, args.source_base64
@@ -249,7 +321,8 @@ def main() -> int:
     candidate_system_hash = checksum(candidate_system.encode())
     print(
         f"Baseline: route={baseline['model']}; task={baseline['task_version']}; "
-        f"dataset_sha256={dataset_hash}; system_sha256={installed_system_hash}",
+        f"dataset_sha256={dataset_hash}; system_sha256={baseline_system_hash}; "
+        f"transport={baseline_provenance['baseline_transport']}",
         file=sys.stderr,
         flush=True,
     )
@@ -276,6 +349,10 @@ def main() -> int:
     task.SYSTEM, task.TASK_VERSION = candidate_system, candidate_version
     with tempfile.TemporaryDirectory(prefix="aimail-synthetic-candidate-", dir="/tmp") as temp:
         temp_tsv, temp_json = Path(temp) / "eval.tsv", Path(temp) / "eval.json"
+        runner_baseline = args.baseline
+        if archive_mode:
+            runner_baseline = Path(temp) / "archived-baseline.json"
+            runner_baseline.write_bytes(baseline_payload)
         sys.argv = [
             str(runner),
             str(dataset),
@@ -285,7 +362,7 @@ def main() -> int:
             "--report-json",
             str(temp_json),
             "--baseline",
-            str(args.baseline),
+            str(runner_baseline),
         ]
         try:
             runpy.run_path(str(runner), run_name="__main__")
@@ -318,8 +395,11 @@ def main() -> int:
                 "system_sha256": candidate_system_hash,
                 "schema_sha256": schema_hash,
                 "baseline_task_version": baseline["task_version"],
-                "baseline_system_sha256": installed_system_hash,
+                "baseline_system_sha256": baseline_system_hash,
+                "installed_task_version": original_version,
+                "installed_system_sha256": installed_system_hash,
                 "installed_task_file_sha256": checksum(installed_bytes),
+                **baseline_provenance,
                 "model_identity": (
                     "configured_route_only; resolved upstream model ID is unavailable"
                 ),
