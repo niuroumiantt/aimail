@@ -127,6 +127,9 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 队列或邮箱数据库，不注册工作站、不领取任务。SSH、Docker、应用导入或桥接开关
 检查失败时，不调用本机模型。检查通过后，才逐个检查本机可执行
 文件与型号，并调用一次不含邮件的合成 JSON 任务；仅注册实际成功的能力。
+worker 的初始 SSH 只读检查默认等待 20 秒，可用 `--ssh-check-timeout` 设置有限的
+0.05 至 60 秒；m5 启动器的各模式明确使用 60 秒。该选项只影响初始检查，持续服务的
+心跳、领取及完成回执仍使用原有 20 秒 SSH 超时，不改变任务期限或 120 秒租约。
 合成探测的 schema 只要求封闭对象中一个必填布尔字段 `ok`，不使用 `const`；
 本地仍严格只接受恰好 `{"ok":true}`，拒绝 `false`、数字 `1`、额外字段和其他结构。
 这是减少探测 schema 特性的兼容性选择，不代表已经证实此前 `const` 不受支持。
@@ -168,6 +171,13 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 重建前还会核对本地镜像 ID 和源码署名；启用失败会关闭桥接并用同一镜像恢复此前
 健康的运行状态。重启会恢复应用原有的收信和后台调度，脚本不主动重算历史邮件。
 
+仅检查已有桥接连接时，使用
+`bash tools/start_cli_worker_m5.sh PINNED_COMMIT40 --check-only`。
+它下载并核验四份固定文件后，执行 worker 的只读启用检查并退出，等待上限为 60 秒；
+不读取本机模型配置、不调用模型、不注册工作站、不领取任务，也不写服务器配置或
+重建容器。worker 可直接使用 `--check-only --ssh-check-timeout 60`，此模式与
+`--probe-only` 互斥。检查成功只能证明当次 SSH、容器导入和桥接开关通过。
+
 桥接已经启用时，使用 `bash tools/start_cli_worker_m5.sh PINNED_COMMIT40 --codex-only`。
 它先下载并核验固定客户端，再仅对本机配置选中的 Codex 做一次合成探测；通过后
 直接注册能力并持续等待邮件任务。不探测 Claude，不写服务器配置、不重建容器；
@@ -206,6 +216,12 @@ ChatGPT base URL、认证 headers，以及 `OPENAI_BASE_URL` 环境覆盖。
 用户确认日常选中显示名称为 **GPT-6.1 Sol**；新客户端从上述配置提取准确 ID，
 不把显示名称转换成猜测的请求型号。型号差异和探测 schema 的 `const` 都没有被
 证实为此前退出 1 的根因；上述元数据也不代表隔离推理或邮件任务已连通。
+
+随后 m5 的只读 SSH `Popen` 对照中，原路径在 8.28 秒完成，退出码为 0，
+`enabled=true`；禁用连接复用的 fresh 路径在 20.01 秒超时，`exit=None`、
+`enabled=false`。后者没有成功取得远端检查结果，不能据此认定服务器开关已关闭。
+这些观测没有确认连接复用或等待上限是根因；新增检查入口便于先隔离 SSH 检查，
+原有 SSH 参数和用户配置保持不变，Codex 原生推理连通仍待合成验收。
 
 官方 Codex 0.160 的 `--ignore-user-config` 会清空用户配置层；CLI 认证存储默认是
 `file`。因此用户显式设置的 `keyring`／`auto` 和自定义 provider 配置会被忽略。
