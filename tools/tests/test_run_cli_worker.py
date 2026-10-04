@@ -161,6 +161,121 @@ def test_probe_cannot_bridge_or_print_private_cli_error(monkeypatch, capsys):
     assert "credential-value" not in logs.out + logs.err
 
 
+@pytest.mark.parametrize("backend", worker.BACKENDS)
+def test_probe_only_targets_one_backend_without_registering_or_claiming(
+    monkeypatch, capsys, backend
+):
+    checked = []
+    configured = []
+    inferred = []
+    monkeypatch.setattr(worker.SSHTransport, "check", lambda self: checked.append(True))
+    monkeypatch.setattr(
+        worker.SSHTransport, "call", lambda *args, **kwargs: pytest.fail("Queue mutation")
+    )
+
+    def configuration(selected, *, model):
+        configured.append((selected, model))
+        return SimpleNamespace(model=model)
+
+    def complete(selected, *args, **kwargs):
+        inferred.append((selected, kwargs))
+        return '{"ok":true}'
+
+    monkeypatch.setattr(worker.cli, "configuration", configuration)
+    monkeypatch.setattr(worker.cli, "complete", complete)
+    assert (
+        worker.main(
+            [
+                "--probe-only",
+                "--backend",
+                backend,
+                "--codex-model",
+                "codex-model",
+                "--claude-model",
+                "claude-model",
+            ]
+        )
+        == 0
+    )
+    model = "codex-model" if backend == "codex_cli" else "claude-model"
+    assert checked == [True]
+    assert configured == [(backend, model)]
+    assert inferred == [(backend, {"model": model, "allow_bridge": False})]
+    assert "no capability registered or mail job claimed" in capsys.readouterr().out
+
+
+def test_selected_worker_registers_only_verified_selected_backend(monkeypatch):
+    configure_cli(monkeypatch, lambda *args, **kwargs: '{"ok":true}')
+    registered = []
+    monkeypatch.setattr(worker.SSHTransport, "check", lambda self: None)
+    monkeypatch.setattr(
+        worker.Worker, "serve", lambda self, **kwargs: registered.append(self.capabilities)
+    )
+    assert worker.main(["--backend", "codex_cli", "--once"]) == 0
+    assert registered == [CAPABILITIES]
+
+
+def test_duplicate_backend_does_not_repeat_paid_probe(monkeypatch):
+    inferred = []
+    configure_cli(monkeypatch, lambda *args, **kwargs: inferred.append(args) or '{"ok":true}')
+    assert worker.probe_capabilities(backends=("codex_cli", "codex_cli")) == CAPABILITIES
+    assert len(inferred) == 1
+
+
+@pytest.mark.parametrize("backends", [(), ("private-backend",)])
+def test_invalid_backend_selection_fails_before_model_call(monkeypatch, backends):
+    monkeypatch.setattr(worker.cli, "complete", lambda *args, **kwargs: pytest.fail("Model call"))
+    with pytest.raises(ValueError, match="supported local CLI"):
+        worker.probe_capabilities(backends=backends)
+
+
+@pytest.mark.parametrize(
+    ("reason", "exit_code", "expected"),
+    [
+        ("timeout", None, "reason=timeout"),
+        ("nonzero_exit", 1, "reason=nonzero_exit; exit_code=1"),
+        ("nonzero_exit", "PRIVATE_MAIL", "reason=nonzero_exit"),
+        ("nonzero_exit", True, "reason=nonzero_exit"),
+        ("nonzero_exit", 1000000, "reason=nonzero_exit"),
+        ("PRIVATE_MAIL credential-value", 1, "reason=unexpected_local_failure"),
+    ],
+)
+def test_probe_failure_logs_only_closed_reason_and_integer_exit_code(
+    monkeypatch, capsys, reason, exit_code, expected
+):
+    def complete(*args, **kwargs):
+        error = worker.cli.CLIError("PRIVATE_MAIL credential-value")
+        error.reason_code = reason
+        error.exit_code = exit_code
+        raise error
+
+    configure_cli(monkeypatch, complete)
+    assert worker.probe_capabilities(backends=("codex_cli",)) == []
+    logs = capsys.readouterr()
+    assert expected in logs.out
+    assert "PRIVATE_MAIL" not in logs.out + logs.err
+    assert "credential-value" not in logs.out + logs.err
+    if type(exit_code) is not int or not -255 <= exit_code <= 255:
+        assert "exit_code=" not in logs.out
+
+
+@pytest.mark.parametrize(
+    ("answer", "reason"),
+    [
+        ('{"ok":1}', "probe_schema_mismatch"),
+        ('{"ok":true,"secret":"PRIVATE_MAIL"}', "probe_schema_mismatch"),
+        ('"PRIVATE_MAIL"', "probe_schema_mismatch"),
+        ("PRIVATE_MAIL", "probe_invalid_json"),
+    ],
+)
+def test_probe_contract_failure_reports_reason_without_output(monkeypatch, capsys, answer, reason):
+    configure_cli(monkeypatch, lambda *args, **kwargs: answer)
+    assert worker.probe_capabilities(backends=("codex_cli",)) == []
+    logs = capsys.readouterr()
+    assert f"reason={reason}" in logs.out
+    assert "PRIVATE_MAIL" not in logs.out + logs.err
+
+
 def test_lost_finish_ack_reuses_same_result_and_lease_without_rerunning_cli(monkeypatch):
     transport = FakeTransport(finish_failures=2)
     invoked = []
