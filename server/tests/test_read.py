@@ -11,6 +11,7 @@ from aimail import backends
 from aimail.ingest.run import ingest_once, store_raw
 from aimail.store import repo
 from aimail.tasks.read import read_message, unread_incoming
+from aimail.tasks.summarize import TASK_VERSION
 from conftest import make_raw
 
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
@@ -49,7 +50,7 @@ def test_reading_is_stored_with_attribution(conn, mailbox, monkeypatch):
     assert read_message(conn, pk, NOW) == "ok"
     row = repo.latest_reading(conn, pk)
     assert row["model"] == "Spark · fast"
-    assert row["task_version"] == "summarize_inquiry@7"
+    assert row["task_version"] == TASK_VERSION
     assert row["produced_at"] == "2026-09-19T00:00:00+00:00"
     assert json.loads(row["payload"])["unverified"] == []
 
