@@ -52,6 +52,11 @@ with capture.open("a") as f:
 if mode == "error":
     sys.stderr.write("SECRET_MAIL_TOKEN " + source)
     sys.exit(7)
+if mode == "fatal_stdout":
+    for event in json.loads(os.environ["AIMAIL_TEST_EVENTS"]):
+        print(json.dumps(event))
+    sys.stderr.write("SECRET_STDERR_TOKEN " + source)
+    sys.exit(int(os.environ.get("AIMAIL_TEST_EXIT", "1")))
 if mode == "invalid_encoding":
     sys.stdout.buffer.write(bytes([255]))
     sys.exit(0)
@@ -369,3 +374,127 @@ def test_diagnostic_fields_cannot_adopt_arbitrary_error_text():
         error = cli.CLIError("PRIVATE_MESSAGE", reason_code=reason, exit_code="PRIVATE_CODE")
         assert error.reason_code == "unexpected_local_failure" and error.exit_code is None
     assert cli.CLIError("message", exit_code=True).exit_code is None
+
+
+FAILURE_MESSAGES = [
+    ('Unexpected status 400: {"error":{"code":"invalid_json_schema"}}', "schema_rejected"),
+    ('{"error":{"code":"unsupported_schema"}}', "schema_rejected"),
+    ("Invalid schema for response_format 'codex'", "schema_rejected"),
+    ('{"error":{"code":"model_not_found"}}', "model_unavailable"),
+    ("The selected model is not supported when using a ChatGPT account", "model_unavailable"),
+    ("unexpected status 401 Unauthorized", "auth_401"),
+    ("HTTP status: 403 Forbidden", "access_403"),
+    ("status code: 429 Too Many Requests", "rate_429"),
+    ("HTTP/2 502 Bad Gateway", "server_error"),
+    ("error sending request for url: invalid peer certificate: UnknownIssuer", "tls_error"),
+    ("error sending request for url: dns lookup failed", "network_error"),
+    ("schema model authentication 401 403 429 request failed", "unknown"),
+]
+
+
+def fatal_run(monkeypatch, events, *, exit_code=1):
+    monkeypatch.setenv("AIMAIL_TEST_MODE", "fatal_stdout")
+    monkeypatch.setenv("AIMAIL_TEST_EVENTS", json.dumps(events))
+    monkeypatch.setenv("AIMAIL_TEST_EXIT", str(exit_code))
+    with pytest.raises(cli.CLIError) as failure:
+        cli.complete("codex_cli", "task", "PRIVATE_SOURCE_TOKEN", Answer.model_json_schema())
+    return failure.value
+
+
+@pytest.mark.parametrize("message, kind", FAILURE_MESSAGES)
+def test_codex_nonzero_stdout_exposes_fixed_failure_kind_without_raw_error(
+    fake_cli, monkeypatch, capsys, message, kind
+):
+    _, capture = fake_cli
+    message += " https://private.example/path?key=SECRET_KEY_TOKEN SECRET_BODY_TOKEN"
+    error = fatal_run(monkeypatch, [{"type": "turn.failed", "error": {"message": message}}])
+    assert error.reason_code == "nonzero_exit" and error.exit_code == 1
+    assert error.failure_kind == kind
+    assert str(error) == (
+        "Codex CLI 调用失败（退出码 1）；请核对 CLI 版本、登录和模型权限，进程输出已隐藏"
+    )
+    assert message not in str(error.args) + str(vars(error))
+    assert len(capture.read_text().splitlines()) == 1
+    log = capsys.readouterr()
+    assert "SECRET" not in log.out + log.err
+    assert "private.example" not in str(error.args) + str(vars(error)) + log.out + log.err
+
+
+@pytest.mark.parametrize(
+    "events, kind",
+    [
+        (
+            [
+                {"type": "error", "message": "HTTP 401"},
+                {"type": "turn.failed", "error": {"message": "HTTP 403"}},
+                {"type": "error", "message": "HTTP 502"},
+            ],
+            "access_403",
+        ),
+        (
+            [
+                {"type": "turn.failed", "error": {"message": "HTTP 401"}},
+                {"type": "turn.failed", "error": {"message": "HTTP 429"}},
+            ],
+            "rate_429",
+        ),
+        (
+            [{"type": "error", "message": "HTTP 401"}, {"type": "error", "message": "HTTP 429"}],
+            "rate_429",
+        ),
+    ],
+)
+def test_latest_failed_turn_takes_priority_over_other_error_events(
+    fake_cli, monkeypatch, events, kind
+):
+    assert fatal_run(monkeypatch, events).failure_kind == kind
+
+
+@pytest.mark.parametrize("item_type", ["agent_message", "reasoning", "error"])
+def test_codex_failure_classification_never_scans_answers_reasoning_or_warnings(
+    fake_cli, monkeypatch, item_type
+):
+    event = {
+        "type": "item.completed",
+        "item": {
+            "type": item_type,
+            "text": "HTTP status: 403",
+            "message": "HTTP status: 401",
+        },
+    }
+    assert fatal_run(monkeypatch, [event]).failure_kind == "unknown"
+
+
+@pytest.mark.parametrize("message", ["HTTP 403 " + "x" * 8192, {"code": "invalid_json_schema"}])
+def test_unbounded_or_non_string_fatal_messages_remain_unknown(fake_cli, monkeypatch, message):
+    error = fatal_run(
+        monkeypatch,
+        [
+            {"type": "error", "message": "HTTP 401"},
+            {"type": "turn.failed", "error": {"message": message}},
+        ],
+    )
+    assert error.failure_kind == "unknown"
+
+
+def test_exit_zero_fatal_event_uses_same_classifier_and_remains_failure(fake_cli, monkeypatch):
+    error = fatal_run(monkeypatch, [{"type": "error", "message": "HTTP status: 403"}], exit_code=0)
+    assert error.reason_code == "request_failed" and error.failure_kind == "access_403"
+    assert error.exit_code is None
+
+
+def test_claude_nonzero_is_not_classified_as_codex_jsonl(fake_cli, monkeypatch):
+    monkeypatch.setenv("AIMAIL_TEST_MODE", "fatal_stdout")
+    monkeypatch.setenv("AIMAIL_TEST_EVENTS", '[{"type":"error","message":"HTTP 401"}]')
+    with pytest.raises(cli.CLIError) as failure:
+        cli.complete("claude_code_cli", "task", "source", Answer.model_json_schema())
+    assert failure.value.failure_kind == "unknown"
+
+
+def test_failure_kind_is_a_closed_enum_independent_of_exception_message():
+    assert cli.CLIError("legacy").failure_kind == "unknown"
+    for value in ("SECRET_PRIVATE_KIND", None, [], 403):
+        assert cli.CLIError("PRIVATE_MESSAGE", failure_kind=value).failure_kind == "unknown"
+    assert (
+        cli.CLIError("safe", failure_kind="model_unavailable").failure_kind == "model_unavailable"
+    )

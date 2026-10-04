@@ -64,6 +64,19 @@ PROBE_FAILURE_CODES = frozenset(
         "probe_schema_mismatch",
     }
 )
+PROBE_FAILURE_KINDS = frozenset(
+    {
+        "schema_rejected",
+        "model_unavailable",
+        "auth_401",
+        "access_403",
+        "rate_429",
+        "server_error",
+        "network_error",
+        "tls_error",
+        "unknown",
+    }
+)
 MODEL_VARIABLES = {"codex_cli": "CODEX_CLI_MODEL", "claude_code_cli": "CLAUDE_CODE_CLI_MODEL"}
 DEFAULT_CONTAINER = "mainland-aimail-1"
 LEASE_SECONDS = 120
@@ -74,11 +87,14 @@ MAX_REQUEST_BYTES = 16 * 1024 * 1024
 MAX_RESULT_BYTES = 2 * 1024 * 1024
 PROBE_SCHEMA = {
     "type": "object",
-    "properties": {"ok": {"type": "boolean", "const": True}},
+    "properties": {"ok": {"type": "boolean"}},
     "required": ["ok"],
     "additionalProperties": False,
 }
 _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
+_CODEX_MODEL_ID = re.compile(
+    r"(?:gpt-[A-Za-z0-9][A-Za-z0-9._-]{0,95}|o[1-9][A-Za-z0-9._-]{0,95})\Z"
+)
 REMOTE_CHECK_SCRIPT = (
     b"import json\n"
     b"from aimail.backends import cli_bridge\n"
@@ -267,7 +283,45 @@ class SSHTransport:
         return response
 
 
-def _report_probe_failure(backend: str, reason: Any, exit_code: Any = None) -> None:
+def _codex_config_model() -> str:
+    """Read only the operator's model choice; never pass user settings to inference."""
+    try:
+        import tomllib
+
+        directory = Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser()
+        with (directory / "config.toml").open("rb") as source:
+            payload = source.read(131073)
+        if len(payload) > 131072:
+            raise ValueError("config size limit")
+        settings = tomllib.loads(payload.decode("utf-8"))
+        model = settings.get("model")
+        if "profile" in settings:
+            profile_name = settings["profile"]
+            profiles = settings.get("profiles", {})
+            if not isinstance(profile_name, str) or not isinstance(profiles, dict):
+                raise ValueError("invalid profile")
+            profile = profiles.get(profile_name)
+            if not isinstance(profile, dict):
+                raise ValueError("missing profile")
+            model = profile.get("model", model)
+    except FileNotFoundError:
+        raise cli.CLIError(
+            "Codex model configuration is missing", reason_code="config_missing"
+        ) from None
+    except Exception:
+        raise cli.CLIError(
+            "Codex model configuration is unavailable", reason_code="config_invalid"
+        ) from None
+    if model is None:
+        raise cli.CLIError("Codex model configuration is missing", reason_code="config_missing")
+    if not isinstance(model, str) or not _CODEX_MODEL_ID.fullmatch(model):
+        raise cli.CLIError("Codex model ID is invalid", reason_code="config_invalid")
+    return model
+
+
+def _report_probe_failure(
+    backend: str, reason: Any, exit_code: Any = None, failure_kind: Any = "unknown"
+) -> None:
     # Never stringify exception messages, arbitrary attributes or process output.
     code = (
         reason
@@ -279,8 +333,14 @@ def _report_probe_failure(backend: str, reason: Any, exit_code: Any = None) -> N
         if code == "nonzero_exit" and type(exit_code) is int and -255 <= exit_code <= 255
         else ""
     )
+    kind = (
+        failure_kind
+        if isinstance(failure_kind, str) and failure_kind in PROBE_FAILURE_KINDS
+        else "unknown"
+    )
     print(
-        f"{backend}: connection probe failed; reason={code}{suffix}; capability not registered",
+        f"{backend}: connection probe failed; reason={code}{suffix}; "
+        f"failure_kind={kind}; capability not registered",
         flush=True,
     )
 
@@ -288,6 +348,7 @@ def _report_probe_failure(backend: str, reason: Any, exit_code: Any = None) -> N
 def probe_capabilities(
     *,
     codex_model: str | None = None,
+    codex_from_config: bool = False,
     claude_model: str | None = None,
     backends: tuple[str, ...] = BACKENDS,
 ) -> list[dict[str, Any]]:
@@ -296,12 +357,16 @@ def probe_capabilities(
     overrides = {"codex_cli": codex_model, "claude_code_cli": claude_model}
     if not backends or any(backend not in BACKENDS for backend in backends):
         raise ValueError("Select a supported local CLI backend")
+    if codex_from_config and codex_model is not None:
+        raise ValueError("Choose an explicit Codex model or its configured model")
     for backend in dict.fromkeys(backends):
         try:
             # configuration performs the local executable/model readiness checks.
             # Passing the model explicitly also bypasses remote model discovery,
             # even when the operator's shell inherits the server bridge flag.
             model = overrides[backend]
+            if backend == "codex_cli" and codex_from_config:
+                model = _codex_config_model()
             if model is None:
                 model = os.environ.get(MODEL_VARIABLES[backend], "")
             config = cli.configuration(backend, model=model)
@@ -329,7 +394,10 @@ def probe_capabilities(
             capabilities.append({"backend": backend, "model": config.model, "verified": True})
         except cli.CLIError as exc:
             _report_probe_failure(
-                backend, getattr(exc, "reason_code", None), getattr(exc, "exit_code", None)
+                backend,
+                getattr(exc, "reason_code", None),
+                getattr(exc, "exit_code", None),
+                getattr(exc, "failure_kind", None),
             )
         except Exception:
             # CLI error text is not a connection certificate and must not be logged.
@@ -451,6 +519,7 @@ class Worker:
         while True:
             try:
                 self.heartbeat()
+                print("CLI workstation registered; waiting for mail tasks", flush=True)
                 break
             except RemoteError as exc:
                 if once or not exc.retryable:
@@ -493,7 +562,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Use fixed sudo -n for remote Docker; requires existing passwordless permission",
     )
-    parser.add_argument("--codex-model", help="Exact model available to the locally logged-in CLI")
+    codex_source = parser.add_mutually_exclusive_group()
+    codex_source.add_argument(
+        "--codex-model", help="Exact model available to the locally logged-in CLI"
+    )
+    codex_source.add_argument(
+        "--codex-from-config",
+        action="store_true",
+        help="Read only the model ID from Codex config.toml and its default profile",
+    )
     parser.add_argument("--claude-model", help="Exact model available to the locally logged-in CLI")
     parser.add_argument(
         "--backend",
@@ -520,6 +597,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Remote CLI bridge enabled; checking local CLI connections", flush=True)
         capabilities = probe_capabilities(
             codex_model=args.codex_model,
+            codex_from_config=args.codex_from_config,
             claude_model=args.claude_model,
             backends=tuple(args.backend) if args.backend else BACKENDS,
         )

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import selectors
 import shutil
 import signal
@@ -37,6 +38,19 @@ REASON_CODES = frozenset(
         "local_busy",
     }
 )
+FAILURE_KINDS = frozenset(
+    {
+        "schema_rejected",
+        "model_unavailable",
+        "auth_401",
+        "access_403",
+        "rate_429",
+        "server_error",
+        "network_error",
+        "tls_error",
+        "unknown",
+    }
+)
 
 
 class CLIError(RuntimeError):
@@ -48,6 +62,7 @@ class CLIError(RuntimeError):
         *,
         reason_code: str = "unexpected_local_failure",
         exit_code: int | None = None,
+        failure_kind: str = "unknown",
     ) -> None:
         super().__init__(message)
         self.reason_code = (
@@ -56,6 +71,11 @@ class CLIError(RuntimeError):
             else "unexpected_local_failure"
         )
         self.exit_code = exit_code if type(exit_code) is int else None
+        self.failure_kind = (
+            failure_kind
+            if isinstance(failure_kind, str) and failure_kind in FAILURE_KINDS
+            else "unknown"
+        )
 
 
 @dataclass(frozen=True)
@@ -258,6 +278,97 @@ def _kill(process: subprocess.Popen[bytes]) -> None:
     process.wait()
 
 
+def _failure_kind_from_message(message: str) -> str:
+    """Best-effort fixed fingerprints, never typed CLI error attributes or text."""
+    if len(message) > 8192:
+        return "unknown"
+    text = message.lower()
+    start = message.find("{")
+    if start >= 0:
+        try:
+            body, _ = json.JSONDecoder().raw_decode(message[start:])
+        except (ValueError, RecursionError):
+            body = None
+        if isinstance(body, dict) and isinstance(body.get("error"), dict):
+            code = body["error"].get("code")
+            if code in ("invalid_json_schema", "unsupported_schema", "schema_unsupported"):
+                return "schema_rejected"
+            if code in ("model_not_found", "model_not_supported", "unsupported_model"):
+                return "model_unavailable"
+    status = re.search(
+        r"\b(?:http(?:/\d(?:\.\d)?)?\s+(?:status\s*[:=]?\s*)?"
+        r"|unexpected\s+status\s*[:=]?\s*|status\s+code\s*[:=]?\s*)"
+        r"(401|403|429|5\d\d)\b",
+        text,
+    )
+    if status:
+        return {"401": "auth_401", "403": "access_403", "429": "rate_429"}.get(
+            status[1], "server_error"
+        )
+    if any(
+        marker in text
+        for marker in ("invalid schema for response_format", "invalid schema for text.format")
+    ):
+        return "schema_rejected"
+    if re.search(
+        r"\bmodel\b[^\n]{0,160}\b(?:does not exist|is not supported|is not available)\b", text
+    ):
+        return "model_unavailable"
+    if any(
+        marker in text
+        for marker in (
+            "certificate verify failed",
+            "certificate verification failed",
+            "invalid peer certificate",
+            "unknown issuer",
+            "unknownissuer",
+            "tls handshake failed",
+            "ssl handshake failed",
+        )
+    ):
+        return "tls_error"
+    if any(
+        marker in text
+        for marker in (
+            "connection refused",
+            "connection reset by peer",
+            "dns error",
+            "dns lookup failed",
+            "failed to lookup address",
+            "error sending request for url",
+            "connection timed out",
+        )
+    ):
+        return "network_error"
+    return "unknown"
+
+
+def _codex_failure_kind(output: bytes | bytearray | str) -> str:
+    """Classify only the last fatal JSONL message; discard all source content."""
+    text = output if isinstance(output, str) else output.decode("utf-8", errors="replace")
+    failed_message = None
+    error_message = None
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except (ValueError, RecursionError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "turn.failed":
+            error = event.get("error")
+            failed_message = error.get("message", "") if isinstance(error, dict) else ""
+            if not isinstance(failed_message, str):
+                failed_message = ""
+        elif event.get("type") == "error":
+            error_message = event.get("message", "")
+            if not isinstance(error_message, str):
+                error_message = ""
+    return _failure_kind_from_message(
+        failed_message if failed_message is not None else error_message or ""
+    )
+
+
 def _run(arguments: list[str], prompt: bytes, cwd: str, config: Config) -> str:
     try:
         process = subprocess.Popen(
@@ -326,11 +437,16 @@ def _run(arguments: list[str], prompt: bytes, cwd: str, config: Config) -> str:
                     f"{label(config.backend)} 超时；结果没有保存", reason_code="timeout"
                 ) from exc
             if code:
+                failure_kind = (
+                    _codex_failure_kind(output) if config.backend == "codex_cli" else "unknown"
+                )
+                output.clear()
                 raise CLIError(
                     f"{label(config.backend)} 调用失败（退出码 {code}）；"
                     "请核对 CLI 版本、登录和模型权限，进程输出已隐藏",
                     reason_code="nonzero_exit",
                     exit_code=code,
+                    failure_kind=failure_kind,
                 )
     finally:
         _kill(process)
@@ -359,7 +475,9 @@ def _codex_result(output: str) -> str:
             raise CLIError("Codex CLI 事件格式不符", reason_code="invalid_envelope")
         if event.get("type") in {"error", "turn.failed"}:
             raise CLIError(
-                "Codex CLI 未完成模型请求；检查登录和模型权限", reason_code="request_failed"
+                "Codex CLI 未完成模型请求；检查登录和模型权限",
+                reason_code="request_failed",
+                failure_kind=_codex_failure_kind(output),
             )
         item = event.get("item")
         if isinstance(item, dict):

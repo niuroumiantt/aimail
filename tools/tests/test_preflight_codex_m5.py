@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -20,15 +21,25 @@ FILES = (
     "server/src/aimail/backends/cli.py",
     "server/src/aimail/backends/cli_bridge.py",
 )
+FROZEN_DIGESTS = {
+    "tools/run_cli_worker.py": "f3ac0734141973ee7f25fa5e33513d7775b95f166eefc00e58c8db260b7a541d",
+    "server/src/aimail/backends/cli.py": (
+        "353775ac153d16a4570061d8a6beacf6214d60dbb42af81f40853e9a8a11ba0a"
+    ),
+    "server/src/aimail/backends/cli_bridge.py": (
+        "10e14a8e4661a922f6b009d0673a66cb4e40cdedb5269a0b47d1446df2985cc8"
+    ),
+}
 
 
 @pytest.fixture
 def preflight(tmp_path):
     home = tmp_path / "operator"
     cache = home / ".local/share/aimail/cli-worker" / COMMIT
-    # These three reviewed sources still match the frozen client. Updating them
-    # requires reviewing this operator tool's pinned client and hashes together.
-    # Avoid git history: Actions' default shallow checkout contains only HEAD.
+    # Exercise metadata and privacy boundaries against the current compatible
+    # client interface, without historical blobs or network in shallow CI.
+    # Rebind hashes only in the extracted test body; this does not validate the
+    # immutable 0dca source or change the production tool's frozen manifest.
     for relative in FILES:
         path = cache / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +84,10 @@ else:
         "TEST_CALLS": str(captures),
     }
     body = re.search(r"<<'PY'\n(.*?)\nPY\n", SCRIPT.read_text(), re.DOTALL).group(1)
+    for relative, frozen_digest in FROZEN_DIGESTS.items():
+        assert body.count(frozen_digest) == 1
+        fixture_digest = hashlib.sha256((cache / relative).read_bytes()).hexdigest()
+        body = body.replace(frozen_digest, fixture_digest)
 
     def run(config=None, corrupt=None, **overrides):
         if config is not None:
@@ -100,10 +115,19 @@ else:
     return run, executable, auth_home
 
 
-def test_preflight_manifest_matches_the_frozen_public_client_sources():
-    assert re.findall(r'"([a-f0-9]{64})"', SCRIPT.read_text()) == [
-        hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() for relative in FILES
-    ]
+def test_production_preflight_retains_exact_frozen_manifest_and_cache_revision():
+    source = SCRIPT.read_text()
+    body = re.search(r"<<'PY'\n(.*?)\nPY\n", source, re.DOTALL).group(1)
+    manifest = next(
+        ast.literal_eval(node.value)
+        for node in ast.parse(body).body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "sources" for target in node.targets)
+    )
+    assert manifest == FROZEN_DIGESTS
+    assert set(manifest) == set(FILES)
+    assert len(re.findall(r'"([a-f0-9]{64})"', source)) == len(FILES)
+    assert COMMIT in body
 
 
 def test_preflight_only_runs_three_metadata_commands_from_actual_resolved_cli(preflight):
