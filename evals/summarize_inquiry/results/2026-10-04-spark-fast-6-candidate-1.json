@@ -1,0 +1,149 @@
+{
+  "evidence_kind": "stdout_only_candidate_evaluation",
+  "evidence_version": 1,
+  "model": "Spark · fast",
+  "model_identity": "Configured backend/model route only; the adapter does not expose the resolved upstream model ID.",
+  "task_version": "summarize_inquiry@6",
+  "candidate_source_sha": "ab08c335059b51a919d47442783f9ac7aa8f9935",
+  "candidate_source_file_sha256": "29ab7ec1543ab1337f8bdb4795e06ce55c56c6e2ec4cf055e3368f7969e5b2a3",
+  "candidate_helper_file_sha256": "6c88f22f056d8d2267a62e51869d4278b3c3bb10c3d1551d73511c2e2705e61a",
+  "system_sha256": "f7f11108dffb43aaa7b5645e82ce648f406e7021cd45a1dec62bcf7546a18aa6",
+  "schema_sha256": "02de74b7f67e8e692edb96c88e1a2bcd7e0f38f822d391fde3571aaaaa8e8512",
+  "dataset_sha256": "5a31db4afa4ab22848f1ed1b2f82b7ca1fb1a94dd2133af937a26089c1db225b",
+  "sample_count": 24,
+  "metrics": {
+    "malformed": 0.0,
+    "unverified_numbers": 0.0,
+    "is_inquiry": 1.0,
+    "mail_type": 1.0,
+    "is_trade": 1.0,
+    "trade_role": 0.9166666666666666
+  },
+  "observed_counts": {
+    "malformed": {
+      "count": 0,
+      "total": 24
+    },
+    "unverified_numbers": {
+      "count": 0,
+      "total": 24
+    },
+    "is_inquiry": {
+      "correct": 24,
+      "total": 24
+    },
+    "mail_type": {
+      "correct": 24,
+      "total": 24
+    },
+    "is_trade": {
+      "correct": 24,
+      "total": 24
+    },
+    "trade_role": {
+      "correct": 22,
+      "total": 24
+    }
+  },
+  "observed_failures": [
+    {
+      "id": "supplier-counterquote",
+      "status": "ok",
+      "predicted": {
+        "is_inquiry": false,
+        "mail_type": "business",
+        "is_trade": true,
+        "trade_role": "transaction"
+      },
+      "expected": {
+        "is_inquiry": false,
+        "mail_type": "business",
+        "is_trade": true,
+        "trade_role": "supplier"
+      },
+      "unverified": []
+    },
+    {
+      "id": "unknown-only-product",
+      "status": "ok",
+      "predicted": {
+        "is_inquiry": false,
+        "mail_type": "other",
+        "is_trade": false,
+        "trade_role": "none"
+      },
+      "expected": {
+        "is_inquiry": false,
+        "mail_type": "other",
+        "is_trade": false,
+        "trade_role": "uncertain"
+      },
+      "unverified": []
+    }
+  ],
+  "baseline": {
+    "model": "Spark · fast",
+    "task_version": "summarize_inquiry@5",
+    "system_sha256": "77a2a5db6ebe9433d9c2c720f61047e6fec26bd987cee3492d53828b6f064a18",
+    "dataset_sha256": "5a31db4afa4ab22848f1ed1b2f82b7ca1fb1a94dd2133af937a26089c1db225b",
+    "evidence_file": "evals/summarize_inquiry/results/2026-10-04-spark-fast-5.json",
+    "metrics": {
+      "malformed": 0.0,
+      "unverified_numbers": 0.0,
+      "is_inquiry": 1.0,
+      "mail_type": 0.875,
+      "is_trade": 0.875,
+      "trade_role": 0.875
+    }
+  },
+  "previous_false_negatives_resolved": {
+    "ids": [
+      "sample-003",
+      "sample-008",
+      "sample-009"
+    ],
+    "evidence": [
+      "The helper printed the three baseline classification failures explicitly.",
+      "Candidate stdout printed mail_type=business expected=business for each of these three samples.",
+      "Candidate is_trade was correct on all 24 samples in the unchanged dataset, including these three expected trade samples.",
+      "None of these three samples appeared in the candidate failure diagnostics; the two printed role failures were supplier-counterquote and unknown-only-product."
+    ],
+    "note": "This statement follows the observed per-sample diagnostics and aggregate counts; it does not reconstruct unseen prediction records or summaries."
+  },
+  "qualification": {
+    "passed": false,
+    "exit_status": 1,
+    "gate": "Zero malformed/numeric-verification failures and every provided classification label correct, with no aggregate regression from the same route/dataset baseline.",
+    "reason": "trade_role was wrong on 2 of 24 samples. Higher aggregate accuracy than the baseline does not satisfy the all-label gate."
+  },
+  "provenance": {
+    "source_attachment_filename": "Pasted text.txt",
+    "source_attachment_path": "/workspace/attachments/81a1d6e8-c064-4e6c-9fd5-b28739dcc8ae/Pasted text.txt",
+    "source_attachment_sha256": "ab46127b5bcc0f83818e4b7194df1e55933085a816fcbbd9c17319a4288c9982",
+    "evidence_date": "2026-10-04",
+    "selected_run": "The successful offline Base64 candidate evaluation after the earlier network-fetch attempt stopped before model calls.",
+    "transport": "Public candidate source downloaded and SHA256-checked on m5, then transferred as Base64 argv into the independent docker-exec evaluation process.",
+    "production_container": "mainland-aimail-1",
+    "saved_report_path": "/tmp/aimail-trade-eval-6.json",
+    "saved_report_retrieved": false,
+    "saved_comparison_path": "/tmp/aimail-trade-eval-6.tsv",
+    "source_run_exit_status": 1
+  },
+  "limitations": [
+    "This file records terminal evidence, not the unseen full JSON model report. Only the two printed candidate failure tuples are stored as individual predictions.",
+    "Validated model summaries, facts, quoted_numbers, full responses, resolved upstream model ID, token usage and timings were not present in the supplied stdout and are not invented here.",
+    "The legacy runner printed the numeric-verification metric as 幻觉率. It verifies only the model-declared quoted_numbers against source text and does not establish absence of all semantic hallucinations.",
+    "The --no-judge run did not measure independent fact coverage.",
+    "The 24 synthetic samples do not establish real-mail accuracy.",
+    "The nonzero qualification exit under set -e skipped the subsequent report cat command. The helper stated that the report and TSV had already been saved.",
+    "The evaluation process did not read/write the mailbox database or replace running service source; it did not deploy the candidate or reclassify historical mail."
+  ],
+  "per_sample_regressions": {
+    "ids": [
+      "supplier-counterquote",
+      "unknown-only-product"
+    ],
+    "evidence": "The stored @5 baseline classified the roles of these two samples correctly. Candidate stdout shows both becoming wrong despite improved aggregate trade_role accuracy.",
+    "baseline_evidence_file": "evals/summarize_inquiry/results/2026-10-04-spark-fast-5.json"
+  }
+}
