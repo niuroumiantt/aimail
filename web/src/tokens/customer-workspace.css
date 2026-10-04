@@ -1,0 +1,67 @@
+.customer-workspace-v2 {
+  display: grid;
+  gap: var(--ui-space-6);
+  padding: var(--ui-space-5);
+  font-size: var(--ui-font-body);
+  color: var(--color-ink);
+}
+.customer-workspace-v2 h2,
+.customer-workspace-v2 h3,
+.customer-workspace-v2 h4,
+.customer-workspace-v2 p,
+.customer-workspace-v2 dl,
+.customer-workspace-v2 dd { margin: 0; }
+.customer-workspace-v2 .customer-section-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  color: var(--color-ink-2);
+  font-size: var(--ui-font-meta);
+  font-weight: 500;
+}
+.customer-workspace-v2 .customer-section-label svg { flex-shrink: 0; }
+.customer-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-4);
+}
+.customer-identity > div { min-width: 0; }
+.customer-identity h2 { font-size: var(--ui-font-heading); font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.customer-identity p { margin-top: var(--ui-space-1); color: var(--color-ink-2); font-size: var(--ui-font-meta); line-height: 1.6; overflow-wrap: anywhere; }
+.customer-workspace-v2 .customer-contact-facts { display: grid; gap: var(--ui-space-2); margin-top: var(--ui-space-4); }
+.customer-contact-facts > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: var(--ui-space-2); font-size: var(--ui-font-meta); line-height: 1.7; }
+.customer-contact-facts dt { color: var(--color-ink-3); }
+.customer-contact-facts dd { color: var(--color-ink-2); overflow-wrap: anywhere; }
+.customer-business-overview {
+  min-width: 0;
+  padding: var(--ui-space-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.customer-business-overview > header { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2); }
+.customer-business-overview > header h3 { color: var(--color-ink); font-size: var(--ui-font-body); font-weight: 600; }
+.customer-business-overview > header .customer-section-label svg { color: var(--color-brand-text); }
+.customer-business-overview > header button { width: 28px; height: 28px; }
+.customer-business-overview > header button:disabled { opacity: .4; cursor: default; }
+.customer-current-topic { margin-top: var(--ui-space-3); padding-bottom: var(--ui-space-4); border-bottom: 1px solid var(--color-line); }
+.customer-current-topic > span { color: var(--color-ink-3); font-size: var(--ui-font-meta); }
+.customer-workspace-v2 .customer-current-topic h4 { margin-top: var(--ui-space-1); font-size: var(--ui-font-body); line-height: 1.65; font-weight: 550; overflow-wrap: anywhere; }
+.customer-workspace-v2 .customer-current-topic p { margin-top: var(--ui-space-2); font-size: var(--ui-font-meta); color: var(--color-ink-2); line-height: 1.6; }
+.customer-workspace-v2 .customer-current-topic .customer-latest-mail { margin-top: var(--ui-space-1); color: var(--color-ink-3); font-variant-numeric: tabular-nums; }
+.customer-overview-findings { display: grid; gap: var(--ui-space-4); margin-top: var(--ui-space-4); }
+.customer-overview-finding > p { font-size: var(--ui-font-body); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.customer-overview-finding [data-suspect="true"] { color: var(--color-warn-text); }
+.customer-workspace-v2 .customer-overview-state,
+.customer-workspace-v2 .customer-overview-stale,
+.customer-workspace-v2 .customer-overview-error { margin-top: var(--ui-space-3); font-size: var(--ui-font-meta); line-height: 1.75; overflow-wrap: anywhere; }
+.customer-workspace-v2 .customer-overview-state { color: var(--color-ink-2); }
+.customer-workspace-v2 .customer-overview-stale { color: var(--color-warn-text); }
+.customer-workspace-v2 .customer-overview-error { color: var(--color-danger-text); }
+.customer-overview-finding > .customer-overview-error { margin-top: 0; margin-bottom: var(--ui-space-1); }
+.customer-overview-footer { display: grid; gap: var(--ui-space-1); border-top: 1px solid var(--color-line); margin-top: var(--ui-space-5); padding-top: var(--ui-space-3); color: var(--color-ink-3); font-size: var(--ui-font-meta); line-height: 1.7; }
+.customer-overview-footer > p { overflow-wrap: anywhere; }
+.customer-workspace-v2 .customer-overview-footer .customer-overview-stale { margin-top: 0; margin-bottom: var(--ui-space-2); }
+@media (max-width: 767px) { .customer-workspace-v2 { padding: var(--ui-space-4); } }

@@ -9,6 +9,7 @@ import type {
   MailboxInfo,
   ModelProvider,
   ModelSelection,
+  MessageTranslation,
   OutboxStatus,
   LeadStatus,
   LeadSuggestion,
@@ -49,6 +50,8 @@ type State = {
   send: (threadId: string, request: SendRequest) => Promise<string>;
   /** 附件里读出来的文字,点开才取 */
   attachmentText: (attachmentId: string) => Promise<AttachmentText>;
+  getMessageTranslation: (messageId: string) => Promise<MessageTranslation | null>;
+  translateMessage: (messageId: string) => Promise<MessageTranslation>;
   analyzeThread: (threadId: string) => Promise<string>;
   organizeThread: (threadId: string, action: "trash" | "restore") => Promise<string>;
   assistant: () => Promise<AssistantState>;
@@ -230,6 +233,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [source, user, refresh, openThread],
   );
 
+  const getMessageTranslation = useCallback(async (id: string) => {
+    if (!source) throw new Error("还没加载完");
+    return source.getMessageTranslation(id);
+  }, [source]);
+  const translateMessage = useCallback(async (id: string) => {
+    if (!source) throw new Error("还没加载完");
+    return source.translateMessage(id);
+  }, [source]);
   const customerContext = useCallback(async (id: string) => {
     if (!source) throw new Error("还没加载完");
     return source.customerContext(id);
@@ -326,11 +337,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.clearAssistant(user);
       },
       customerContext,
+      getMessageTranslation,
+      translateMessage,
       refreshCustomerContext,
       modelSelection,
       setModelSelection,
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, customerContext, refreshCustomerContext, modelSelection, setModelSelection],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

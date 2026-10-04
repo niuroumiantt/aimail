@@ -6,7 +6,7 @@ import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { CustomerHistory } from "./customer-history";
 import { FOLDER_LABEL } from "./folders";
-import { MessageView } from "./message";
+import { MessageView, type TranslationHandlers } from "./message";
 import { Pill } from "./pill";
 import { ReadingCard } from "./reading-card";
 import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
@@ -19,13 +19,15 @@ export function ThreadDetail({
   backSearch,
   reply,
   onAttachment,
+  onGetTranslation,
+  onTranslate,
   assistantOpen = false,
   onAssistant,
   onAnalyze,
   onOrganize,
   externalContext = false,
   draftScope,
-}: {
+}: TranslationHandlers & {
   thread: Thread;
   backSearch: string;
   reply?: ReplyHandlers;
@@ -119,7 +121,8 @@ export function ThreadDetail({
           {!externalContext && thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
           {!externalContext && <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />}
           {thread.messages.map((m) => (
-            <MessageView key={m.id} message={m} onAttachment={onAttachment} />
+            <MessageView key={m.id} message={m} onAttachment={onAttachment}
+              onGetTranslation={onGetTranslation} onTranslate={onTranslate} />
           ))}
           {replying && reply && (
             <ReplyComposer thread={thread} reply={reply} cacheKey={draftScope} onClose={() => setReplying(false)} />

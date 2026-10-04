@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from aimail import backends
+from aimail import backends, translation_store
 from aimail import send as send_mod
 from aimail.config import DEFAULT_TASKS
 from aimail.ingest import attachments
@@ -309,6 +309,7 @@ def create_app(
     pipeline_mailbox_ids = tuple(dict.fromkeys((mailbox_id, pipeline_mailbox_id)))
     app = FastAPI(title="aimail")
     followup.init(conn)
+    translation_store.prepare(conn)
     tokens = send_mod.TokenBox()
     # Writes share the injected connection and remain serialized. Committed inbox
     # reads use their own read-only WAL connection so IMAP, SMTP and model waits
@@ -330,6 +331,11 @@ def create_app(
         path = request.url.path
         inbox_read = request.method == "GET" and (
             path in read_paths
+            or (
+                path.startswith("/api/messages/")
+                and path.endswith("/translation")
+                and path.split("/")[-2].isdigit()
+            )
             or (
                 path.startswith("/api/threads/")
                 and (
@@ -510,12 +516,48 @@ def create_app(
             raise HTTPException(404, "没有这条线程")
         return str(row["contact_email"])
 
+    def _translation_message(request: Request, message_id: int) -> sqlite3.Row:
+        db = _inbox_conn(request)
+        selected = _mailbox_row(request)
+        row = db.execute(
+            "SELECT m.id,m.body_new,m.mailbox_id FROM message m "
+            "JOIN thread t ON t.id=m.thread_id "
+            "WHERE m.id=? AND m.mailbox_id=? AND t.mailbox_id=?",
+            (message_id, int(selected["id"]), int(selected["id"])),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "没有这封邮件")
+        return row
+
+    @app.get("/api/messages/{message_id}/translation")
+    def get_message_translation(message_id: int, request: Request) -> dict | None:
+        row = _translation_message(request, message_id)
+        if not row["body_new"].strip():
+            return None
+        return translation_store.get_current(_inbox_conn(request), message_id)
+
+    @app.post("/api/messages/{message_id}/translation")
+    def translate_message(message_id: int, request: Request) -> dict:
+        row = _translation_message(request, message_id)
+        if not row["body_new"].strip():
+            raise HTTPException(422, "本封新增正文为空，无法翻译")
+        cached = translation_store.get_current(conn, message_id)
+        if cached and cached["status"] == "ok":
+            return cached
+        with model_selection.use(conn, int(row["mailbox_id"])):
+            ready, _ = backends.ready()
+            if not ready:
+                raise HTTPException(503, "所选模型暂不可用，仍可阅读原文与已保存的译文。")
+            result = translation_store.translate_cached(conn, message_id)
+        assert result is not None
+        return result
+
     @app.get("/api/threads/{thread_id}/customer")
     def customer_context(thread_id: int, request: Request) -> dict:
         db = _inbox_conn(request)
         selected = _mailbox_row(request)
         contact = _customer_contact(db, thread_id, selected)
-        return customer_workspace.context(db, int(selected["id"]), contact)
+        return customer_workspace.context(db, int(selected["id"]), contact, thread_id=thread_id)
 
     def _run_customer_jobs(jobs: list[dict]) -> None:
         worker = connect(database_path) if database_path else conn
@@ -544,7 +586,12 @@ def create_app(
             if not ready:
                 raise HTTPException(503, "AI 尚未配置，仍可阅读邮件原文。")
             jobs = customer_workspace.claim(
-                conn, int(selected["id"]), contact, retry=retry, backend=backend
+                conn,
+                int(selected["id"]),
+                contact,
+                retry=retry,
+                backend=backend,
+                thread_id=thread_id,
             )
         if jobs:
             threading.Thread(target=_run_customer_jobs, args=(jobs,), daemon=True).start()

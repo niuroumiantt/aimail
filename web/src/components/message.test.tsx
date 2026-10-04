@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import type { AttachmentText, Message } from "@/data/types";
+import type { AttachmentText, Message, MessageTranslation } from "@/data/types";
 import { MessageView } from "./message";
 import { TipProvider } from "./tip";
 
@@ -62,4 +62,118 @@ it("lists attachments without a way to open them when no handler is given", () =
     </TipProvider>,
   );
   expect(screen.getAllByTestId("attachment")[0]).toBeDisabled();
+});
+
+const translated: MessageTranslation = {
+  status: "ok",
+  text_zh: "规格见附件。请报价 4 台 L40S。",
+  model: "Codex CLI · gpt-6.1-sol",
+  task_version: "translate_mail@1",
+  produced_at: "2026-10-04T13:30:00Z",
+  reason: "",
+  coverage: "当前邮件新增正文；不含折叠的引用历史与附件",
+};
+
+it("translates only on an explicit click and changes views without more model calls", async () => {
+  const get = vi.fn(async () => null);
+  const translate = vi.fn(async () => translated);
+  const withQuoted = { ...message, quoted: "Earlier price USD 500." };
+  render(<TipProvider><MessageView message={withQuoted} onGetTranslation={get} onTranslate={translate} /></TipProvider>);
+  expect(get).not.toHaveBeenCalled();
+  expect(translate).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  expect(await screen.findByText(translated.text_zh)).toBeVisible();
+  expect(screen.getByLabelText("邮件原文")).not.toBeVisible();
+  expect(screen.getByRole("button", { name: "中文" })).toHaveAttribute("aria-pressed", "true");
+  expect(get).toHaveBeenCalledExactlyOnceWith("m1");
+  expect(translate).toHaveBeenCalledExactlyOnceWith("m1");
+  expect(screen.getByText(/Codex CLI · gpt-6.1-sol/)).toBeVisible();
+  expect(screen.getByText("邮件 #m1")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "对照" }));
+  expect(screen.getByLabelText("邮件原文")).toBeVisible();
+  expect(screen.getByLabelText("中文译文")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "原文" }));
+  expect(screen.getByLabelText("中文译文")).not.toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /展开引用历史/ }));
+  expect(screen.getByText("Earlier price USD 500.")).toBeVisible();
+  expect(screen.getAllByTestId("attachment")).toHaveLength(2);
+  expect(translate).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(1);
+});
+
+it("reuses a cached translation and keeps its attribution when the selected model changes", async () => {
+  const get = vi.fn(async () => translated);
+  const translate = vi.fn(async () => translated);
+  const { rerender } = render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  expect(await screen.findByText(translated.text_zh)).toBeVisible();
+  expect(translate).not.toHaveBeenCalled();
+  const otherModel = vi.fn(async () => ({ ...translated, model: "Spark · fast" }));
+  rerender(<MessageView message={message} onGetTranslation={get} onTranslate={otherModel} />);
+  fireEvent.click(screen.getByRole("button", { name: "对照" }));
+  fireEvent.click(screen.getByRole("button", { name: "中文" }));
+  expect(screen.getByText(/Codex CLI · gpt-6.1-sol/)).toBeVisible();
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(otherModel).not.toHaveBeenCalled();
+});
+
+it("preserves the original and requires an explicit retry when a cache request fails", async () => {
+  const get = vi.fn<() => Promise<MessageTranslation | null>>()
+    .mockRejectedValueOnce(new Error("sensitive upstream failure"))
+    .mockResolvedValueOnce(null);
+  const translate = vi.fn(async () => translated);
+  render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("翻译暂不可用，请重试。原文仍可阅读。");
+  expect(screen.queryByText(/sensitive upstream/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("邮件原文")).toBeVisible();
+  expect(translate).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "重试翻译" }));
+  expect(await screen.findByText(translated.text_zh)).toBeVisible();
+  expect(translate).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the original readable while translating and rejects duplicate clicks", async () => {
+  let finish: (value: MessageTranslation) => void = () => undefined;
+  const translate = vi.fn(() => new Promise<MessageTranslation>(resolve => { finish = resolve; }));
+  render(<MessageView message={message} onGetTranslation={async () => null} onTranslate={translate} />, { wrapper: TipProvider });
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  const busy = await screen.findByRole("button", { name: "正在翻译…" });
+  expect(busy).toBeDisabled();
+  expect(screen.getByLabelText("邮件原文")).toBeVisible();
+  fireEvent.click(busy);
+  expect(translate).toHaveBeenCalledTimes(1);
+  finish(translated);
+  expect(await screen.findByText(translated.text_zh)).toBeVisible();
+});
+
+it("does not show a translation from an earlier body after the message content changes", async () => {
+  const get = vi.fn(async () => translated);
+  const translate = vi.fn(async () => translated);
+  const { rerender } = render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  expect(await screen.findByText(translated.text_zh)).toBeVisible();
+  rerender(<MessageView message={{ ...message, body: "Revised quantity: 2 L40S." }} onGetTranslation={get} onTranslate={translate} />);
+  expect(screen.queryByText(translated.text_zh)).not.toBeInTheDocument();
+  expect(screen.getByText("Revised quantity: 2 L40S.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "翻译为中文" })).toBeEnabled();
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(translate).not.toHaveBeenCalled();
+});
+
+it("shows failed translations clearly and renders translation content as plain text", async () => {
+  const unsafeLooking = "<img src=x onerror=alert(1)>";
+  const translate = vi.fn<() => Promise<MessageTranslation>>()
+    .mockResolvedValueOnce({ ...translated, status: "failed", text_zh: "", reason: "翻译未通过数字核对，请重试。" })
+    .mockResolvedValueOnce({ ...translated, text_zh: unsafeLooking });
+  const { container } = render(<MessageView message={message} onGetTranslation={async () => null} onTranslate={translate} />, { wrapper: TipProvider });
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("翻译未通过数字核对，请重试。");
+  expect(screen.getByLabelText("邮件原文")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "重试翻译" }));
+  expect(await screen.findByText(unsafeLooking)).toBeVisible();
+  expect(container.querySelector("img")).toBeNull();
+  await waitFor(() => expect(translate).toHaveBeenCalledTimes(2));
 });

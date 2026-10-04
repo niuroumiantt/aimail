@@ -155,6 +155,20 @@ CREATE TABLE IF NOT EXISTS message_reading (
 );
 CREATE INDEX IF NOT EXISTS reading_by_source ON message_reading (source_id, produced_at DESC);
 
+-- derived
+CREATE TABLE IF NOT EXISTS message_translation (
+  id INTEGER PRIMARY KEY,
+  source_id INTEGER NOT NULL REFERENCES message(id),
+  source_hash TEXT NOT NULL DEFAULT '',
+  model TEXT NOT NULL,
+  task_version TEXT NOT NULL,
+  produced_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('ok','failed')),
+  payload TEXT NOT NULL DEFAULT '{}',
+  reason TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS translation_by_source ON message_translation(source_id, produced_at DESC);
+
 -- 推送发件箱:线索的每次变化一条,送到为止(M8)
 CREATE TABLE IF NOT EXISTS outbox (
   id INTEGER PRIMARY KEY,

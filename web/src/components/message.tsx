@@ -1,13 +1,21 @@
 import { Dialog as RadixDialog } from "radix-ui";
-import { ChevronDown, FileText, Paperclip, TriangleAlert, X } from "lucide-react";
-import { useState } from "react";
-import type { AttachmentRef, AttachmentText, Message } from "@/data/types";
+import { ChevronDown, FileText, Languages, LoaderCircle, Paperclip, TriangleAlert, X } from "lucide-react";
+import { useRef, useState } from "react";
+import type { AttachmentRef, AttachmentText, Message, MessageTranslation } from "@/data/types";
 import { cn } from "@/lib/cn";
 import { fullTime } from "@/lib/text";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { Pill } from "./pill";
 import { Tip } from "./tip";
+import "@/tokens/message-translation.css";
+
+type TranslationMode = "original" | "zh" | "compare";
+
+export type TranslationHandlers = {
+  onGetTranslation?: (messageId: string) => Promise<MessageTranslation | null>;
+  onTranslate?: (messageId: string) => Promise<MessageTranslation>;
+};
 
 function sizeLabel(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -111,7 +119,9 @@ function AttachmentSheet({
 export function MessageView({
   message,
   onAttachment,
-}: {
+  onGetTranslation,
+  onTranslate,
+}: TranslationHandlers & {
   message: Message;
   /** 取一份附件的文字;没有就只列名字 */
   onAttachment?: (attachmentId: string) => Promise<AttachmentText>;
@@ -119,8 +129,46 @@ export function MessageView({
   const [showQuoted, setShowQuoted] = useState(false);
   const [opened, setOpened] = useState<AttachmentRef | null>(null);
   const [content, setContent] = useState<AttachmentText | { error: string } | null>(null);
+  const [translated, setTranslated] = useState<{ source: string; value: MessageTranslation } | null>(null);
+  const [display, setDisplay] = useState<{ source: string; mode: TranslationMode } | null>(null);
+  const [translationError, setTranslationError] = useState<{ source: string; message: string } | null>(null);
+  const [pendingTranslation, setPendingTranslation] = useState<{ source: string; phase: "cache" | "model" } | null>(null);
+  const activeRequest = useRef(0);
+  const source = `${message.id}\n${message.body}`;
+  const translation = translated?.source === source ? translated.value : null;
+  const mode = display?.source === source ? display.mode : "original";
+  const translationPending = pendingTranslation?.source === source;
+  const error = translationError?.source === source ? translationError.message : "";
   const out = message.direction === "out";
   const quotedLines = message.quoted ? message.quoted.split("\n").length : 0;
+
+  const translate = async () => {
+    if (!onTranslate || translationPending) return;
+    const request = ++activeRequest.current;
+    setTranslationError(null);
+    setPendingTranslation({ source, phase: "cache" });
+    try {
+      let result = onGetTranslation ? await onGetTranslation(message.id) : null;
+      if (request !== activeRequest.current) return;
+      if (result?.status !== "ok") {
+        setPendingTranslation({ source, phase: "model" });
+        result = await onTranslate(message.id);
+      }
+      if (request !== activeRequest.current) return;
+      if (result.status === "ok") {
+        setTranslated({ source, value: result });
+        setDisplay({ source, mode: "zh" });
+      } else {
+        setTranslationError({ source, message: result.reason || "翻译暂不可用，请重试。原文仍可阅读。" });
+      }
+    } catch {
+      if (request === activeRequest.current) {
+        setTranslationError({ source, message: "翻译暂不可用，请重试。原文仍可阅读。" });
+      }
+    } finally {
+      if (request === activeRequest.current) setPendingTranslation(null);
+    }
+  };
 
   const open = onAttachment
     ? async (a: AttachmentRef) => {
@@ -144,15 +192,58 @@ export function MessageView({
         <time className="ml-auto text-xs tabular-nums text-ink-2" dateTime={message.sent_at}>
           {fullTime(message.sent_at)}
         </time>
+        {onTranslate && message.body.trim() && (
+          <div className="mail-translation-tools">
+            {translation?.status === "ok" ? (
+              <div className="mail-translation-modes" role="group" aria-label="正文显示方式">
+                {([
+                  ["original", "原文"],
+                  ["zh", "中文"],
+                  ["compare", "对照"],
+                ] as const).map(([value, label]) => (
+                  <button key={value} type="button" aria-pressed={mode === value}
+                    onClick={() => setDisplay({ source, mode: value })}>{label}</button>
+                ))}
+              </div>
+            ) : (
+              <button type="button" className="mail-translation-button" disabled={translationPending}
+                onClick={() => void translate()}>
+                {translationPending ? <LoaderCircle size={14} strokeWidth={1.75} className="mail-translation-spinner" /> : <Languages size={14} strokeWidth={1.75} />}
+                {translationPending ? pendingTranslation?.phase === "cache" ? "读取译文…" : "正在翻译…" : error ? "重试翻译" : "翻译为中文"}
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
       <div
         className={cn(
-          "whitespace-pre-wrap rounded-lg border px-4 py-3 text-sm leading-relaxed text-ink",
+          "mail-message-content rounded-lg border px-4 py-3 text-sm leading-relaxed text-ink",
           out ? "border-brand-line/60 bg-brand-wash/50" : "border-line bg-surface",
         )}
       >
-        {message.body}
+        <div className="mail-message-texts" data-mode={translation ? mode : "original"}>
+          <section className="mail-message-text" aria-label="邮件原文" hidden={translation !== null && mode === "zh"}>
+            {translation && mode === "compare" && <h3>原文</h3>}
+            <div>{message.body}</div>
+          </section>
+          {translation?.status === "ok" && <section className="mail-message-text mail-message-translated" aria-label="中文译文" hidden={mode === "original"}>
+            {mode === "compare" && <h3>中文译文</h3>}
+            <div>{translation.text_zh}</div>
+          </section>}
+        </div>
+        {translationPending && <p role="status" className="mail-translation-note">翻译期间可继续阅读原文。</p>}
+        {error && <p role="alert" className="mail-translation-error">{error}</p>}
+        {translation?.status === "ok" && mode !== "original" && (
+          <footer className="mail-translation-note">
+            <span>
+              中文翻译 · {translation.model} · {translation.task_version}
+            </span>
+            <time dateTime={translation.produced_at}>{fullTime(translation.produced_at)}</time>
+            <span>邮件 #{message.id}</span>
+            <span>仅翻译本封正文；引用历史与附件保留原文。请以原文核对交易信息。</span>
+          </footer>
+        )}
         {message.attachments && message.attachments.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
             {message.attachments.map((a) => (

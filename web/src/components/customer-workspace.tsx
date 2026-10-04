@@ -1,88 +1,113 @@
-import { FileText, RefreshCw, Sparkles } from "lucide-react";
+import { RefreshCw, Sparkles, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
 import type { CustomerContext, Thread } from "@/data/types";
 import { fullTime } from "@/lib/text";
-import { ReadingCard } from "./reading-card";
 import { Avatar } from "./avatar";
+import "@/tokens/customer-workspace.css";
 
-export function CustomerWorkspace({ thread, mailbox, revision, load, refresh, onAnalyze }: {
+export function CustomerWorkspace({ thread, mailbox, revision, load, refresh }: {
   thread: Thread; mailbox: string; revision: string;
   load: (id: string) => Promise<CustomerContext>;
   refresh: (id: string, retry?: boolean) => Promise<{ queued: number }>;
-  onAnalyze: () => Promise<string>;
 }) {
-  const scope = `${mailbox}:${thread.email}`;
+  const scope = `${mailbox}:${thread.id}:${thread.email}`;
   const [result, setResult] = useState<{ scope: string; value: CustomerContext }>();
   const [error, setError] = useState<{ scope: string; text: string }>();
   const [retry, setRetry] = useState(0);
   const previousRetry = useRef(0);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisError, setAnalysisError] = useState("");
   const context = result?.scope === scope ? result.value : undefined;
   const currentError = error?.scope === scope ? error.text : undefined;
+  const project = context?.projects.find(value => value.id === thread.id);
+  const summary = project?.summary;
+  const latest = project?.updated_at;
+  const domain = thread.email.split("@")[1] ?? "";
+  // The API's legacy company field contains a domain prefix, not a verified company.
+  const company = thread.company && thread.company.toLowerCase() !== domain.split(".")[0]?.toLowerCase()
+    ? thread.company : "";
+
   useEffect(() => {
     const explicitRetry = retry !== previousRetry.current;
     previousRetry.current = retry;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = Date.now();
-    const publish = (value: CustomerContext) => { if (alive) { setResult({ scope, value }); setError(undefined); } };
+    const publish = (value: CustomerContext) => {
+      if (alive) { setResult({ scope, value }); setError(undefined); }
+    };
+    const continuePolling = (value: CustomerContext) => {
+      const current = value.projects.find(value => value.id === thread.id);
+      if (alive && current?.state === "running" && Date.now() - started < 600_000) {
+        timer = setTimeout(() => void poll(), 2000);
+      }
+    };
     const poll = async () => {
       try {
         const value = await load(thread.id);
         if (!alive) return;
         publish(value);
-        if (value.projects.some(project => project.state === "running") && Date.now() - started < 600_000) timer = setTimeout(() => void poll(), 2000);
+        continuePolling(value);
       } catch (e) { if (alive) setError({ scope, text: e instanceof Error ? e.message : String(e) }); }
     };
     void (async () => {
       try {
-        const value = await load(thread.id);
+        let value = await load(thread.id);
         if (!alive) return;
         publish(value);
-        if (value.configured && (explicitRetry || value.projects.some(project => project.state === "none" || project.stale && project.state !== "failed"))) {
+        const current = value.projects.find(value => value.id === thread.id);
+        if (value.configured && current && current.state !== "running" &&
+          (explicitRetry || current.state === "none" || current.stale && current.state !== "failed")) {
           await refresh(thread.id, explicitRetry);
+          if (!alive) return;
+          value = await load(thread.id);
+          if (!alive) return;
+          publish(value);
         }
-        if (alive) await poll();
+        continuePolling(value);
       } catch (e) { if (alive) setError({ scope, text: e instanceof Error ? e.message : String(e) }); }
     })();
     return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [scope, thread.id, revision, load, refresh, retry]);
 
-  return <div className="customer-workspace-content">
-    <section className="customer-profile" aria-label="客户信息">
-      <div><Avatar name={thread.contact} size="lg" muted /><div><h2>{thread.contact}</h2><p>{thread.email}</p></div></div>
-      {thread.region && <p>{thread.region}</p>}
-      <small>同一联系人 · 来信与我方回复</small>
+  return <div className="customer-workspace-v2">
+    <section className="customer-introduction" aria-label="客户介绍">
+      <div className="customer-section-label"><UserRound size={15} aria-hidden /><span>客户介绍</span></div>
+      <div className="customer-identity"><Avatar name={thread.contact} size="lg" muted /><div><h2>{thread.contact || thread.email}</h2>{company && <p>{company}</p>}</div></div>
+      <dl className="customer-contact-facts">
+        <div><dt>邮箱</dt><dd>{thread.email}</dd></div>
+        {thread.region && <div><dt>地区</dt><dd>{thread.region}</dd></div>}
+        {!company && domain && <div><dt>邮箱域名</dt><dd>{domain}</dd></div>}
+      </dl>
     </section>
-    <section className="customer-summary" aria-label="累计需求摘要">
-      <header><Sparkles strokeWidth={1.75} /><h3>累计需求摘要</h3><button type="button" title="重试失败的摘要；已完成且无变化的摘要直接复用" aria-label="更新客户需求摘要" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} strokeWidth={1.75} /></button></header>
-      {!context && !currentError && <p role="status">正在读取客户往来…</p>}
-      {currentError && <p role="alert" className="customer-error">{currentError}</p>}
-      {context && !context.configured && <p>AI 尚未配置，可继续查看原文和单封读数。</p>}
-      {context?.projects.map(project => <article className="customer-project" key={project.id} aria-label={project.subject}>
-        <Link className="customer-project-title" to={`/t/${project.id}`}>{project.subject}</Link>
-        <small>{project.scope.total} 封往来 · 独立话题</small>
-        {project.state === "running" && <p role="status">正在更新需求…</p>}
-        {project.stale && <p className="customer-stale" role="status">有新内容，以下仍为上一次成功摘要。</p>}
-        {project.state === "failed" && <p className="customer-error" role="alert">{project.error}</p>}
-        {project.summary?.model && project.summary.task_version && project.summary.produced_at && <>
-          {project.summary.findings.length === 0 && <p>原文未提供可核对的需求信息。</p>}
-          {project.summary.findings.map((finding, index) => <div className="customer-finding" key={`${finding.source_id}:${index}`}>
-            {finding.unverified.length > 0 && <p role="alert" className="customer-error">这些数字未通过核对：{finding.unverified.join("、")}，请以原文为准。</p>}
-            <p data-suspect={finding.unverified.length > 0 || undefined}>{finding.text}</p>
-            <Link to={`/t/${project.id}#mail-${finding.source_id}`} title={finding.quote}><FileText size={13} strokeWidth={1.75} />查看原文来源</Link>
-          </div>)}
-          <p className="customer-attribution" title={project.summary.task_version}>{project.summary.model}<br />{fullTime(project.summary.produced_at)} · {project.summary.task_version}</p>
-          {(project.summary.scope.truncated > 0 || project.summary.scope.unread_attachments > 0) && <p className="customer-stale">覆盖 {project.summary.scope.included}/{project.summary.scope.total} 封；{project.summary.scope.truncated} 封内容截断，{project.summary.scope.unread_attachments} 份附件未读出。请核对原文。</p>}
-        </>}
-        {project.state === "none" && <p>还没有累计摘要。</p>}
-        <details className="customer-timeline"><summary>往来与变化来源</summary>{project.messages.map(message => <Link key={message.id} to={`/t/${project.id}#mail-${message.id}`}><span>{message.direction === "out" ? "我方回复" : "对方来信"} · {fullTime(message.sent_at)}</span><span>{message.subject}</span></Link>)}</details>
-      </article>)}
-      {context?.projects.length === 0 && <p>没有可汇总的往来话题。</p>}
-      <small>AI 信息待核对；阅读旧信不会回退累计需求。</small>
+    <section className="customer-business-overview" aria-label="当前话题的生意概况">
+      <header><div className="customer-section-label"><Sparkles size={16} aria-hidden /><h3>生意概况</h3></div><button
+        type="button" className="mail-icon-button" title="更新当前话题；内容未变化时复用已有概况"
+        aria-label="更新当前话题的生意概况" disabled={!context?.configured && !currentError || project?.state === "running"}
+        onClick={() => setRetry(value => value + 1)}><RefreshCw size={16} /></button></header>
+      <div className="customer-current-topic"><span>当前话题</span><h4>{project?.subject || thread.subject}</h4>
+        {project && <p>{project.scope.total} 封往来 · 来信与我方回复</p>}
+        {latest && <p className="customer-latest-mail">{summary && !project?.stale ? "截至" : "最新往来"} <time dateTime={latest}>{fullTime(latest)}</time></p>}
+      </div>
+      {!context && !currentError && <p className="customer-overview-state" role="status">正在读取本话题的往来概况…</p>}
+      {currentError && <p className="customer-overview-error" role="alert">{currentError}</p>}
+      {context && !context.configured && <p className="customer-overview-state">模型暂不可用，已保存的概况仍可查看。</p>}
+      {project?.state === "running" && <p className="customer-overview-state" role="status">正在综合最新往来…</p>}
+      {project?.stale && <p className="customer-overview-stale" role="status">有新内容，以下仍为上一次成功概况。</p>}
+      {project?.state === "failed" && <p className="customer-overview-error" role="alert">{project.error || "概况更新失败，可稍后重试。"}</p>}
+      {summary && <div className="customer-overview-findings">
+        {summary.findings.length === 0 && <p className="customer-overview-state">往来中未提供明确的需求信息。</p>}
+        {summary.findings.map((finding, index) => <div className="customer-overview-finding" key={`${finding.source_id}:${index}`}>
+          {finding.unverified.length > 0 && <p role="alert" className="customer-overview-error">数字待核对：{finding.unverified.join("、")}</p>}
+          <p data-suspect={finding.unverified.length > 0 || undefined}>{finding.text}</p>
+        </div>)}
+      </div>}
+      {project?.state === "none" && !summary && <p className="customer-overview-state">还没有本话题的统一概况。</p>}
+      {context && !project && <p className="customer-overview-state">当前话题暂无可汇总的往来。</p>}
+      {summary && <footer className="customer-overview-footer">
+        {(summary.scope.truncated > 0 || summary.scope.unread_attachments > 0) && <p className="customer-overview-stale">覆盖 {summary.scope.included}/{summary.scope.total} 封；{summary.scope.truncated} 封内容截断，{summary.scope.unread_attachments} 份附件未读出。</p>}
+        <p>{summary.model}<span aria-hidden> · </span>{summary.task_version}</p>
+        <p>更新于 <time dateTime={summary.produced_at}>{fullTime(summary.produced_at)}</time></p>
+        <p>按最新往来统一总结 · AI 信息待核对</p>
+      </footer>}
     </section>
-    <details className="customer-single-reading"><summary>当前邮件的单封读数</summary><ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={!thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); try { setAnalysisError(await onAnalyze()); } finally { setAnalyzing(false); } } : undefined} /></details>
   </div>;
 }

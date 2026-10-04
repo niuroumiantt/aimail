@@ -24,7 +24,7 @@ export default function InboxPage() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
     useData();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
@@ -60,6 +60,8 @@ export default function InboxPage() {
             backSearch={search}
             reply={selected.deleted_at ? undefined : reply}
             onAttachment={attachmentText}
+            onGetTranslation={getMessageTranslation}
+            onTranslate={translateMessage}
             assistantOpen={assistantOpen}
             onAssistant={() => setAssistantOpen((value) => !value)}
             onAnalyze={() => analyzeThread(selected.id)}
@@ -75,7 +77,7 @@ export default function InboxPage() {
       assistantOpen={assistantOpen}
       readerKey={`${mailbox.address}:${id ?? ""}`}
       showDetail={Boolean(selected)}
-      customer={selected ? <CustomerWorkspace thread={selected} mailbox={mailbox.address} revision={threads.filter(thread => thread.email.trim().toLowerCase() === selected.email.trim().toLowerCase()).map(thread => `${thread.id}:${thread.updated_at}:${thread.scale}:${thread.deleted_at ?? ""}`).sort().join("|")} load={customerContext} refresh={refreshCustomerContext} onAnalyze={() => analyzeThread(selected.id)} /> : undefined}
+      customer={selected ? <CustomerWorkspace thread={selected} mailbox={mailbox.address} revision={`${selected.updated_at}:${selected.scale}:${selected.deleted_at ?? ""}`} load={customerContext} refresh={refreshCustomerContext} /> : undefined}
     />
   );
 }
