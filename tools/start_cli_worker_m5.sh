@@ -4,11 +4,11 @@ set -euo pipefail
 umask 077
 
 if [ "$#" -ne 1 ] && [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
-  echo "Usage: bash start_cli_worker_m5.sh PINNED_COMMIT40 [--codex-only | --probe-only codex_cli|claude_code_cli]" >&2
+  echo "Usage: bash start_cli_worker_m5.sh PINNED_COMMIT40 [--check-only | --codex-only | --probe-only codex_cli|claude_code_cli]" >&2
   exit 2
 fi
 if ! [[ "$1" =~ ^[0-9a-f]{40}$ ]] ||
-   { [ "$#" -eq 2 ] && [ "$2" != "--codex-only" ]; } ||
+   { [ "$#" -eq 2 ] && [ "$2" != "--codex-only" ] && [ "$2" != "--check-only" ]; } ||
    { [ "$#" -eq 3 ] && { [ "$2" != "--probe-only" ] ||
       { [ "$3" != "codex_cli" ] && [ "$3" != "claude_code_cli" ]; }; }; }; then
   echo "Invalid pinned commit or worker mode; no model was called." >&2
@@ -37,18 +37,26 @@ for relative_file in tools/run_cli_worker.py tools/configure_cli_bridge.py \
     -o "$worker_dir/$relative_file"
 done
 printf '%s  %s\n' \
-  '6427acf2aa768fdf474f3e4399159d5db8e37c130f4f1c811f27de9ef2781d30' "$worker_dir/tools/run_cli_worker.py" \
+  '3baa24d19b685ced6d8870b8770618fb54006ee9deb7fa9dd7d1c88cf47ab2dd' "$worker_dir/tools/run_cli_worker.py" \
   '2195656780c5ff6800568c12942e0d8bb032959c596a7e496f266ebcd31b40be' "$worker_dir/tools/configure_cli_bridge.py" \
   '6bd80c63cb82a6c119053fd94974079b62b8cdb7c740734eeb027cd3ead196f5' "$worker_dir/server/src/aimail/backends/cli.py" \
   '10e14a8e4661a922f6b009d0673a66cb4e40cdedb5269a0b47d1446df2985cc8' "$worker_dir/server/src/aimail/backends/cli_bridge.py" |
   shasum -a 256 -c -
+
+if [ "$#" -eq 2 ] && [ "$2" = "--check-only" ]; then
+  # Only verify the existing bridge through SSH, without reading CLI configuration,
+  # calling a model, registering a workstation or changing the server runtime.
+  exec "$worker_python" "$worker_dir/tools/run_cli_worker.py" \
+    --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 \
+    --check-only --ssh-check-timeout 60
+fi
 
 if [ "$#" -eq 3 ]; then
   # The bridge is already enabled: diagnose one local CLI without rewriting server
   # configuration, recreating its container, registering or claiming a mail job.
   exec "$worker_python" "$worker_dir/tools/run_cli_worker.py" \
     --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 \
-    --codex-from-config --claude-model sonnet --probe-only --backend "$3"
+    --ssh-check-timeout 60 --codex-from-config --claude-model sonnet --probe-only --backend "$3"
 fi
 
 if [ "$#" -eq 2 ]; then
@@ -56,7 +64,7 @@ if [ "$#" -eq 2 ]; then
   # to registration and serving, without server configuration or container changes.
   exec "$worker_python" "$worker_dir/tools/run_cli_worker.py" \
     --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 \
-    --codex-from-config --backend codex_cli
+    --ssh-check-timeout 60 --codex-from-config --backend codex_cli
 fi
 
 ssh -T -o BatchMode=yes -o ConnectTimeout=8 aliyun sudo -n python3 - \
@@ -158,4 +166,4 @@ PY
 
 exec "$worker_python" "$worker_dir/tools/run_cli_worker.py" \
   --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 \
-  --codex-from-config --claude-model sonnet
+  --ssh-check-timeout 60 --codex-from-config --claude-model sonnet

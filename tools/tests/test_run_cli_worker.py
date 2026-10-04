@@ -391,6 +391,105 @@ def test_ssh_or_docker_permission_failure_prevents_paid_model_probes(monkeypatch
     assert "SSH request failed" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("check_timeout", [None, "60", "0.05"])
+def test_readiness_timeout_override_keeps_queue_requests_and_ssh_configuration_unchanged(
+    monkeypatch, check_timeout
+):
+    calls = []
+    configure_cli(monkeypatch, lambda *args, **kwargs: '{"ok":true}')
+
+    def run(arguments, request, timeout, cancel):
+        calls.append((arguments, timeout))
+        if arguments[-1] == "-":
+            assert request == worker.REMOTE_CHECK_SCRIPT
+            return b'{"enabled":true}'
+        if arguments[-1] == "heartbeat":
+            return b'{"ok":true}'
+        if arguments[-1] == "claim":
+            return json.dumps({"job": JOB}).encode()
+        return b'{"accepted":true}'
+
+    monkeypatch.setattr(worker, "_run_ssh", run)
+    args = ["--once", "--backend", "codex_cli", "--ssh-sudo"]
+    if check_timeout is not None:
+        args += ["--ssh-check-timeout", check_timeout]
+    assert worker.main(args) == 0
+    assert [arguments[-1] for arguments, _ in calls] == ["-", "heartbeat", "claim", "finish"]
+    assert [timeout for _, timeout in calls] == [
+        float(check_timeout) if check_timeout is not None else 20,
+        20,
+        20,
+        20,
+    ]
+    assert all(
+        arguments[:5] == ["ssh", "-T", "-oBatchMode=yes", "-oConnectTimeout=8", "aliyun"]
+        for arguments, _ in calls
+    )
+
+
+def test_check_only_uses_one_readonly_request_without_model_configuration_or_registration(
+    monkeypatch, capsys
+):
+    requests = []
+
+    def run(arguments, request, timeout, cancel):
+        requests.append((arguments, request, timeout))
+        return b'{"enabled":true}'
+
+    monkeypatch.setattr(worker, "_run_ssh", run)
+    monkeypatch.setattr(worker, "_codex_config_model", lambda: pytest.fail("Model config read"))
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
+    monkeypatch.setattr(
+        worker.cli, "configuration", lambda *args, **kwargs: pytest.fail("CLI config")
+    )
+    monkeypatch.setattr(worker.cli, "complete", lambda *args, **kwargs: pytest.fail("Inference"))
+    monkeypatch.setattr(worker, "Worker", lambda *args, **kwargs: pytest.fail("Registration"))
+    assert worker.main(["--check-only", "--ssh-check-timeout", "60", "--codex-from-config"]) == 0
+    assert len(requests) == 1
+    assert requests[0][0][-1] == "-"
+    assert requests[0][1] == worker.REMOTE_CHECK_SCRIPT
+    assert requests[0][2] == 60
+    logs = capsys.readouterr()
+    assert "no model called or capability registered" in logs.out
+    assert "Checking local CLI connections" not in logs.out
+
+
+def test_check_only_timeout_reports_readiness_stage_without_model_probes(monkeypatch, capsys):
+    def run(*args):
+        raise worker.RemoteError("SSH request interrupted or timed out")
+
+    monkeypatch.setattr(worker, "_run_ssh", run)
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
+    monkeypatch.setattr(worker, "Worker", lambda *args, **kwargs: pytest.fail("Registration"))
+    assert worker.main(["--check-only", "--ssh-check-timeout", "60"]) == 2
+    logs = capsys.readouterr()
+    assert "Checking remote CLI bridge (up to 60s); no model call yet" in logs.out
+    assert "SSH request interrupted or timed out" in logs.out
+    assert "Read-only connection check complete" not in logs.out
+
+
+@pytest.mark.parametrize("timeout", ["0", "-1", "0.049", "60.001", "nan", "inf", "-inf"])
+def test_bad_readiness_timeout_is_rejected_before_ssh_or_models(monkeypatch, timeout):
+    monkeypatch.setattr(worker, "_run_ssh", lambda *args: pytest.fail("SSH request"))
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
+    assert worker.main(["--check-only", "--ssh-check-timeout=" + timeout]) == 2
+
+
+@pytest.mark.parametrize(
+    "modes",
+    [
+        ["--check-only", "--probe-only"],
+        ["--check-only", "--once"],
+        ["--probe-only", "--once"],
+    ],
+)
+def test_conflicting_worker_modes_fail_before_any_request(monkeypatch, modes):
+    monkeypatch.setattr(worker, "_run_ssh", lambda *args: pytest.fail("SSH request"))
+    with pytest.raises(SystemExit) as failure:
+        worker.main(modes)
+    assert failure.value.code == 2
+
+
 @pytest.mark.parametrize("enabled", ["0", "1"])
 def test_preflight_script_only_checks_opt_in_without_creating_any_database(tmp_path, enabled):
     environment = {

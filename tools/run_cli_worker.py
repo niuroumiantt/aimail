@@ -20,7 +20,7 @@ import sys
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -562,6 +562,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Use fixed sudo -n for remote Docker; requires existing passwordless permission",
     )
+    parser.add_argument(
+        "--ssh-check-timeout",
+        type=float,
+        default=20,
+        help="Initial read-only SSH check budget in seconds (0.05–60); queue requests remain 20s",
+    )
     codex_source = parser.add_mutually_exclusive_group()
     codex_source.add_argument(
         "--codex-model", help="Exact model available to the locally logged-in CLI"
@@ -578,23 +584,47 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         help="Check and serve only this CLI; repeat to select both (default: both)",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Check remote bridge access then exit without local models, registration or mail jobs",
+    )
+    mode.add_argument(
         "--probe-only",
         action="store_true",
         help="Run synthetic connection checks then exit without registration or mail jobs",
     )
-    parser.add_argument("--once", action="store_true", help="Register and claim at most one job")
+    mode.add_argument("--once", action="store_true", help="Register and claim at most one job")
     args = parser.parse_args(argv)
     try:
         transport = SSHTransport(args.ssh_host, args.container, ssh_sudo=args.ssh_sudo)
+        readiness_transport = replace(transport, timeout=args.ssh_check_timeout)
     except ValueError:
         print(
-            "Invalid SSH alias or container; use an existing trusted SSH configuration", flush=True
+            "Invalid SSH settings; use a trusted alias, a valid container and a check timeout "
+            "between 0.05 and 60 seconds",
+            flush=True,
         )
         return 2
     try:
-        transport.check()
-        print("Remote CLI bridge enabled; checking local CLI connections", flush=True)
+        print(
+            f"Checking remote CLI bridge (up to {args.ssh_check_timeout:g}s); no model call yet",
+            flush=True,
+        )
+        check_started = time.monotonic()
+        readiness_transport.check()
+        print(
+            f"Remote CLI bridge enabled; readiness took {time.monotonic() - check_started:.2f}s",
+            flush=True,
+        )
+        if args.check_only:
+            print(
+                "Read-only connection check complete; no model called or capability registered.",
+                flush=True,
+            )
+            return 0
+        print("Checking local CLI connections", flush=True)
         capabilities = probe_capabilities(
             codex_model=args.codex_model,
             codex_from_config=args.codex_from_config,
