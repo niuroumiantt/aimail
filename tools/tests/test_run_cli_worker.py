@@ -3,6 +3,8 @@
 import copy
 import importlib
 import json
+import os
+import shlex
 import subprocess
 import sys
 import threading
@@ -57,7 +59,10 @@ def configure_cli(monkeypatch, complete):
     monkeypatch.setattr(worker.cli, "complete", complete)
 
 
-def test_main_probes_actual_answer_before_registration_and_keeps_mail_on_stdin(monkeypatch, capsys):
+@pytest.mark.parametrize("ssh_sudo", [False, True])
+def test_main_checks_remote_then_probes_before_registration_and_keeps_mail_on_stdin(
+    monkeypatch, capsys, ssh_sudo
+):
     calls = []
 
     def complete(backend, system, user, schema, *, model, allow_bridge):
@@ -68,6 +73,10 @@ def test_main_probes_actual_answer_before_registration_and_keeps_mail_on_stdin(m
 
     def run(arguments, request, timeout, cancel):
         action = arguments[-1]
+        if action == "-":
+            assert request == worker.REMOTE_CHECK_SCRIPT
+            calls.append(("preflight", copy.deepcopy(arguments)))
+            return b'{"enabled":true}'
         payload = json.loads(request)
         calls.append(("ssh", action, copy.deepcopy(arguments), payload))
         if action == "heartbeat":
@@ -77,9 +86,16 @@ def test_main_probes_actual_answer_before_registration_and_keeps_mail_on_stdin(m
         return b'{"accepted":true}'
 
     monkeypatch.setattr(worker, "_run_ssh", run)
-    assert worker.main(["--once", "--ssh-host", "operator-alias", "--container", "mail-app"]) == 0
-    assert calls[0][0] == "model"
-    assert calls[0][-1] is False
+    assert (
+        worker.main(
+            ["--once", "--ssh-host", "operator-alias", "--container", "mail-app"]
+            + (["--ssh-sudo"] if ssh_sudo else [])
+        )
+        == 0
+    )
+    assert calls[0][0] == "preflight"
+    assert calls[1][0] == "model"
+    assert calls[1][-1] is False
     remote = [entry for entry in calls if entry[0] == "ssh"]
     assert [entry[1] for entry in remote] == ["heartbeat", "claim", "finish"]
     assert remote[0][2] == [
@@ -88,15 +104,20 @@ def test_main_probes_actual_answer_before_registration_and_keeps_mail_on_stdin(m
         "-oBatchMode=yes",
         "-oConnectTimeout=8",
         "operator-alias",
+        *(["sudo", "-n"] if ssh_sudo else []),
         "docker",
         "exec",
         "-i",
         "mail-app",
+        "uv",
+        "run",
+        "--no-sync",
         "python",
         "-m",
         "aimail.cli_worker",
         "heartbeat",
     ]
+    assert calls[0][1] == remote[0][2][:-3] + ["-"]
     worker_ids = [entry[3]["worker_id"] for entry in remote]
     assert len(set(worker_ids)) == 1
     assert remote[0][3]["capabilities"] == CAPABILITIES
@@ -105,6 +126,8 @@ def test_main_probes_actual_answer_before_registration_and_keeps_mail_on_stdin(m
     for entry in remote:
         assert "PRIVATE_MAIL" not in " ".join(entry[2])
         assert "RESULT" not in " ".join(entry[2])
+        remote_arguments = entry[2][entry[2].index("operator-alias") + 1 :]
+        assert shlex.split(" ".join(remote_arguments)) == remote_arguments
     log = capsys.readouterr()
     assert "PRIVATE_MAIL" not in log.out + log.err
     assert "PRIVATE_TASK" not in log.out + log.err
@@ -116,9 +139,14 @@ def test_main_probes_actual_answer_before_registration_and_keeps_mail_on_stdin(m
 def test_failed_probe_never_registers_a_capability(monkeypatch, answer):
     configure_cli(monkeypatch, lambda *args, **kwargs: answer)
     contacted = []
-    monkeypatch.setattr(worker, "_run_ssh", lambda *args: contacted.append(args))
+
+    def run(arguments, request, timeout, cancel):
+        contacted.append(arguments[-1])
+        return b'{"enabled":true}'
+
+    monkeypatch.setattr(worker, "_run_ssh", run)
     assert worker.main(["--once"]) == 2
-    assert not contacted
+    assert contacted == ["-"]
 
 
 def test_probe_cannot_bridge_or_print_private_cli_error(monkeypatch, capsys):
@@ -201,17 +229,71 @@ def test_inference_error_is_generic_and_cannot_echo_private_input(monkeypatch, c
 
 
 def test_bridge_disabled_is_reported_safely_without_claiming(monkeypatch, capsys):
-    configure_cli(monkeypatch, lambda *args, **kwargs: '{"ok":true}')
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
     calls = []
 
     def run(arguments, request, timeout, cancel):
         calls.append(arguments[-1])
-        return b'{"error":"bridge_disabled"}'
+        return b'{"enabled":false}'
 
     monkeypatch.setattr(worker, "_run_ssh", run)
     assert worker.main(["--once"]) == 2
-    assert calls == ["heartbeat"]
+    assert calls == ["-"]
     assert "Remote CLI bridge is disabled" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("response", [b"PRIVATE_MAIL", b'{"enabled":1}', b"{}"])
+def test_invalid_remote_preflight_does_not_call_a_model_or_echo_private_output(
+    monkeypatch, capsys, response
+):
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
+    requests = []
+
+    def run(arguments, request, timeout, cancel):
+        requests.append((arguments, request))
+        return response
+
+    monkeypatch.setattr(worker, "_run_ssh", run)
+    assert worker.main(["--once", "--ssh-sudo"]) == 2
+    assert len(requests) == 1
+    assert requests[0][1] == worker.REMOTE_CHECK_SCRIPT
+    log = capsys.readouterr()
+    assert "PRIVATE_MAIL" not in log.out + log.err
+
+
+def test_ssh_or_docker_permission_failure_prevents_paid_model_probes(monkeypatch, capsys):
+    monkeypatch.setattr(worker, "probe_capabilities", lambda **kwargs: pytest.fail("Model probe"))
+
+    def run(arguments, request, timeout, cancel):
+        assert arguments[arguments.index("aliyun") + 1 :][:2] == ["sudo", "-n"]
+        assert request == worker.REMOTE_CHECK_SCRIPT
+        raise worker.RemoteError("SSH request failed")
+
+    monkeypatch.setattr(worker, "_run_ssh", run)
+    assert worker.main(["--once", "--ssh-sudo"]) == 2
+    assert "SSH request failed" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("enabled", ["0", "1"])
+def test_preflight_script_only_checks_opt_in_without_creating_any_database(tmp_path, enabled):
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(worker.Path(worker.__file__).resolve().parents[1] / "server" / "src"),
+        "LLM_CLI_BRIDGE_ENABLED": enabled,
+        "DB_PATH": str(tmp_path / "mail.sqlite3"),
+        "LLM_CLI_BRIDGE_DB": str(tmp_path / "bridge.sqlite3"),
+    }
+    result = subprocess.run(
+        [sys.executable, "-"],
+        input=worker.REMOTE_CHECK_SCRIPT,
+        env=environment,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode()
+    assert json.loads(result.stdout) == {"enabled": enabled == "1"}
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize(
@@ -238,6 +320,8 @@ def test_default_command_targets_verified_production_container(monkeypatch):
 
     def run(arguments, request, timeout, cancel):
         commands.append(arguments)
+        if arguments[-1] == "-":
+            return b'{"enabled":true}'
         if arguments[-1] == "heartbeat":
             return b'{"ok":true}'
         return b'{"job":null}'
@@ -245,8 +329,14 @@ def test_default_command_targets_verified_production_container(monkeypatch):
     monkeypatch.setattr(worker, "_run_ssh", run)
     assert worker.main(["--once"]) == 0
     assert worker.SSHTransport().container == "mainland-aimail-1"
-    assert len(commands) == 2
+    assert len(commands) == 3
     assert all(command[command.index("-i") + 1] == "mainland-aimail-1" for command in commands)
+    assert all("sudo" not in command for command in commands)
+
+
+def test_sudo_option_is_boolean_and_cannot_become_an_arbitrary_command():
+    with pytest.raises(ValueError, match="explicit boolean"):
+        worker.SSHTransport(ssh_sudo="sudo -S")
 
 
 @pytest.mark.parametrize("name", ["-bad", "host;touch", "a b", "a\n", "$(bad)", "a@b", "a/b"])
@@ -327,6 +417,7 @@ def test_worker_help_runs_without_product_or_third_party_python_dependencies():
     assert result.returncode == 0, result.stderr.decode()
     assert b"--codex-model" in result.stdout
     assert b"--claude-model" in result.stdout
+    assert b"--ssh-sudo" in result.stdout
 
 
 def test_explicit_probe_model_does_not_change_environment_or_consult_remote_bridge(monkeypatch):

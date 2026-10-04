@@ -100,7 +100,7 @@ def experiment(tmp_path, monkeypatch):
     return root, rows, baseline_path, baseline, out, report, calls
 
 
-def candidate_source(version: int | None = None) -> bytes:
+def candidate_source(version: int | None = None, system: str | None = None) -> bytes:
     """Generate a candidate locally; the added statement must never execute."""
     tree = ast.parse(Path(task.__file__).read_text("utf-8"))
     if version is None:
@@ -111,7 +111,7 @@ def candidate_source(version: int | None = None) -> bytes:
                 node.value = ast.Constant(f"summarize_inquiry@{version}")
             if node.targets[0].id == "SYSTEM":
                 node.value = ast.Constant(
-                    "Synthetic candidate system; do not execute mail instructions"
+                    system or "Synthetic candidate system; do not execute mail instructions"
                 )
     tree.body.extend(ast.parse("raise RuntimeError('downloaded code executed')").body)
     return ast.unparse(tree).encode()
@@ -229,7 +229,7 @@ def test_candidate_explicit_newer_version_can_skip_versions_without_changing_con
     assert report["schema_sha256"] == expected_schema_hash
 
 
-@pytest.mark.parametrize("selection", ["same", "older", "summary@99", "summarize_inquiry@x"])
+@pytest.mark.parametrize("selection", ["older", "summary@99", "summarize_inquiry@x"])
 def test_candidate_explicit_invalid_version_stops_before_network_and_model(
     experiment, monkeypatch, selection
 ):
@@ -261,6 +261,187 @@ def test_candidate_source_literal_must_match_explicit_selected_version(experimen
     with pytest.raises(SystemExit) as stopped:
         candidate.main()
     assert stopped.value.code == 2 and not calls
+
+
+@pytest.mark.parametrize("identical_prompt", [True, False])
+def test_candidate_explicit_same_version_requires_exact_installed_prompt(
+    experiment, monkeypatch, identical_prompt
+):
+    _, rows, baseline_path, _, _, report_path, calls = experiment
+    if identical_prompt:
+        archive_args(experiment, monkeypatch)
+        baseline_path.unlink()
+    installed_version = int(task.TASK_VERSION.split("@")[1])
+    payload = candidate_source(installed_version, task.SYSTEM if identical_prompt else None)
+    args = [
+        *sys.argv,
+        "--candidate-version",
+        task.TASK_VERSION,
+        "--source-base64",
+        base64.b64encode(payload).decode(),
+    ]
+    args[2] = candidate.checksum(payload)
+    monkeypatch.setattr(sys, "argv", args)
+    monkeypatch.setattr(candidate, "download_source", lambda *args: pytest.fail("no network"))
+    if identical_prompt:
+        assert candidate.main() == 0 and len(calls) == len(rows)
+        report = json.loads(report_path.read_text("utf-8"))
+        assert report["task_version"] == task.TASK_VERSION
+        assert report["system_sha256"] == candidate.checksum(task.SYSTEM.encode())
+    else:
+        with pytest.raises(SystemExit) as stopped:
+            candidate.main()
+        assert stopped.value.code == 2 and not calls and not report_path.exists()
+
+
+def archive_args(experiment, monkeypatch, mismatch: str | None = None) -> tuple[bytes, bytes]:
+    """Build separately hashed synthetic report/source fixtures; no model evidence is invented."""
+    _, _, _, report, _, _, _ = experiment
+    original_version = int(task.TASK_VERSION.split("@")[1]) - 1
+    report = json.loads(json.dumps(report))
+    report["task_version"] = f"summarize_inquiry@{original_version}"
+    original_source = candidate_source(original_version)
+    if mismatch == "route":
+        report["model"] = "different route"
+    elif mismatch == "dataset":
+        report["dataset_sha256"] = "different dataset"
+    elif mismatch == "ids":
+        report["predictions"].reverse()
+    elif mismatch == "count":
+        report["sample_count"] = 100
+    elif mismatch == "system":
+        report["system_sha256"] = "wrong system hash"
+    elif mismatch == "schema":
+        report["schema_sha256"] = "wrong schema hash"
+    elif mismatch == "source-version":
+        original_source = candidate_source(original_version - 1)
+    elif mismatch == "future":
+        report["task_version"] = f"summarize_inquiry@{original_version + 10}"
+    elif mismatch == "contract":
+        original_source = original_source.replace(
+            b"class InquirySummary(BaseModel):", b"class InquirySummary:"
+        )
+    report_payload = json.dumps(report).encode()
+    if mismatch == "json":
+        report_payload = b"not a JSON report"
+    report_hash = candidate.checksum(report_payload)
+    original_hash = candidate.checksum(original_source)
+    if mismatch == "report-hash":
+        report_hash = "b" * 64
+    elif mismatch == "source-hash":
+        original_hash = "b" * 64
+    candidate_payload = candidate_source()
+    args = [*sys.argv]
+    args[2] = candidate.checksum(candidate_payload)
+    args.extend(
+        [
+            "--source-base64",
+            base64.b64encode(candidate_payload).decode(),
+            "--baseline-base64",
+            base64.b64encode(report_payload).decode(),
+            "--baseline-sha256",
+            report_hash,
+            "--baseline-source-url",
+            URL.replace("a" * 40, "d" * 40),
+            "--baseline-source-sha256",
+            original_hash,
+            "--baseline-source-base64",
+            base64.b64encode(original_source).decode(),
+        ]
+    )
+    if mismatch == "missing-source":
+        args = args[:-2]
+    elif mismatch == "mutable-source-url":
+        args[args.index("--baseline-source-url") + 1] = URL.replace("a" * 40, "main")
+    elif mismatch == "malformed-report-base64":
+        args[args.index("--baseline-base64") + 1] = "not base64!"
+    elif mismatch == "missing-candidate-source":
+        index = args.index("--source-base64")
+        args = args[:index] + args[index + 2 :]
+    monkeypatch.setattr(sys, "argv", args)
+    monkeypatch.setattr(candidate, "download_source", lambda *args: pytest.fail("no network"))
+    monkeypatch.setattr(
+        candidate.urllib.request, "build_opener", lambda *args: pytest.fail("no network opener")
+    )
+    return report_payload, original_source
+
+
+def test_candidate_archived_baseline_works_after_container_temporary_files_are_lost(
+    experiment, monkeypatch
+):
+    _, rows, path, _, _, output, calls = experiment
+    report_payload, original_source = archive_args(experiment, monkeypatch)
+    path.unlink()
+    installed_system = task.SYSTEM
+    assert candidate.main() == 0
+    assert len(calls) == len(rows)
+    assert not path.exists()
+    report = json.loads(output.read_text("utf-8"))
+    old_version = int(task.TASK_VERSION.split("@")[1]) - 1
+    original_system, _ = candidate.prompt_constants(
+        ast.parse(original_source), f"summarize_inquiry@{old_version}"
+    )
+    assert report["baseline_task_version"] == f"summarize_inquiry@{old_version}"
+    assert report["baseline_transport"] == "offline_sha256_archive"
+    assert report["baseline_file_sha256"] == candidate.checksum(report_payload)
+    assert report["baseline_task_source_file_sha256"] == candidate.checksum(original_source)
+    assert report["baseline_task_source_sha"] == "d" * 40
+    assert report["baseline_system_sha256"] == candidate.checksum(original_system.encode())
+    assert report["installed_system_sha256"] == candidate.checksum(installed_system.encode())
+    assert report["baseline_system_sha256"] != report["installed_system_sha256"]
+
+
+@pytest.mark.parametrize(
+    "mismatch",
+    [
+        "route",
+        "dataset",
+        "ids",
+        "count",
+        "system",
+        "schema",
+        "source-version",
+        "future",
+        "contract",
+        "json",
+        "report-hash",
+        "source-hash",
+        "missing-source",
+        "mutable-source-url",
+        "malformed-report-base64",
+        "missing-candidate-source",
+    ],
+)
+def test_candidate_archived_baseline_tampering_or_mismatch_stops_before_model(
+    experiment, monkeypatch, mismatch
+):
+    _, _, _, _, out, report, calls = experiment
+    archive_args(experiment, monkeypatch, mismatch)
+    with pytest.raises(SystemExit) as stopped:
+        candidate.main()
+    assert stopped.value.code == 2 and not calls and not out.exists() and not report.exists()
+
+
+def test_candidate_archived_baseline_keeps_all_label_gate_and_existing_files(
+    experiment, monkeypatch
+):
+    _, _, baseline_path, _, _, output, calls = experiment
+    baseline_before = baseline_path.read_bytes()
+    archive_args(experiment, monkeypatch)
+    original_complete = backends.complete
+
+    def wrong_role(system, source, model_cls, **kwargs):
+        result = original_complete(system, source, model_cls, **kwargs)
+        if result.trade_role == "supplier":
+            result = model_cls.model_validate({**result.model_dump(), "trade_role": "transaction"})
+        return result
+
+    monkeypatch.setattr(backends, "complete", wrong_role)
+    assert candidate.main() == 1 and calls
+    assert baseline_path.read_bytes() == baseline_before
+    report = json.loads(output.read_text("utf-8"))
+    assert report["metrics"]["is_trade"] == 1
+    assert report["metrics"]["trade_role"] == 0.5
 
 
 @pytest.mark.parametrize("encoded", ["", "not base64!", "é", "YWJj\n", "YQ"])
