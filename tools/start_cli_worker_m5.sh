@@ -3,8 +3,14 @@
 set -euo pipefail
 umask 077
 
-if [ "$#" -ne 1 ] || ! [[ "$1" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "Usage: bash start_cli_worker_m5.sh PINNED_COMMIT40" >&2
+if [ "$#" -ne 1 ] && [ "$#" -ne 3 ]; then
+  echo "Usage: bash start_cli_worker_m5.sh PINNED_COMMIT40 [--probe-only codex_cli|claude_code_cli]" >&2
+  exit 2
+fi
+if ! [[ "$1" =~ ^[0-9a-f]{40}$ ]] ||
+   { [ "$#" -eq 3 ] && { [ "$2" != "--probe-only" ] ||
+      { [ "$3" != "codex_cli" ] && [ "$3" != "claude_code_cli" ]; }; }; }; then
+  echo "Invalid pinned commit or probe backend; no model was called." >&2
   exit 2
 fi
 worker_commit="$1"
@@ -30,11 +36,19 @@ for relative_file in tools/run_cli_worker.py tools/configure_cli_bridge.py \
     -o "$worker_dir/$relative_file"
 done
 printf '%s  %s\n' \
-  'bde40959d00006096a6b19cdcc8a0f8e8687543be6dcc51d535b4c67d3d1aa8c' "$worker_dir/tools/run_cli_worker.py" \
+  'f3ac0734141973ee7f25fa5e33513d7775b95f166eefc00e58c8db260b7a541d' "$worker_dir/tools/run_cli_worker.py" \
   '2195656780c5ff6800568c12942e0d8bb032959c596a7e496f266ebcd31b40be' "$worker_dir/tools/configure_cli_bridge.py" \
-  'bb9404ec93bf2882acac3fd966ef73f3eedd3653401e531ccf64ad156c76c614' "$worker_dir/server/src/aimail/backends/cli.py" \
+  '353775ac153d16a4570061d8a6beacf6214d60dbb42af81f40853e9a8a11ba0a' "$worker_dir/server/src/aimail/backends/cli.py" \
   '10e14a8e4661a922f6b009d0673a66cb4e40cdedb5269a0b47d1446df2985cc8' "$worker_dir/server/src/aimail/backends/cli_bridge.py" |
   shasum -a 256 -c -
+
+if [ "$#" -eq 3 ]; then
+  # The bridge is already enabled: diagnose one local CLI without rewriting server
+  # configuration, recreating its container, registering or claiming a mail job.
+  exec "$worker_python" "$worker_dir/tools/run_cli_worker.py" \
+    --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 \
+    --codex-model gpt-5.4 --claude-model sonnet --probe-only --backend "$3"
+fi
 
 ssh -T -o BatchMode=yes -o ConnectTimeout=8 aliyun sudo -n python3 - \
   < "$worker_dir/tools/configure_cli_bridge.py"

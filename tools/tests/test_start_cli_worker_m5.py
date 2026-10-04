@@ -115,7 +115,18 @@ def test_download_hash_constants_match_the_frozen_public_sources():
 
 
 @pytest.mark.parametrize(
-    "args", [[], [COMMIT, "extra"], ["main"], ["a" * 39], ["A" * 40], ["$(id)"]]
+    "args",
+    [
+        [],
+        [COMMIT, "extra"],
+        ["main"],
+        ["a" * 39],
+        ["A" * 40],
+        ["$(id)"],
+        [COMMIT, "--probe-only", "$(id)"],
+        [COMMIT, "--arbitrary", "codex_cli"],
+        [COMMIT, "--probe-only", "codex_cli", "extra"],
+    ],
 )
 def test_invalid_commit_is_rejected_before_any_python_download_or_ssh(launch, args):
     result, calls, _ = launch(args)
@@ -196,6 +207,37 @@ def test_success_runs_two_fixed_ssh_operations_before_exact_worker_command(launc
         "sonnet",
     ]
     assert "SAFE_WORKER_STARTED" in result.stdout
+
+
+@pytest.mark.parametrize("backend", ["codex_cli", "claude_code_cli"])
+def test_single_probe_mode_downloads_verified_client_without_server_mutations(launch, backend):
+    result, calls, worker_home = launch([COMMIT, "--probe-only", backend])
+    assert result.returncode == 0, result.stderr
+    assert [call["relative"] for call in calls if call["name"] == "curl"] == list(PUBLIC_FILES)
+    assert not any(call["name"] == "ssh" for call in calls)
+    assert calls[-1]["kind"] == "worker"
+    assert calls[-1]["args"] == [
+        str(worker_home / ".local/share/aimail/cli-worker" / COMMIT / PUBLIC_FILES[0]),
+        "--ssh-host",
+        "aliyun",
+        "--ssh-sudo",
+        "--container",
+        "mainland-aimail-1",
+        "--codex-model",
+        "gpt-5.4",
+        "--claude-model",
+        "sonnet",
+        "--probe-only",
+        "--backend",
+        backend,
+    ]
+
+
+@pytest.mark.parametrize("relative", PUBLIC_FILES)
+def test_single_probe_checksum_failure_prevents_model_and_ssh(launch, relative):
+    result, calls, _ = launch([COMMIT, "--probe-only", "codex_cli"], TEST_BAD_HASH=relative)
+    assert result.returncode != 0
+    assert all(call["name"] != "ssh" and call.get("kind") != "worker" for call in calls)
 
 
 def remote_code():

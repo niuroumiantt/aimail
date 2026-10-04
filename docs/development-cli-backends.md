@@ -46,6 +46,9 @@ Claude Code 使用 `--print --output-format json --json-schema`、`--tools ""`�
 不创建持续代理会话，不恢复历史 CLI 会话，不允许邮件正文驱动文件或网络操作。
 Codex 还需要支持 `--ignore-user-config` 与 `--ignore-rules` 的 CLI 版本；
 版本不支持参数时明确失败，不通过移除隔离选项来自动降级。
+Codex 的 `item.completed` / `item.type=error` 可以是官方的非致命警告；
+适配器忽略其文本，仍要求完整最终回答和 `turn.completed`。顶层 `error`、
+`turn.failed`、真实工具操作及只有警告而没有最终回答的输出继续拒绝。
 
 同一进程同时只运行一个 CLI 子进程，等待槽位与调用都有超时。
 `LLM_CLI_TIMEOUT` 默认 180 秒，`LLM_CLI_MAX_OUTPUT_BYTES` 默认 2 MiB，
@@ -112,6 +115,8 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 检查失败时，不调用本机模型。检查通过后，才逐个检查本机可执行
 文件与型号，并调用一次不含邮件的合成 JSON 任务；仅注册实际成功的能力。
 只安装了一种 CLI 时，仅传对应的型号选项也能运行。
+使用 `--backend codex_cli` 或 `--backend claude_code_cli` 明确只检查并服务一种后端；
+未选中的 CLI 不发起模型请求。重复传入同一后端也只探测一次。
 每次重启客户端会重新做这一次连接验收，计入相应 CLI 的模型使用量。
 后续心跳、队列轮询、网页刷新和读取已完成摘要**不调用模型**。不要用 `--once` 作为
 持续服务：它只领取最多一个任务，适合测试。正常运行需保持客户端及 m5 网络连接。
@@ -146,3 +151,21 @@ python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainlan
 模型的邮件分类准确率已经通过验收。
 重建前还会核对本地镜像 ID 和源码署名；启用失败会关闭桥接并用同一镜像恢复此前
 健康的运行状态。重启会恢复应用原有的收信和后台调度，脚本不主动重算历史邮件。
+
+桥接已启用但本机探测失败时，先核对实际 CLI 路径、版本、参数支持及登录状态。
+这类预检只使用帮助、版本和登录状态命令，不请求模型。不要反复启动两种模型
+来猜测失败原因，也不要输出登录文件、设置文件或原始错误文本。
+
+需要一次明确的合成诊断时，worker 支持 `--probe-only --backend codex_cli`（或
+`claude_code_cli`）：远端只读检查通过后仅调用所选模型一次，随后退出，不注册能力，
+不领取邮件任务。已启用桥接的 m5 也可使用
+`bash tools/start_cli_worker_m5.sh PINNED_COMMIT40 --probe-only codex_cli` 下载并核验客户端，
+跳过服务器配置写入和容器重建；仍必须使用对应提交核验过的脚本与文件摘要。
+探测失败仅记录固定原因码，例如 `config_missing`、`nonzero_exit`、`timeout`、
+`invalid_envelope` 或 `probe_schema_mismatch`，进程退出码仅以整数显示。
+未知异常归为 `unexpected_local_failure`；不会将任意异常文本、stderr、JSON 警告、
+模型回答或凭据写进日志。原因码说明失败阶段，不证明具体账号或网络原因。
+
+2026-10-04 m5 的实际启动输出已证明线上 `870ccbc` 健康且桥接开关已启用；
+当次 Codex 和 Claude 合成探测均失败、没有注册能力。该旧客户端只输出泛化错误，
+因此具体原因仍待本机预检和有界诊断，不能把桥接启用写成两种 CLI 已连通。

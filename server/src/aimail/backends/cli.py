@@ -20,9 +20,42 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+REASON_CODES = frozenset(
+    {
+        "unexpected_local_failure",
+        "config_invalid",
+        "config_missing",
+        "start_failed",
+        "nonzero_exit",
+        "timeout",
+        "output_limit",
+        "invalid_encoding",
+        "invalid_envelope",
+        "request_failed",
+        "tool_operation",
+        "incomplete_result",
+        "local_busy",
+    }
+)
+
 
 class CLIError(RuntimeError):
-    """Safe to show in the UI: never includes process output or source text."""
+    """Fixed diagnostics separate from messages, with no process output or source."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason_code: str = "unexpected_local_failure",
+        exit_code: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason_code = (
+            reason_code
+            if isinstance(reason_code, str) and reason_code in REASON_CODES
+            else "unexpected_local_failure"
+        )
+        self.exit_code = exit_code if type(exit_code) is int else None
 
 
 @dataclass(frozen=True)
@@ -62,10 +95,16 @@ def configuration(backend: str, model: str | None = None) -> Config:
     command_var, default, model_var, _ = _CONFIG[backend]
     command = os.environ.get(command_var, default).strip()
     if not command or command.startswith("-") or any(c in command for c in "\n\r\0"):
-        raise CLIError(f"{command_var} 必须是一个可执行文件路径，不接受命令参数")
+        raise CLIError(
+            f"{command_var} 必须是一个可执行文件路径，不接受命令参数",
+            reason_code="config_invalid",
+        )
     executable = shutil.which(command)
     if executable is None or not Path(executable).is_file():
-        raise CLIError(f"找不到 {label(backend)}；请安装并登录 CLI，检查 {command_var}")
+        raise CLIError(
+            f"找不到 {label(backend)}；请安装并登录 CLI，检查 {command_var}",
+            reason_code="config_missing",
+        )
     selected_model = (model if model is not None else model_name(backend)).strip()
     if (
         not selected_model
@@ -73,16 +112,25 @@ def configuration(backend: str, model: str | None = None) -> Config:
         or selected_model.startswith("-")
         or any(ord(c) < 32 for c in selected_model)
     ):
-        raise CLIError(f"必须明确设置 {model_var}，以便为模型输出署名")
+        raise CLIError(
+            f"必须明确设置 {model_var}，以便为模型输出署名",
+            reason_code="config_missing" if not selected_model else "config_invalid",
+        )
     try:
         timeout = float(os.environ.get("LLM_CLI_TIMEOUT", "180"))
         output_limit = int(os.environ.get("LLM_CLI_MAX_OUTPUT_BYTES", "2097152"))
     except ValueError as exc:
-        raise CLIError("LLM_CLI_TIMEOUT / LLM_CLI_MAX_OUTPUT_BYTES 必须是有效数字") from exc
+        raise CLIError(
+            "LLM_CLI_TIMEOUT / LLM_CLI_MAX_OUTPUT_BYTES 必须是有效数字",
+            reason_code="config_invalid",
+        ) from exc
     if not math.isfinite(timeout) or not 0.05 <= timeout <= 3600:
-        raise CLIError("LLM_CLI_TIMEOUT 必须介于 0.05 和 3600 秒之间")
+        raise CLIError("LLM_CLI_TIMEOUT 必须介于 0.05 和 3600 秒之间", reason_code="config_invalid")
     if not 1024 <= output_limit <= 16777216:
-        raise CLIError("LLM_CLI_MAX_OUTPUT_BYTES 必须介于 1024 和 16777216 字节之间")
+        raise CLIError(
+            "LLM_CLI_MAX_OUTPUT_BYTES 必须介于 1024 和 16777216 字节之间",
+            reason_code="config_invalid",
+        )
     return Config(backend, str(Path(executable).resolve()), selected_model, timeout, output_limit)
 
 
@@ -222,7 +270,9 @@ def _run(arguments: list[str], prompt: bytes, cwd: str, config: Config) -> str:
             shell=False,
         )
     except OSError as exc:
-        raise CLIError(f"无法启动 {label(config.backend)}；检查 CLI 文件和执行权限") from exc
+        raise CLIError(
+            f"无法启动 {label(config.backend)}；检查 CLI 文件和执行权限", reason_code="start_failed"
+        ) from exc
     assert process.stdin is not None and process.stdout is not None and process.stderr is not None
     output = bytearray()
     stderr_size, offset = 0, 0
@@ -237,7 +287,10 @@ def _run(arguments: list[str], prompt: bytes, cwd: str, config: Config) -> str:
             while selector.get_map():
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise CLIError(f"{label(config.backend)} 超时；检查登录状态和 LLM_CLI_TIMEOUT")
+                    raise CLIError(
+                        f"{label(config.backend)} 超时；检查登录状态和 LLM_CLI_TIMEOUT",
+                        reason_code="timeout",
+                    )
                 for key, _ in selector.select(min(remaining, 0.1)):
                     if key.data == "stdin":
                         try:
@@ -259,18 +312,25 @@ def _run(arguments: list[str], prompt: bytes, cwd: str, config: Config) -> str:
                         # never retain them, emit them or put them in a Failure row.
                         stderr_size += len(chunk)
                     if len(output) + stderr_size > config.output_limit:
-                        raise CLIError(f"{label(config.backend)} 输出超限；结果没有保存")
+                        raise CLIError(
+                            f"{label(config.backend)} 输出超限；结果没有保存",
+                            reason_code="output_limit",
+                        )
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise CLIError(f"{label(config.backend)} 超时；结果没有保存")
+                raise CLIError(f"{label(config.backend)} 超时；结果没有保存", reason_code="timeout")
             try:
                 code = process.wait(timeout=remaining)
             except subprocess.TimeoutExpired as exc:
-                raise CLIError(f"{label(config.backend)} 超时；结果没有保存") from exc
+                raise CLIError(
+                    f"{label(config.backend)} 超时；结果没有保存", reason_code="timeout"
+                ) from exc
             if code:
                 raise CLIError(
                     f"{label(config.backend)} 调用失败（退出码 {code}）；"
-                    "请核对 CLI 版本、登录和模型权限，进程输出已隐藏"
+                    "请核对 CLI 版本、登录和模型权限，进程输出已隐藏",
+                    reason_code="nonzero_exit",
+                    exit_code=code,
                 )
     finally:
         _kill(process)
@@ -280,7 +340,9 @@ def _run(arguments: list[str], prompt: bytes, cwd: str, config: Config) -> str:
     try:
         return output.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise CLIError(f"{label(config.backend)} 返回了非 UTF-8 输出") from exc
+        raise CLIError(
+            f"{label(config.backend)} 返回了非 UTF-8 输出", reason_code="invalid_encoding"
+        ) from exc
 
 
 def _codex_result(output: str) -> str:
@@ -290,21 +352,32 @@ def _codex_result(output: str) -> str:
         try:
             event = json.loads(line)
         except ValueError as exc:
-            raise CLIError("Codex CLI 没有返回合规 JSONL 事件；检查 CLI 版本") from exc
+            raise CLIError(
+                "Codex CLI 没有返回合规 JSONL 事件；检查 CLI 版本", reason_code="invalid_envelope"
+            ) from exc
         if not isinstance(event, dict):
-            raise CLIError("Codex CLI 事件格式不符")
+            raise CLIError("Codex CLI 事件格式不符", reason_code="invalid_envelope")
         if event.get("type") in {"error", "turn.failed"}:
-            raise CLIError("Codex CLI 未完成模型请求；检查登录和模型权限")
+            raise CLIError(
+                "Codex CLI 未完成模型请求；检查登录和模型权限", reason_code="request_failed"
+            )
         item = event.get("item")
         if isinstance(item, dict):
+            if event.get("type") == "item.completed" and item.get("type") == "error":
+                # Codex emits nonfatal warnings as completed error items. Discard
+                # their private text; fatal error/turn.failed events still fail above.
+                continue
             if item.get("type") not in {"agent_message", "reasoning"}:
-                raise CLIError("Codex CLI 尝试了工具操作；此后端只允许邮件文本推理")
+                raise CLIError(
+                    "Codex CLI 尝试了工具操作；此后端只允许邮件文本推理",
+                    reason_code="tool_operation",
+                )
             if event.get("type") == "item.completed" and item.get("type") == "agent_message":
                 answer = item.get("text")
         if event.get("type") == "turn.completed":
             completed = True
     if not completed or not isinstance(answer, str) or not answer.strip():
-        raise CLIError("Codex CLI 没有完整的最终回答")
+        raise CLIError("Codex CLI 没有完整的最终回答", reason_code="incomplete_result")
     return answer
 
 
@@ -312,17 +385,22 @@ def _claude_result(output: str) -> str:
     try:
         envelope = json.loads(output)
     except ValueError as exc:
-        raise CLIError("Claude Code CLI 没有返回合规 JSON 信封；检查 CLI 版本") from exc
+        raise CLIError(
+            "Claude Code CLI 没有返回合规 JSON 信封；检查 CLI 版本", reason_code="invalid_envelope"
+        ) from exc
     if not isinstance(envelope, dict) or envelope.get("is_error"):
-        raise CLIError("Claude Code CLI 未完成模型请求；检查登录和模型权限")
+        raise CLIError(
+            "Claude Code CLI 未完成模型请求；检查登录和模型权限",
+            reason_code="request_failed" if isinstance(envelope, dict) else "invalid_envelope",
+        )
     if envelope.get("type") != "result" or envelope.get("subtype") != "success":
-        raise CLIError("Claude Code CLI 返回了不完整结果")
+        raise CLIError("Claude Code CLI 返回了不完整结果", reason_code="incomplete_result")
     structured = envelope.get("structured_output")
     if isinstance(structured, dict):
         return json.dumps(structured, ensure_ascii=False)
     answer = envelope.get("result")
     if not isinstance(answer, str) or not answer.strip():
-        raise CLIError("Claude Code CLI 没有最终回答")
+        raise CLIError("Claude Code CLI 没有最终回答", reason_code="incomplete_result")
     return answer
 
 
@@ -362,7 +440,7 @@ def complete(
         + json.dumps(user, ensure_ascii=False)
     ).encode("utf-8")
     if not _process_slot.acquire(timeout=config.timeout):
-        raise CLIError(f"{label(backend)} 正忙；稍后重试")
+        raise CLIError(f"{label(backend)} 正忙；稍后重试", reason_code="local_busy")
     try:
         with tempfile.TemporaryDirectory(prefix="aimail-model-") as cwd:
             schema_path = Path(cwd) / "result-schema.json"

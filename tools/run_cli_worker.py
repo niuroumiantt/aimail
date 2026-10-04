@@ -46,6 +46,24 @@ def _load_local_cli() -> ModuleType:
 cli = _load_local_cli()
 
 BACKENDS = ("codex_cli", "claude_code_cli")
+PROBE_FAILURE_CODES = frozenset(
+    {
+        "config_invalid",
+        "config_missing",
+        "start_failed",
+        "nonzero_exit",
+        "timeout",
+        "output_limit",
+        "invalid_encoding",
+        "invalid_envelope",
+        "request_failed",
+        "tool_operation",
+        "incomplete_result",
+        "local_busy",
+        "probe_invalid_json",
+        "probe_schema_mismatch",
+    }
+)
 MODEL_VARIABLES = {"codex_cli": "CODEX_CLI_MODEL", "claude_code_cli": "CLAUDE_CODE_CLI_MODEL"}
 DEFAULT_CONTAINER = "mainland-aimail-1"
 LEASE_SECONDS = 120
@@ -249,13 +267,36 @@ class SSHTransport:
         return response
 
 
+def _report_probe_failure(backend: str, reason: Any, exit_code: Any = None) -> None:
+    # Never stringify exception messages, arbitrary attributes or process output.
+    code = (
+        reason
+        if isinstance(reason, str) and reason in PROBE_FAILURE_CODES
+        else "unexpected_local_failure"
+    )
+    suffix = (
+        f"; exit_code={exit_code}"
+        if code == "nonzero_exit" and type(exit_code) is int and -255 <= exit_code <= 255
+        else ""
+    )
+    print(
+        f"{backend}: connection probe failed; reason={code}{suffix}; capability not registered",
+        flush=True,
+    )
+
+
 def probe_capabilities(
-    *, codex_model: str | None = None, claude_model: str | None = None
+    *,
+    codex_model: str | None = None,
+    claude_model: str | None = None,
+    backends: tuple[str, ...] = BACKENDS,
 ) -> list[dict[str, Any]]:
     """Advertise only executable/model pairs that returned a real synthetic answer."""
     capabilities = []
     overrides = {"codex_cli": codex_model, "claude_code_cli": claude_model}
-    for backend in BACKENDS:
+    if not backends or any(backend not in BACKENDS for backend in backends):
+        raise ValueError("Select a supported local CLI backend")
+    for backend in dict.fromkeys(backends):
         try:
             # configuration performs the local executable/model readiness checks.
             # Passing the model explicitly also bypasses remote model discovery,
@@ -272,16 +313,27 @@ def probe_capabilities(
                 model=config.model,
                 allow_bridge=False,
             )
-            decoded = json.loads(answer)
-            if decoded != {"ok": True}:
+            try:
+                decoded = json.loads(answer)
+            except (ValueError, TypeError):
+                _report_probe_failure(backend, "probe_invalid_json")
                 continue
             # Python compares 1 == True; insist on the schema's exact JSON boolean.
-            if type(decoded.get("ok")) is not bool:
+            if (
+                not isinstance(decoded, dict)
+                or decoded != {"ok": True}
+                or type(decoded.get("ok")) is not bool
+            ):
+                _report_probe_failure(backend, "probe_schema_mismatch")
                 continue
             capabilities.append({"backend": backend, "model": config.model, "verified": True})
+        except cli.CLIError as exc:
+            _report_probe_failure(
+                backend, getattr(exc, "reason_code", None), getattr(exc, "exit_code", None)
+            )
         except Exception:
             # CLI error text is not a connection certificate and must not be logged.
-            print(f"{backend}: connection probe failed; capability not registered", flush=True)
+            _report_probe_failure(backend, "unexpected_local_failure")
     return capabilities
 
 
@@ -443,6 +495,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--codex-model", help="Exact model available to the locally logged-in CLI")
     parser.add_argument("--claude-model", help="Exact model available to the locally logged-in CLI")
+    parser.add_argument(
+        "--backend",
+        choices=BACKENDS,
+        action="append",
+        help="Check and serve only this CLI; repeat to select both (default: both)",
+    )
+    parser.add_argument(
+        "--probe-only",
+        action="store_true",
+        help="Run synthetic connection checks then exit without registration or mail jobs",
+    )
     parser.add_argument("--once", action="store_true", help="Register and claim at most one job")
     args = parser.parse_args(argv)
     try:
@@ -456,13 +519,21 @@ def main(argv: list[str] | None = None) -> int:
         transport.check()
         print("Remote CLI bridge enabled; checking local CLI connections", flush=True)
         capabilities = probe_capabilities(
-            codex_model=args.codex_model, claude_model=args.claude_model
+            codex_model=args.codex_model,
+            claude_model=args.claude_model,
+            backends=tuple(args.backend) if args.backend else BACKENDS,
         )
         if not capabilities:
             print("No verified local CLI. Check installation, login and exact model configuration.")
             return 2
         for capability in capabilities:
             print(f"Verified: {capability['backend']} / {capability['model']}", flush=True)
+        if args.probe_only:
+            print(
+                "Connection check complete; no capability registered or mail job claimed.",
+                flush=True,
+            )
+            return 0
         worker = Worker(transport, capabilities)
         print(f"Worker {worker.worker_id}: starting SSH pull connection", flush=True)
         worker.serve(once=args.once)

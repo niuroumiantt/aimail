@@ -11,6 +11,7 @@ import pytest
 from pydantic import BaseModel
 
 from aimail import backends
+from aimail.backends import cli
 
 
 class Answer(BaseModel):
@@ -51,17 +52,30 @@ with capture.open("a") as f:
 if mode == "error":
     sys.stderr.write("SECRET_MAIL_TOKEN " + source)
     sys.exit(7)
+if mode == "invalid_encoding":
+    sys.stdout.buffer.write(bytes([255]))
+    sys.exit(0)
+if mode == "invalid_envelope":
+    print("SECRET_MAIL_TOKEN invalid envelope")
+    sys.exit(0)
 answer = {"name":"synthetic", "count":2}
 if mode == "repair" and call == 0:
     answer = {"name":"synthetic", "count":"bad"}
 if mode == "invalid":
     answer = {"name":"SECRET_MAIL_TOKEN", "count":"bad"}
 if "--output-schema" in sys.argv:
-    if mode == "tool":
+    if mode.startswith("warning"):
+        print(json.dumps({"type":"item.completed", "item":{
+            "id":"warning", "type":"error", "message":"SECRET_WARNING_TOKEN"}}))
+    if mode in {"tool", "warning_tool"}:
         item = {"type":"command_execution", "command":"cat private"}
         print(json.dumps({"type":"item.completed", "item":item}))
-    item = {"type":"agent_message", "text":json.dumps(answer)}
-    print(json.dumps({"type":"item.completed", "item":item}))
+    if mode != "warning_only":
+        item = {"type":"agent_message", "text":json.dumps(answer)}
+        print(json.dumps({"type":"item.completed", "item":item}))
+    if mode in {"warning_error", "warning_failed"}:
+        event_type = "error" if mode == "warning_error" else "turn.failed"
+        print(json.dumps({"type":event_type, "message":"SECRET_WARNING_TOKEN"}))
     if mode != "unfinished":
         print(json.dumps({"type":"turn.completed", "usage":{}}))
 else:
@@ -174,6 +188,41 @@ def test_codex_rejects_tool_events_and_incomplete_turns(fake_cli, monkeypatch, m
         backends.complete("task", "source", Answer)
 
 
+def test_codex_nonfatal_warning_keeps_valid_answer_without_echoing_warning(
+    fake_cli, monkeypatch, capsys
+):
+    _, capture = fake_cli
+    monkeypatch.setenv("LLM_BACKEND", "codex_cli")
+    monkeypatch.setenv("AIMAIL_TEST_MODE", "warning")
+    assert backends.complete("task", "source", Answer) == Answer(name="synthetic", count=2)
+    assert len(capture.read_text().splitlines()) == 1
+    log = capsys.readouterr()
+    assert "SECRET_WARNING_TOKEN" not in log.out + log.err
+
+
+@pytest.mark.parametrize(
+    "mode, reason",
+    [
+        ("warning_only", "完整"),
+        ("warning_tool", "工具操作"),
+        ("warning_error", "未完成"),
+        ("warning_failed", "未完成"),
+    ],
+)
+def test_codex_warning_never_hides_fatal_errors_tools_or_missing_answers(
+    fake_cli, monkeypatch, capsys, mode, reason
+):
+    _, capture = fake_cli
+    monkeypatch.setenv("LLM_BACKEND", "codex_cli")
+    monkeypatch.setenv("AIMAIL_TEST_MODE", mode)
+    with pytest.raises(backends.LLMError, match=reason) as error:
+        backends.complete("task", "source", Answer)
+    assert "SECRET_WARNING_TOKEN" not in str(error.value)
+    assert len(capture.read_text().splitlines()) == 1
+    log = capsys.readouterr()
+    assert "SECRET_WARNING_TOKEN" not in log.out + log.err
+
+
 def test_cli_ready_requires_executable_and_explicit_model(fake_cli, monkeypatch):
     monkeypatch.setenv("LLM_BACKEND", "codex_cli")
     assert backends.ready()[0]
@@ -214,3 +263,109 @@ def test_codex_closes_nested_schema_without_mutating_task_contract():
     assert "quoted_numbers" in nested["required"]
     assert "additionalProperties" not in original
     assert "quoted_numbers" not in original["$defs"]["Finding"]["required"]
+
+
+@pytest.mark.parametrize(
+    "mode, reason, exit_code",
+    [
+        ("error", "nonzero_exit", 7),
+        ("timeout", "timeout", None),
+        ("oversize", "output_limit", None),
+        ("stderr_oversize", "output_limit", None),
+        ("invalid_encoding", "invalid_encoding", None),
+        ("invalid_envelope", "invalid_envelope", None),
+        ("tool", "tool_operation", None),
+        ("unfinished", "incomplete_result", None),
+        ("warning_failed", "request_failed", None),
+    ],
+)
+def test_local_process_diagnostics_expose_only_fixed_reason_and_numeric_exit(
+    fake_cli, monkeypatch, capsys, mode, reason, exit_code
+):
+    _, capture = fake_cli
+    monkeypatch.setenv("AIMAIL_TEST_MODE", mode)
+    monkeypatch.setenv("AIMAIL_TEST_CHILD", str(capture.with_suffix(".child")))
+    monkeypatch.setenv("LLM_CLI_TIMEOUT", "0.2")
+    monkeypatch.setenv("LLM_CLI_MAX_OUTPUT_BYTES", "1024")
+    with pytest.raises(cli.CLIError) as error:
+        cli.complete("codex_cli", "task", "SECRET_PRIVATE_MAIL", Answer.model_json_schema())
+    assert error.value.reason_code == reason
+    assert error.value.exit_code == exit_code
+    assert "SECRET" not in str(error.value)
+    log = capsys.readouterr()
+    assert "SECRET" not in log.out + log.err
+
+
+@pytest.mark.parametrize(
+    "variable, value, reason",
+    [
+        ("CODEX_CLI_COMMAND", "/no/such/aimail-test-cli", "config_missing"),
+        ("CODEX_CLI_COMMAND", "-invalid", "config_invalid"),
+        ("CODEX_CLI_MODEL", "", "config_missing"),
+        ("CODEX_CLI_MODEL", "-invalid", "config_invalid"),
+        ("LLM_CLI_TIMEOUT", "not-a-number", "config_invalid"),
+        ("LLM_CLI_TIMEOUT", "nan", "config_invalid"),
+        ("LLM_CLI_MAX_OUTPUT_BYTES", "20", "config_invalid"),
+    ],
+)
+def test_configuration_diagnostics_need_no_process_and_never_expose_values(
+    fake_cli, monkeypatch, variable, value, reason
+):
+    _, capture = fake_cli
+    monkeypatch.setenv(variable, value)
+    with pytest.raises(cli.CLIError) as error:
+        cli.configuration("codex_cli")
+    assert error.value.reason_code == reason
+    assert error.value.exit_code is None
+    assert not capture.exists()
+
+
+def test_launch_error_has_fixed_reason_without_private_os_error(fake_cli, monkeypatch):
+    def launch(*args, **kwargs):
+        raise OSError("SECRET_PRIVATE_OS_ERROR")
+
+    monkeypatch.setattr(cli.subprocess, "Popen", launch)
+    with pytest.raises(cli.CLIError) as error:
+        cli.complete("codex_cli", "task", "source", Answer.model_json_schema())
+    assert error.value.reason_code == "start_failed" and error.value.exit_code is None
+    assert "SECRET" not in str(error.value)
+
+
+def test_busy_diagnostic_is_distinct_and_does_not_start_another_process(fake_cli, monkeypatch):
+    class Busy:
+        def acquire(self, timeout):
+            return False
+
+    _, capture = fake_cli
+    monkeypatch.setattr(cli, "_process_slot", Busy())
+    with pytest.raises(cli.CLIError) as error:
+        cli.complete("codex_cli", "task", "source", Answer.model_json_schema())
+    assert error.value.reason_code == "local_busy" and error.value.exit_code is None
+    assert not capture.exists()
+
+
+@pytest.mark.parametrize(
+    "output, reason",
+    [
+        ("SECRET invalid json", "invalid_envelope"),
+        ('["SECRET"]', "invalid_envelope"),
+        ('{"type":"result","is_error":true,"result":"SECRET"}', "request_failed"),
+        ('{"type":"result","subtype":"error","result":"SECRET"}', "incomplete_result"),
+        ('{"type":"result","subtype":"success"}', "incomplete_result"),
+    ],
+)
+def test_claude_result_failure_has_fixed_reason_without_response_content(output, reason):
+    with pytest.raises(cli.CLIError) as error:
+        cli._claude_result(output)
+    assert error.value.reason_code == reason and error.value.exit_code is None
+    assert "SECRET" not in str(error.value)
+
+
+def test_diagnostic_fields_cannot_adopt_arbitrary_error_text():
+    legacy = cli.CLIError("legacy message")
+    assert str(legacy) == "legacy message"
+    assert legacy.reason_code == "unexpected_local_failure" and legacy.exit_code is None
+    for reason in ("SECRET_PRIVATE_ERROR", [], None):
+        error = cli.CLIError("PRIVATE_MESSAGE", reason_code=reason, exit_code="PRIVATE_CODE")
+        assert error.reason_code == "unexpected_local_failure" and error.exit_code is None
+    assert cli.CLIError("message", exit_code=True).exit_code is None
