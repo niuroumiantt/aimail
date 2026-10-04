@@ -20,7 +20,7 @@ afterEach(() => { localStorage.clear(); window.history.pushState({}, "", "/"); }
 it("keeps ordinary mail readable and highlights only potential leads", () => {
   wrap(<><ThreadRow thread={newsletter} search="" /><ThreadRow thread={inquiry} search="" /></>);
   expect(screen.getByText("新闻订阅")).toBeInTheDocument();
-  expect(screen.getByText("潜在线索")).toBeInTheDocument();
+  expect(screen.getByText("SALES LEAD")).toBeInTheDocument();
   expect(screen.queryByText("无效")).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: new RegExp(newsletter.company) })).not.toHaveClass("opacity-70");
 });

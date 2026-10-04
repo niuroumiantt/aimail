@@ -100,6 +100,21 @@ CREATE TABLE IF NOT EXISTS message (
 );
 CREATE INDEX IF NOT EXISTS message_by_thread ON message (thread_id, sent_at);
 
+-- derived
+CREATE TABLE IF NOT EXISTS customer_summary (
+  id INTEGER PRIMARY KEY,
+  mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+  source_id INTEGER NOT NULL REFERENCES thread(id),
+  input_hash TEXT NOT NULL,
+  model TEXT NOT NULL,
+  task_version TEXT NOT NULL,
+  produced_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('running','ok','failed')),
+  payload TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  UNIQUE(source_id,input_hash)
+);
+
 CREATE TABLE IF NOT EXISTS attachment (
   id INTEGER PRIMARY KEY,
   message_id INTEGER NOT NULL REFERENCES message(id),

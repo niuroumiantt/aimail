@@ -142,6 +142,7 @@ export type Thread = {
   folder: Folder;
   deleted_at?: string;
   has_lead?: boolean;
+  has_trade?: boolean;
   updated_at: string;
   /** 详情才有;列表里是空数组 */
   messages: Message[];
@@ -151,6 +152,23 @@ export type Thread = {
 };
 
 export type Priority = "high" | "normal" | "low";
+
+export type CustomerContext = {
+  email: string;
+  configured: boolean;
+  reason: string;
+  projects: {
+    id: string;
+    subject: string;
+    updated_at: string;
+    state: "none" | "running" | "ok" | "failed";
+    stale: boolean;
+    error: string;
+    scope: { total: number; included: number; truncated: number; unread_attachments: number };
+    summary: (Attribution & { findings: AssistantFinding[]; scope: { included: number; total: number; truncated: number; unread_attachments: number } }) | null;
+    messages: { id: string; sent_at: string; direction: "in" | "out"; from_email: string; subject: string }[];
+  }[];
+};
 
 /** 模型提出的线索建议 —— 建议不是事实(宪法第五条),人确认后才成为 Lead */
 export type LeadSuggestion = Attribution & {

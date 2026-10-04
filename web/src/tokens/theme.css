@@ -18,23 +18,23 @@
   --font-*: initial;
 
   /* 底与面 —— sage */
-  --color-canvas: #f4f3ed; /* paper: 长时间阅读的暖中性底 */
-  --color-surface: #fffefa; /* ink: 比纯白更安静 */
-  --color-surface-2: #eeede6;
-  --color-surface-3: #e5e5dc;
-  --color-line: #d9d8ce;
-  --color-line-2: #c9c9bd;
-  --color-ink: #202722;
-  --color-ink-2: #626862;
-  --color-ink-3: #888f88;
+  --color-canvas: #f4f5f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #f7f8f8;
+  --color-surface-3: #edf0ee;
+  --color-line: #e5e9e7;
+  --color-line-2: #d1d9d5;
+  --color-ink: #23302d;
+  --color-ink-2: #64716d;
+  --color-ink-3: #77837e;
 
   /* 品牌 —— teal */
-  --color-brand: #315f4f; /* mineral green: 不像默认 SaaS 蓝 */
+  --color-brand: #235e50;
   --color-brand-2: #264d40;
-  --color-brand-wash: #e5ede7;
+  --color-brand-wash: #edf4f1;
   --color-brand-wash-2: #d8e5dc;
   --color-brand-line: #a9c0b0;
-  --color-brand-text: #315f4f;
+  --color-brand-text: #235e50;
   --color-brand-deep: #18382e;
   --color-on-brand: #ffffff;
 
@@ -74,7 +74,7 @@
     "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans SC", monospace;
 
-  --text-2xs: 0.6875rem;
+  --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
 }
 
