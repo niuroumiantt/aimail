@@ -66,9 +66,10 @@ def _database():
     descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
     os.close(descriptor)
     os.chmod(path, 0o600)
-    connection = sqlite3.connect(path, timeout=2, isolation_level=None)
-    connection.row_factory = sqlite3.Row
+    connection = None
     try:
+        connection = sqlite3.connect(path, timeout=2, isolation_level=None)
+        connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA busy_timeout=2000")
         connection.executescript("""
@@ -91,7 +92,8 @@ def _database():
     except sqlite3.Error:
         raise BridgeError("queue_unavailable") from None
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
 
 
 def _expire(connection, now: float) -> None:

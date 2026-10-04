@@ -37,10 +37,10 @@ for relative_file in tools/run_cli_worker.py tools/configure_cli_bridge.py \
     -o "$worker_dir/$relative_file"
 done
 printf '%s  %s\n' \
-  '3baa24d19b685ced6d8870b8770618fb54006ee9deb7fa9dd7d1c88cf47ab2dd' "$worker_dir/tools/run_cli_worker.py" \
+  'be5a504bf1f4dfd83b3998258acbfa48322bf883107f2f551c4cf589e78d4fe6' "$worker_dir/tools/run_cli_worker.py" \
   '2195656780c5ff6800568c12942e0d8bb032959c596a7e496f266ebcd31b40be' "$worker_dir/tools/configure_cli_bridge.py" \
   '6bd80c63cb82a6c119053fd94974079b62b8cdb7c740734eeb027cd3ead196f5' "$worker_dir/server/src/aimail/backends/cli.py" \
-  '10e14a8e4661a922f6b009d0673a66cb4e40cdedb5269a0b47d1446df2985cc8' "$worker_dir/server/src/aimail/backends/cli_bridge.py" |
+  '32f2b66f5cb31d8d449aab4e2fa09299388258dc6f42f2ca7b1d726bb4ccd8a5' "$worker_dir/server/src/aimail/backends/cli_bridge.py" |
   shasum -a 256 -c -
 
 if [ "$#" -eq 2 ] && [ "$2" = "--check-only" ]; then

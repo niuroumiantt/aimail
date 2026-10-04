@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import sqlite3
 import threading
@@ -12,7 +13,7 @@ from contextlib import contextmanager
 import pytest
 from pydantic import BaseModel
 
-from aimail import backends
+from aimail import backends, cli_worker
 from aimail.backends import cli_bridge as bridge
 
 SCHEMA = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
@@ -44,6 +45,65 @@ def submit():
 
 def finish(job, worker="worker-one", output='{"ok":true}', error=None):
     return bridge.finish(worker, job["id"], job["nonce"], job["lease_token"], output, error)
+
+
+@pytest.fixture
+def database_failure(monkeypatch):
+    state = {"connects": 0, "closes": 0, "statements": []}
+
+    class UnavailableConnection:
+        def execute(self, statement):
+            state["statements"].append(statement)
+            raise sqlite3.OperationalError("PRIVATE_QUEUE_PATH PRIVATE_SQLITE_ERROR")
+
+        def close(self):
+            state["closes"] += 1
+
+    def fail_at(stage):
+        def connect(*args, **kwargs):
+            state["connects"] += 1
+            if stage == "connect":
+                raise sqlite3.OperationalError("PRIVATE_QUEUE_PATH PRIVATE_SQLITE_ERROR")
+            return UnavailableConnection()
+
+        monkeypatch.setattr(bridge.sqlite3, "connect", connect)
+        return state
+
+    return fail_at
+
+
+@pytest.mark.parametrize("stage", ["connect", "pragma"])
+def test_database_setup_failure_is_safe_and_closes_only_initialized_connection(
+    database_failure, stage
+):
+    state = database_failure(stage)
+    with pytest.raises(bridge.BridgeError, match="^queue_unavailable$") as failure:
+        bridge.claim("worker-one")
+    assert failure.value.__suppress_context__ is True
+    assert state["connects"] == 1
+    assert state["closes"] == (1 if stage == "pragma" else 0)
+    assert state["statements"] == (["PRAGMA journal_mode=WAL"] if stage == "pragma" else [])
+
+
+@pytest.mark.parametrize("stage", ["connect", "pragma"])
+@pytest.mark.parametrize("operation", ["heartbeat", "claim"])
+def test_operator_protocol_returns_safe_json_and_exit_zero_on_database_setup_failure(
+    database_failure, monkeypatch, capsys, stage, operation
+):
+    state = database_failure(stage)
+    payload = {"worker_id": "worker-one"}
+    if operation == "heartbeat":
+        payload["capabilities"] = CAPS
+    monkeypatch.setattr(
+        cli_worker.sys, "stdin", io.TextIOWrapper(io.BytesIO(json.dumps(payload).encode()))
+    )
+    assert cli_worker.main([operation]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == {"ok": False, "error": "queue_unavailable"}
+    assert captured.err == ""
+    assert "PRIVATE_QUEUE_PATH" not in captured.out
+    assert "PRIVATE_SQLITE_ERROR" not in captured.out
+    assert state["closes"] == (1 if stage == "pragma" else 0)
 
 
 def test_bridge_is_explicitly_opt_in_and_does_not_touch_main_db(monkeypatch, tmp_path):
