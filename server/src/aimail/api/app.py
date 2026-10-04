@@ -236,7 +236,8 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
             "ORDER BY produced_at DESC,id DESC LIMIT 1) WHERE m.thread_id=? AND r.status='ok' "
             "AND (json_extract(r.payload,'$.is_inquiry')=1 "
             "OR json_extract(r.payload,'$.is_trade')=1 "
-            "OR json_extract(r.payload,'$.mail_type')='business') LIMIT 1",
+            "OR (json_type(r.payload,'$.is_trade') IS NULL "
+            "AND json_extract(r.payload,'$.mail_type')='business')) LIMIT 1",
             (int(row["id"]),),
         ).fetchone()
         is not None,

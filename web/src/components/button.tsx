@@ -13,8 +13,8 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-7 gap-1 px-2.5 text-xs",
-  md: "h-8 gap-1.5 px-3 text-sm",
+  sm: "h-8 gap-1.5 px-2.5 text-xs",
+  md: "h-9 gap-2 px-3 text-sm",
 };
 
 export function Button({
@@ -33,11 +33,11 @@ export function Button({
     <button
       type="button"
       className={cn(
-        "inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors",
+        "mail-button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors",
         "disabled:pointer-events-none disabled:opacity-50",
         VARIANTS[variant],
         SIZES[size],
-        !children && (size === "sm" ? "w-7 px-0" : "w-8 px-0"),
+        !children && (size === "sm" ? "w-8 px-0" : "w-9 px-0"),
         className,
       )}
       {...rest}

@@ -99,6 +99,8 @@ def test_cross_mailbox_reading_preserves_source_and_does_not_expand_history(
         return json.dumps(
             {
                 "is_inquiry": False,
+                "is_trade": True,
+                "trade_role": "transaction",
                 "detected_language": "en",
                 "summary_zh": "确认48件",
                 "summary_en": "Confirm 48 units",
@@ -133,6 +135,8 @@ def test_cross_mailbox_analyze_request_stores_reading(conn, mailbox, conversatio
         lambda *args: json.dumps(
             {
                 "is_inquiry": False,
+                "is_trade": True,
+                "trade_role": "transaction",
                 "detected_language": "en",
                 "summary_zh": "确认48件",
                 "summary_en": "Confirm 48 units",

@@ -175,6 +175,8 @@ def test_reader_sees_attachment_text_and_its_numbers_verify(conn, mailbox, monke
         return json.dumps(
             {
                 "is_inquiry": True,
+                "is_trade": True,
+                "trade_role": "buyer",
                 "detected_language": "en",
                 "summary_zh": "要 48 条 DDR5",
                 "summary_en": "48 DDR5",

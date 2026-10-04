@@ -16,6 +16,8 @@ from conftest import make_raw
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 GOOD = {
     "is_inquiry": True,
+    "is_trade": True,
+    "trade_role": "buyer",
     "detected_language": "en",
     "summary_zh": "客户要 48 台。",
     "summary_en": "Customer needs 48 units.",
@@ -47,7 +49,7 @@ def test_reading_is_stored_with_attribution(conn, mailbox, monkeypatch):
     assert read_message(conn, pk, NOW) == "ok"
     row = repo.latest_reading(conn, pk)
     assert row["model"] == "Spark · fast"
-    assert row["task_version"] == "summarize_inquiry@4"
+    assert row["task_version"] == "summarize_inquiry@5"
     assert row["produced_at"] == "2026-09-19T00:00:00+00:00"
     assert json.loads(row["payload"])["unverified"] == []
 

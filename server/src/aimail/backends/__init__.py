@@ -1,9 +1,10 @@
-"""模型后端:一份合同,两条后端。
+"""模型后端:一份合同,可切换的后端。
 
 - local  —— Spark,走 LiteLLM 网关的 OpenAI 兼容接口
 - claude —— Anthropic 官方 SDK
+- codex_cli / claude_code_cli —— 已安装、已登录的研发 CLI，隔离的纯文本任务
 
-合同(输入什么、输出什么、怎么核对)在 tasks/ 里,两条后端共用;同一套评测集跑出来的分数才可比。
+合同(输入什么、输出什么、怎么核对)在 tasks/ 里,后端共用;同一套评测集跑出来的分数才可比。
 知道"模型在哪"的只有这个目录(宪法第八条,tools/guard_hostnames.py 强制)。
 
 小模型跟托管模型最大的差别不是聪明程度,是输出纪律:爱裹围栏、裹解释、写着写着截断。所以:
@@ -34,8 +35,8 @@ class LLMError(RuntimeError):
 
 def backend() -> str:
     value = os.environ.get("LLM_BACKEND", "local").strip().lower()
-    if value not in {"local", "claude"}:
-        raise LLMError(f"LLM_BACKEND 只能是 local 或 claude,拿到的是 {value!r}")
+    if value not in {"local", "claude", "codex_cli", "claude_code_cli"}:
+        raise LLMError("LLM_BACKEND 只能是 local、claude、codex_cli 或 claude_code_cli")
     return value
 
 
@@ -44,6 +45,10 @@ def model_name(override: str | None = None) -> str:
         return override.strip()
     if backend() == "local":
         return os.environ.get("LOCAL_MODEL", "").strip()
+    if backend() in {"codex_cli", "claude_code_cli"}:
+        from . import cli
+
+        return cli.model_name(backend())
     return os.environ.get("MODEL", DEFAULT_CLAUDE_MODEL).strip()
 
 
@@ -67,13 +72,21 @@ def api_key() -> str:
 
 
 def describe(model: str | None = None) -> str:
-    """一行字说明这次结果是谁算的——两个后端的输出长得一样,不标就分不清。"""
+    """一行字说明这次结果是谁算的；CLI 与 API 后端分别署名。"""
     name = model_name(model) or "(未设置)"
+    if backend() in {"codex_cli", "claude_code_cli"}:
+        from . import cli
+
+        return f"{cli.label(backend())} · {name}"
     label = os.environ.get("LOCAL_PROVIDER_LABEL", "Spark")
     return f"{label} · {name}" if backend() == "local" else f"Claude · {name}"
 
 
 def ready() -> tuple[bool, str]:
+    if backend() in {"codex_cli", "claude_code_cli"}:
+        from . import cli
+
+        return cli.ready(backend())
     if backend() == "local":
         if not model_name():
             return False, "没有设置 LOCAL_MODEL(网关路由名,例如 fast 或 brain)"
@@ -221,6 +234,15 @@ def complete(
             if model:
                 options["model"] = model
             return _call_local(system, user, shape, **options)
+        if backend() in {"codex_cli", "claude_code_cli"}:
+            from . import cli
+
+            try:
+                return cli.complete(
+                    backend(), system, user, model_cls.model_json_schema(), model=model
+                )
+            except cli.CLIError as exc:
+                raise LLMError(str(exc)) from None
         return _call_claude(system, user, shape)
 
     raw = call(system, user, shape)
@@ -235,4 +257,6 @@ def complete(
         try:
             return model_cls.model_validate_json(_extract_json(raw2))
         except (ValidationError, LLMError) as second:
+            if backend() in {"codex_cli", "claude_code_cli"}:
+                raise LLMError("CLI 两次都没给出合规 JSON；结果没有保存") from None
             raise LLMError(f"两次都没给出合规 JSON。最后一次:{second}") from second

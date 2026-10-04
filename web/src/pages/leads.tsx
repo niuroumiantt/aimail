@@ -12,6 +12,7 @@ export default function LeadsPage() {
   const counts = useMemo(() => countFolders(threads), [threads]);
   return (
     <AppShell
+      title="销售线索"
       sidebar={<Sidebar counts={counts} activeFolder="all" inInbox={false} mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={selectMailbox} onSync={sync} syncing={syncing} />}
       main={
         <LeadsBoard

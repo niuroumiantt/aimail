@@ -22,6 +22,8 @@ from conftest import make_raw
 NOW = datetime(2026, 9, 19, tzinfo=UTC)
 SUMMARY = {
     "is_inquiry": True,
+    "is_trade": True,
+    "trade_role": "buyer",
     "detected_language": "en",
     "summary_zh": "客户要 48 台。",
     "summary_en": "Customer needs 48 units.",

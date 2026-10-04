@@ -9,5 +9,5 @@
 
 | 路径 | 来源 | 许可证 | 改了什么 |
 | --- | --- | --- | --- |
-| `web/src/tokens/theme.css` | Radix Colors 3.0.0 https://github.com/radix-ui/colors | MIT | 只抄 sage / teal / grass / amber / tomato 的 sRGB 数值;语义命名、亮暗映射、圆角、阴影是我们的 |
+| `web/src/tokens/theme.css` | Radix Colors 3.0.0 https://github.com/radix-ui/colors | MIT | 使用 slate / indigo / grass / amber / tomato 色阶基础值;底色与分隔线微调、语义命名、亮暗映射、圆角、阴影是我们的 |
 | `web/src/fonts/index.css` | 站长 infra 仓库 `design/fonts` 字体包:Inter 4.1(rsms/inter)+ Noto Sans SC 2.004(notofonts/noto-cjk),`package/` 由 infra `scripts/sync_fonts.py` 原样同步 | SIL OFL 1.1(许可证随包在 `package/LICENSE-*.txt`) | 一字不改;换字体只改 infra 那份再同步 |

@@ -119,6 +119,8 @@ def test_wrong_types_are_rejected_not_coerced(monkeypatch):
 seen: dict = {}
 ANSWER = {
     "is_inquiry": True,
+    "is_trade": True,
+    "trade_role": "buyer",
     "detected_language": "en",
     "summary_zh": "客户要 48 台。",
     "summary_en": "Customer needs 48 units.",

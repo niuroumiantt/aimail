@@ -12,6 +12,7 @@ import { Pill, type Tone } from "./pill";
 import { ReadingCard } from "./reading-card";
 import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
 import { SearchBox } from "./search-box";
+import "@/tokens/workspace-layout.css";
 
 const SWATCHES: Array<[string, string]> = [
   ["canvas", "bg-canvas"],
@@ -160,10 +161,10 @@ const READINGS: Array<[string, Reading | undefined]> = [
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
-    <section className="grid gap-3">
-      <header className="flex items-baseline gap-2">
-        <h2 className="text-base font-semibold text-ink">{title}</h2>
-        {note && <p className="text-xs text-ink-2">{note}</p>}
+    <section className="mail-kit-section">
+      <header>
+        <h2 className="mail-section-heading">{title}</h2>
+        {note && <p className="mail-muted">{note}</p>}
       </header>
       {children}
     </section>
@@ -173,8 +174,9 @@ function Section({ title, note, children }: { title: string; note?: string; chil
 /** 组件页:每个组件的每种状态都在这儿,亮暗两套一起看。代替 Storybook。 */
 export function Kit() {
   return (
-    <div className="mx-auto grid max-w-5xl gap-10 px-6 py-6">
-      <Section title="色板" note="sage 中性 + teal 品牌 + 三个语义色。全部来自 tokens/theme.css,别处不许写色值。">
+    <div className="mail-kit-page">
+      <header><h1 className="mail-page-heading">设计组件</h1><p className="mail-page-description">全站共用的字体、图标、颜色和组件状态。</p></header>
+      <Section title="色板" note="冷白与 slate 中性色，单一 indigo 强调；语义色只用于成功、提醒和错误状态。">
         <div className="grid grid-cols-5 gap-2 md:grid-cols-9">
           {SWATCHES.map(([name, cls]) => (
             <div key={name} className="grid gap-1">
@@ -187,26 +189,26 @@ export function Kit() {
 
       <Section title="字" note="拉丁与数字 Inter,汉字 Noto Sans SC,自托管、按字频切片(ADR-0007);型号与数字用等宽栈加 tabular-nums。">
         <Card className="grid gap-2 p-4">
-          <p className="text-2xl font-semibold tracking-tight text-ink">询盘工作台 Inquiry desk</p>
-          <p className="text-base text-ink">Aurora Compute 要 48 台 2U 服务器,CIF 赫尔辛基。</p>
+          <p className="mail-kit-font-heading">询盘工作台 Inquiry desk</p>
+          <p className="mail-kit-font-mail">Aurora Compute 要 48 台 2U 服务器,CIF 赫尔辛基。</p>
           <p className="text-sm text-ink">Body 14 — 业务员一天看几十封,这一档要最舒服。</p>
           <p className="text-xs text-ink-2">Meta 12 — 时间、邮箱、地区。</p>
           <p className="font-mono text-sm text-ink">SYS-6029U-TR4 · E5-2680v4 · 3.84TB · USD 4,850</p>
-          <p className="text-2xs uppercase tracking-wider text-ink-3">Label 11 · 分组标题</p>
+          <p className="text-2xs text-ink-3">Label 12 · 分组标题</p>
         </Card>
       </Section>
 
       <Section title="按钮">
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="solid" icon={<Check size={14} strokeWidth={2.25} />}>确认为线索</Button>
+          <Button variant="solid" icon={<Check size={16} strokeWidth={1.75} />}>确认为线索</Button>
           <Button variant="soft">软</Button>
           <Button>描边</Button>
           <Button variant="ghost">幽灵</Button>
           <Button variant="danger">删除</Button>
-          <Button disabled icon={<Reply size={14} />}>禁用</Button>
+          <Button disabled icon={<Reply size={16} />}>禁用</Button>
           <Button size="sm" variant="solid">小</Button>
           <Button size="sm">小描边</Button>
-          <Button size="sm" variant="ghost" aria-label="仅图标" icon={<Reply size={15} strokeWidth={1.75} />} />
+          <Button size="sm" variant="ghost" aria-label="仅图标" icon={<Reply size={16} strokeWidth={1.75} />} />
         </div>
       </Section>
 
@@ -227,13 +229,13 @@ export function Kit() {
         </div>
       </Section>
 
-      <Section title="头像" note="同一个名字永远同一个色;圆角随尺寸走。">
+      <Section title="头像" note="业务页面使用安静的中性头像，彩色只用于必要的语义状态。">
         <div className="flex flex-wrap items-center gap-3">
           {["Mikko Laine", "王婷", "Omar Haddad", "김민준", "Ana Ribeiro", "Nguyễn Thị Lan"].map((n) => (
-            <Avatar key={n} name={n} size="lg" />
+            <Avatar key={n} name={n} size="lg" muted />
           ))}
-          <Avatar name="Mikko Laine" size="md" />
-          <Avatar name="Mikko Laine" size="sm" />
+          <Avatar name="Mikko Laine" size="md" muted />
+          <Avatar name="Mikko Laine" size="sm" muted />
           <Avatar name="Priya Nair" size="md" muted />
         </div>
       </Section>

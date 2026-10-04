@@ -16,6 +16,9 @@ export type Reading =
   | (Attribution & {
       status: "ok";
       is_inquiry: boolean;
+      /** 买卖相关；旧版读数没有此字段，显示层保留兼容。 */
+      is_trade?: boolean;
+      trade_role?: "buyer" | "supplier" | "transaction" | "none" | "uncertain";
       mail_type?: MailType;
       language: string;
       summary_zh: string;

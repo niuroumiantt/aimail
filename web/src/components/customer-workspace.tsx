@@ -1,9 +1,10 @@
-import { CircleUserRound, FileText, RefreshCw, Sparkles } from "lucide-react";
+import { FileText, RefreshCw, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { CustomerContext, Thread } from "@/data/types";
 import { fullTime } from "@/lib/text";
 import { ReadingCard } from "./reading-card";
+import { Avatar } from "./avatar";
 
 export function CustomerWorkspace({ thread, mailbox, revision, load, refresh, onAnalyze }: {
   thread: Thread; mailbox: string; revision: string;
@@ -19,6 +20,7 @@ export function CustomerWorkspace({ thread, mailbox, revision, load, refresh, on
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const context = result?.scope === scope ? result.value : undefined;
+  const currentError = error?.scope === scope ? error.text : undefined;
   useEffect(() => {
     const explicitRetry = retry !== previousRetry.current;
     previousRetry.current = retry;
@@ -50,14 +52,14 @@ export function CustomerWorkspace({ thread, mailbox, revision, load, refresh, on
 
   return <div className="customer-workspace-content">
     <section className="customer-profile" aria-label="客户信息">
-      <div><CircleUserRound strokeWidth={1.75} /><h2>{thread.contact}</h2></div>
-      <p>{thread.email}</p>{thread.region && <p>{thread.region}</p>}
-      <small>当前邮箱内同一联系人的来信及我方回复</small>
+      <div><Avatar name={thread.contact} size="lg" muted /><div><h2>{thread.contact}</h2><p>{thread.email}</p></div></div>
+      {thread.region && <p>{thread.region}</p>}
+      <small>同一联系人 · 来信与我方回复</small>
     </section>
     <section className="customer-summary" aria-label="累计需求摘要">
       <header><Sparkles strokeWidth={1.75} /><h3>累计需求摘要</h3><button type="button" title="重试失败的摘要；已完成且无变化的摘要直接复用" aria-label="更新客户需求摘要" onClick={() => setRetry(value => value + 1)}><RefreshCw size={15} strokeWidth={1.75} /></button></header>
-      {!context && !error && <p role="status">正在读取客户往来…</p>}
-      {error?.scope === scope && <p role="alert" className="customer-error">{error.text}</p>}
+      {!context && !currentError && <p role="status">正在读取客户往来…</p>}
+      {currentError && <p role="alert" className="customer-error">{currentError}</p>}
       {context && !context.configured && <p>AI 尚未配置，可继续查看原文和单封读数。</p>}
       {context?.projects.map(project => <article className="customer-project" key={project.id} aria-label={project.subject}>
         <Link className="customer-project-title" to={`/t/${project.id}`}>{project.subject}</Link>

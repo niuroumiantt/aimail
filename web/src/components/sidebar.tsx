@@ -1,4 +1,4 @@
-import { Inbox, Palette, RefreshCw, Users } from "lucide-react";
+import { Archive, CheckCheck, Clock3, FileText, Inbox, ListTodo, Mail, Palette, RefreshCw, Tag, Trash2, Users, Zap } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import type { MailboxInfo } from "@/data/types";
@@ -6,8 +6,8 @@ import { cn } from "@/lib/cn";
 import { FOLDER_LABEL, FOLDER_ORDER, type FolderKey } from "./folders";
 import { ThemeToggle } from "./theme-toggle";
 
-const NAV_ITEM =
-  "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink current:bg-surface-3 current:font-medium current:text-ink";
+const NAV_ITEM = "mail-sidebar-link";
+const FOLDER_ICON = { all: Mail, inbox: Clock3, quote: Tag, replied: CheckCheck, invalid: Archive, leads: Zap, trash: Trash2 };
 
 /** 左栏:产品标、三个主入口、收件箱分组。分组的计数是真的,从数据来。
  *  aria-current 自己算:分组靠 ?f= 区分,路由库的匹配不看查询串。 */
@@ -40,37 +40,26 @@ export function Sidebar({
   return (
     <nav
       aria-label="主导航"
-      className="flex h-full w-56 shrink-0 flex-col gap-6 border-r border-line bg-canvas px-3 py-4"
+      className="mail-sidebar flex h-full w-full shrink-0 flex-col border-r border-line bg-surface-2"
     >
-      <Link to="/followups" className={NAV_ITEM}>我的跟进</Link>
-      <div className="flex items-center gap-2.5 px-2">
-        <span aria-hidden className="grid size-7 place-items-center rounded-md bg-brand text-on-brand">
-          <Inbox size={15} strokeWidth={2.25} />
-        </span>
-        <div className="leading-tight">
-          <h1 className="text-sm font-semibold tracking-tight text-ink">aimail</h1>
-          <p className="truncate font-mono text-2xs text-ink-2" title={mailbox.address}>
-            {mailbox.address || "…"}
-          </p>
-        </div>
+      <div className="mail-sidebar-mailbox">
+        <div><span aria-hidden><Inbox size={16} /></span><strong>我的邮箱</strong></div>
+        <p title={mailbox.address}>{mailbox.address || "正在读取邮箱…"}</p>
+        {mailboxes.length > 1 && <select aria-label="查看邮箱" value={mailbox.address}
+          onChange={e => void onMailboxChange?.(e.target.value)}
+          className="border border-line bg-surface px-2 text-xs text-ink">
+          {mailboxes.map(item => <option key={item.address} value={item.address}>{item.address}</option>)}
+        </select>}
       </div>
 
-      {mailboxes.length > 1 && <label className="grid gap-1 px-2 text-2xs text-ink-3">
-        查看邮箱
-        <select aria-label="查看邮箱" value={mailbox.address}
-          onChange={e => void onMailboxChange?.(e.target.value)}
-          className="h-8 rounded-md border border-line bg-surface px-2 text-xs text-ink">
-          {mailboxes.map(item => <option key={item.address} value={item.address}>{item.address}</option>)}
-        </select>
-      </label>}
-
-      <ul className="grid gap-0.5">
+      <ul className="mail-sidebar-nav">
         <li>
           <Link to="/" className={NAV_ITEM} aria-current={current(inInbox)}>
             <Inbox size={16} strokeWidth={1.75} />
             收件箱
           </Link>
         </li>
+        <li><Link to="/followups" className={NAV_ITEM} aria-current={current(pathname.startsWith("/followups"))}><ListTodo size={17} />我的跟进</Link></li>
         {mailbox.tasks.includes("leads") && (
           <li>
             <Link to="/leads" className={NAV_ITEM} aria-current={current(pathname === "/leads")}>
@@ -81,7 +70,7 @@ export function Sidebar({
         )}
         <li>
           <Link to="/kit" className={NAV_ITEM} aria-current={current(pathname === "/kit")}>
-            <Palette size={16} strokeWidth={1.75} />
+            <Palette size={17} />
             组件
           </Link>
         </li>
@@ -92,34 +81,37 @@ export function Sidebar({
           type="button"
           onClick={() => void syncNow()}
           disabled={syncing}
-          className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-surface-2 px-2.5 text-sm font-medium text-ink transition-colors hover:bg-surface-3 disabled:cursor-wait disabled:opacity-60"
+          className="mail-sidebar-sync"
         >
-          <RefreshCw className={syncing ? "animate-spin" : ""} size={15} strokeWidth={2} />
+          <RefreshCw className={syncing ? "animate-spin" : ""} size={16} />
           {syncing ? "正在收信…" : "立即收信"}
         </button>
         {syncError && <p className="mt-1 px-1 text-2xs text-danger">{syncError}</p>}
       </div>}
 
-      <div className="grid gap-1">
-        <h2 className="px-2.5 text-2xs font-medium uppercase tracking-wider text-ink-3">收件箱</h2>
-        <ul className="grid gap-0.5">
-          {FOLDER_ORDER.map((key) => (
+      <div className="mail-sidebar-section">
+        <h2>邮件视图</h2>
+        <ul className="mail-sidebar-nav">
+          {FOLDER_ORDER.map((key) => {
+            const Icon = FOLDER_ICON[key] ?? FileText;
+            return (
             <li key={key}>
               <Link
                 to={key === "all" ? "/" : `/?f=${key}`}
                 aria-current={inInbox && activeFolder === key ? "true" : undefined}
-                className={cn(NAV_ITEM, "justify-between")}
+                className={cn(NAV_ITEM)}
               >
-                {FOLDER_LABEL[key]}
-                <span className="font-mono text-2xs tabular-nums text-ink-3">{counts[key]}</span>
+                <Icon size={17} />
+                <span>{FOLDER_LABEL[key]}</span>
+                <span className="mail-sidebar-count">{counts[key]}</span>
               </Link>
             </li>
-          ))}
+          ); })}
         </ul>
       </div>
 
-      <div className="mt-auto flex items-center justify-between px-1">
-        <span className="font-mono text-2xs text-ink-3">原文保留 · AI 待核对</span>
+      <div className="mail-sidebar-footer">
+        <span>原文保留 · AI 待核对</span>
         <ThemeToggle />
       </div>
     </nav>

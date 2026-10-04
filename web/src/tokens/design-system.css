@@ -1,0 +1,81 @@
+/* Shared application design: 4 / 8 spacing, quiet surfaces, one accent.
+   These classes are the same on the inbox, customer records and task pages. */
+:root {
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
+  --ui-space-8: 32px;
+  --ui-space-10: 40px;
+  --ui-font-meta: 12px;
+  --ui-font-body: 14px;
+  --ui-font-reading: 15px;
+  --ui-font-heading: 16px;
+  --ui-font-title: 20px;
+  --ui-control-height: 36px;
+  --ui-control-height-small: 32px;
+  --ui-nav-width: 216px;
+  --ui-customer-width: 320px;
+}
+body { line-height: 1.55; }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+  border-radius: var(--radius-md);
+}
+button svg, a svg { flex-shrink: 0; }
+svg.lucide { stroke-width: 1.75; }
+.mail-topbar {
+  display: flex; align-items: center; gap: var(--ui-space-5);
+  min-height: 56px; padding: 0 var(--ui-space-6); flex-shrink: 0;
+}
+.mail-product-mark { display: flex; align-items: center; gap: var(--ui-space-2); font-size: 18px; font-weight: 650; letter-spacing: -.035em; }
+.mail-product-mark > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-md); background: var(--color-brand); color: var(--color-on-brand); }
+.mail-product-mark svg { width: 17px; height: 17px; }
+.mail-topbar-location { padding-left: var(--ui-space-5); border-left: 1px solid var(--color-line-2); font-size: var(--ui-font-body); color: var(--color-ink-2); }
+.mail-topbar > header { flex: 1; min-width: 0; height: auto; border: 0; padding: 0; background: transparent; }
+.mail-topbar > header summary { font-size: var(--ui-font-meta); }
+.mail-topbar .mail-topbar-menu { display: none; }
+.mail-app-panes { margin: 0 var(--ui-space-3) var(--ui-space-3); border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-sm); }
+.mail-page-body { width: 100%; max-width: 1440px; margin: 0 auto; padding: var(--ui-space-8); }
+.mail-page-heading { font-size: var(--ui-font-title); font-weight: 650; letter-spacing: -.025em; line-height: 1.4; color: var(--color-ink); }
+.mail-page-description { margin-top: var(--ui-space-2); font-size: var(--ui-font-body); line-height: 1.7; color: var(--color-ink-2); }
+.mail-section-heading { font-size: var(--ui-font-heading); font-weight: 600; line-height: 1.5; color: var(--color-ink); }
+.mail-section { border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); padding: var(--ui-space-6); }
+.mail-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-3); }
+.mail-muted { font-size: var(--ui-font-meta); line-height: 1.7; color: var(--color-ink-2); }
+.mail-icon-button { display: grid; place-items: center; width: var(--ui-control-height-small); height: var(--ui-control-height-small); border-radius: var(--radius-md); color: var(--color-ink-2); cursor: pointer; }
+.mail-icon-button:hover { color: var(--color-ink); background: var(--color-surface-3); }
+.mail-icon-button svg { width: 18px; height: 18px; }
+.mail-button svg { width: 16px; height: 16px; stroke-width: 1.75; }
+.mail-sidebar { gap: var(--ui-space-6); padding: var(--ui-space-6) var(--ui-space-3) var(--ui-space-4); font-size: var(--ui-font-body); }
+.mail-sidebar-mailbox { display: grid; gap: var(--ui-space-2); padding: 0 var(--ui-space-2); }
+.mail-sidebar-mailbox > div { display: flex; align-items: center; gap: var(--ui-space-2); min-width: 0; }
+.mail-sidebar-mailbox strong { font-size: var(--ui-font-body); font-weight: 600; }
+.mail-sidebar-mailbox p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-ink-2); font-size: var(--ui-font-meta); }
+.mail-sidebar-mailbox > div > span { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--color-line-2); border-radius: var(--radius-md); color: var(--color-ink-2); background: var(--color-surface); }
+.mail-sidebar select { width: 100%; min-width: 0; height: var(--ui-control-height-small); }
+.mail-sidebar-nav { display: grid; gap: var(--ui-space-1); }
+.mail-sidebar-link { display: flex; align-items: center; gap: var(--ui-space-3); min-height: 36px; border-radius: var(--radius-md); padding: 0 var(--ui-space-3); color: var(--color-ink-2); font-size: var(--ui-font-body); transition: background .15s, color .15s; }
+.mail-sidebar-link:hover { color: var(--color-ink); background: var(--color-surface-3); }
+.mail-sidebar-link[aria-current] { color: var(--color-brand-text); background: var(--color-brand-wash); font-weight: 600; }
+.mail-sidebar-link svg { width: 18px; height: 18px; }
+.mail-sidebar-link > span { min-width: 0; }
+.mail-sidebar-count { margin-left: auto; color: var(--color-ink-3); font-size: var(--ui-font-meta); font-variant-numeric: tabular-nums; font-weight: 400; }
+.mail-sidebar-section h2 { padding: 0 var(--ui-space-3); margin-bottom: var(--ui-space-2); font-size: var(--ui-font-meta); font-weight: 500; color: var(--color-ink-3); }
+.mail-sidebar-sync { display: flex; align-items: center; justify-content: center; gap: var(--ui-space-2); width: 100%; height: var(--ui-control-height); border: 1px solid var(--color-line-2); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-ink-2); font-size: var(--ui-font-meta); cursor: pointer; }
+.mail-sidebar-sync:hover { border-color: var(--color-brand-line); color: var(--color-brand-text); }
+.mail-sidebar-sync:disabled { cursor: wait; opacity: .6; }
+.mail-sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2); margin-top: auto; padding: var(--ui-space-3) var(--ui-space-2) 0; border-top: 1px solid var(--color-line); }
+.mail-sidebar-footer span { font-size: var(--ui-font-meta); color: var(--color-ink-3); }
+@media (max-width: 767px) {
+  .mail-topbar { min-height: 52px; gap: var(--ui-space-3); padding: 0 var(--ui-space-4); border-bottom: 1px solid var(--color-line); }
+  .mail-topbar .mail-topbar-menu { display: grid; }
+  .mail-topbar-location { display: none; }
+  .mail-product-mark { font-size: 17px; }
+  .mail-topbar > header summary > span:nth-child(2) { display: none; }
+  .mail-app-panes { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .mail-page-body { padding: var(--ui-space-5); }
+}

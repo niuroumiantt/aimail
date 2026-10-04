@@ -46,3 +46,18 @@ it("supports manual collapse and survives malformed stored settings", () => {
   fireEvent.click(screen.getByRole("button", { name: "展开邮件列表" }));
   expect(screen.getByRole("region", { name: "列表" })).not.toHaveClass("mail-list-collapsed");
 });
+
+it("keeps navigation reachable on a narrow screen and persists desktop navigation width", () => {
+  const width = window.innerWidth;
+  Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+  const view = render(<AppShell {...props} />);
+  fireEvent.click(screen.getByRole("button", { name: "展开主导航" }));
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("data-overlay", "true");
+  fireEvent.click(screen.getByRole("button", { name: "隐藏左侧导航" }));
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("data-overlay", "false");
+  Object.defineProperty(window, "innerWidth", { value: 1440, configurable: true });
+  fireEvent(window, new Event("resize"));
+  fireEvent.keyDown(screen.getByRole("separator", { name: "调整左侧导航宽度" }), { key: "ArrowRight" });
+  expect(JSON.parse(localStorage.getItem("aimail-navigation-layout")!).width).toBe(228);
+  Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
+});
