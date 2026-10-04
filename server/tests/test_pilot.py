@@ -30,6 +30,8 @@ def test_model_canary_records_usage_without_mail_content(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["pilot", "--config", str(cfg)])
     summary = {
         "is_inquiry": True,
+        "is_trade": True,
+        "trade_role": "buyer",
         "detected_language": "en",
         "summary_zh": "48 units",
         "summary_en": "48 units",

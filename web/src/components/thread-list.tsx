@@ -5,7 +5,7 @@ import { FOLDER_LABEL, FOLDER_ORDER, type FolderKey } from "./folders";
 import { SearchBox } from "./search-box";
 import { ThreadRow } from "./thread-row";
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { AlignLeft, ChevronDown, ChevronRight, List } from "lucide-react";
 
 export function ThreadList({
   threads,
@@ -37,24 +37,24 @@ export function ThreadList({
   for (const thread of visible) { const email = thread.email.trim().toLowerCase(); groups.set(email, [...(groups.get(email) ?? []), thread]); }
   return (
     <>
-      <header className="grid gap-3 border-b border-line px-4 pb-3 pt-4">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-base font-semibold text-ink">{FOLDER_LABEL[folder]}</h2>
-          <span className="font-mono text-xs tabular-nums text-ink-2">{threads.length}</span>
+      <header className="mail-list-header">
+        <div className="mail-list-title">
+          <h2>{FOLDER_LABEL[folder]}</h2>
+          <span>{threads.length}</span>
         </div>
         <select aria-label="邮件分组" value={folder} className="h-8 min-w-0 rounded-md border border-line bg-surface px-2 text-sm text-ink md:hidden"
           onChange={e => navigate(e.target.value === "all" ? "/" : `/?f=${e.target.value}`)}>
           {FOLDER_ORDER.map(key => <option key={key} value={key}>{FOLDER_LABEL[key]}</option>)}
         </select>
         <SearchBox value={query} onChange={setQuery} />
-        <div className="mail-view-controls"><div><button type="button" aria-pressed={preferences.compact} onClick={() => changePreferences({ compact: true })}>简洁</button><button type="button" aria-pressed={!preferences.compact} onClick={() => changePreferences({ compact: false })}>概括</button></div><label><input type="checkbox" checked={preferences.grouped} onChange={event => changePreferences({ grouped: event.target.checked })} />按联系人聚拢</label></div>
+        <div className="mail-view-controls"><div><button type="button" aria-pressed={preferences.compact} onClick={() => changePreferences({ compact: true })}><List size={14} />简洁</button><button type="button" aria-pressed={!preferences.compact} onClick={() => changePreferences({ compact: false })}><AlignLeft size={14} />概括</button></div><label><input type="checkbox" checked={preferences.grouped} onChange={event => changePreferences({ grouped: event.target.checked })} />按联系人聚拢</label></div>
       </header>
       {error && <p role="alert" className="border-b border-line px-4 py-3 text-xs text-danger-text">加载失败：{error}。请刷新页面重试。</p>}
       <div aria-busy={loading} className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <p role="status" className="px-4 py-6 text-sm text-ink-2">正在加载邮件…</p>
         ) : visible.length === 0 && !error ? (
-          <EmptyState title="这个分组是空的" subtitle={folder === "trash" ? "删除的会话会出现在这里，可以恢复。" : "邮件保留在全部列表，潜在线索会突出显示。"} />
+          <EmptyState title={term ? "没有匹配的邮件" : "这个分组是空的"} subtitle={term ? "试试联系人、公司名称或邮件主题。" : folder === "trash" ? "删除的会话会出现在这里，可以恢复。" : "邮件保留在全部列表，买卖相关往来会突出显示。"} />
         ) : (
           preferences.grouped ? [...groups.entries()].map(([email, items]) => <section key={email} className="mail-contact-group"><button className="mail-contact-heading" type="button" aria-expanded={!collapsed.includes(email)} onClick={() => setCollapsed(current => current.includes(email) ? current.filter(value => value !== email) : [...current, email])}>{collapsed.includes(email) ? <ChevronRight size={14} strokeWidth={1.75} /> : <ChevronDown size={14} strokeWidth={1.75} />}<span>{items[0].contact}<small>{email}</small></span><small>{items.length} 个话题</small></button>{!collapsed.includes(email) && items.map(thread => <ThreadRow key={thread.id} thread={thread} search={search} compact={preferences.compact} />)}</section>)
             : visible.map((t) => <ThreadRow key={t.id} thread={t} search={search} compact={preferences.compact} />)

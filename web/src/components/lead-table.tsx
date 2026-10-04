@@ -23,7 +23,7 @@ export function LeadTable({
   onUpdate?: (id: string, patch: { status?: LeadStatus }) => Promise<string>;
 }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-line bg-surface shadow-sm">
+    <div className="mail-lead-table">
       <table className="w-full min-w-160 border-collapse text-sm">
         <thead>
           <tr className="border-b border-line text-left text-2xs font-medium uppercase tracking-wider text-ink-3">
@@ -41,9 +41,9 @@ export function LeadTable({
               <tr key={lead.id} className="border-b border-line last:border-b-0 hover:bg-surface-2">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
-                    <Avatar name={lead.contact} size="sm" muted={lead.status === "lost"} />
+                    <Avatar name={lead.contact} size="sm" muted />
                     <div className="min-w-0">
-                      <div className="font-medium text-ink">
+                      <div className="mail-lead-company text-ink">
                         {threadIds.has(lead.thread_id) ? (
                           <Link to={`/t/${lead.thread_id}`} className="hover:text-brand-text hover:underline">
                             {lead.company}

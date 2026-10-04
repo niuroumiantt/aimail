@@ -1,14 +1,13 @@
 /* 来源: Radix Colors 3.0.0 https://github.com/radix-ui/colors (MIT)
-   sage / teal / grass / amber / tomato 五个 12 级色阶的 sRGB 数值照抄;
-   语义命名、亮暗映射、字体、圆角、阴影是我们自己的。
+   slate / indigo / grass / amber / tomato 色阶提供基础数值;
+   应用底色与分隔线微调、语义命名、亮暗映射、字体、圆角、阴影是我们自己的。
    这是整个 web/ 里唯一允许出现字面色值的文件(宪法第九条,ADR-0002)。
 
    12 级色阶怎么用(Radix 的约定,照用):
    1-2 页面与卡片底色 · 3-5 组件底色(静止/悬停/按下) · 6-8 边框(弱/常/强)
    9-10 实色填充(静止/悬停) · 11 低对比文字 · 12 高对比文字
 
-   中性色选 sage(带一点绿的灰)而不是 slate 或 gray:它和 teal 同族,
-   整个界面就有一个方向。品牌色选 teal 而不是蓝——蓝是全网默认。 */
+   中性色为冷调 slate,单一强调色为 indigo;表面、字号和间距共同构成应用设计体系。 */
 @import "tailwindcss";
 
 @theme {
@@ -17,25 +16,25 @@
   --shadow-*: initial;
   --font-*: initial;
 
-  /* 底与面 —— sage */
-  --color-canvas: #f4f5f5;
+  /* 底与面 —— slate */
+  --color-canvas: #f5f6fa;
   --color-surface: #ffffff;
-  --color-surface-2: #f7f8f8;
-  --color-surface-3: #edf0ee;
-  --color-line: #e5e9e7;
-  --color-line-2: #d1d9d5;
-  --color-ink: #23302d;
-  --color-ink-2: #64716d;
-  --color-ink-3: #77837e;
+  --color-surface-2: #f9f9fb;
+  --color-surface-3: #f0f0f3;
+  --color-line: #e5e6eb;
+  --color-line-2: #d9d9e0;
+  --color-ink: #1c2024;
+  --color-ink-2: #60636c;
+  --color-ink-3: #80838d;
 
-  /* 品牌 —— teal */
-  --color-brand: #235e50;
-  --color-brand-2: #264d40;
-  --color-brand-wash: #edf4f1;
-  --color-brand-wash-2: #d8e5dc;
-  --color-brand-line: #a9c0b0;
-  --color-brand-text: #235e50;
-  --color-brand-deep: #18382e;
+  /* 品牌 —— indigo */
+  --color-brand: #3e63dd;
+  --color-brand-2: #3358d4;
+  --color-brand-wash: #edf2fe;
+  --color-brand-wash-2: #e1e9ff;
+  --color-brand-line: #c1d0ff;
+  --color-brand-text: #3e63dd;
+  --color-brand-deep: #1f2d5c;
   --color-on-brand: #ffffff;
 
   /* 语义 —— grass / amber / tomato。语义色不是品牌色,只表示状态 */
@@ -53,7 +52,7 @@
   --color-danger-line: #f5a898;
   --color-danger-text: #d13415;
 
-  --color-overlay: rgba(26, 33, 30, 0.55);
+  --color-overlay: rgba(28, 32, 36, 0.55);
 
   /* 圆角:小控件 6,输入与按钮 8,卡片 12,面板 16 */
   --radius-sm: 6px;
@@ -61,10 +60,10 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
 
-  /* 阴影带 sage 色相,不是纯黑 */
-  --shadow-sm: 0 1px 2px rgba(26, 33, 30, 0.06);
-  --shadow-md: 0 4px 12px rgba(26, 33, 30, 0.08), 0 1px 2px rgba(26, 33, 30, 0.05);
-  --shadow-lg: 0 12px 32px rgba(26, 33, 30, 0.14), 0 2px 6px rgba(26, 33, 30, 0.06);
+  /* 阴影与中性表面保持同一色相 */
+  --shadow-sm: 0 1px 2px rgba(28, 32, 36, 0.06);
+  --shadow-md: 0 4px 12px rgba(28, 32, 36, 0.08), 0 1px 2px rgba(28, 32, 36, 0.05);
+  --shadow-lg: 0 12px 32px rgba(28, 32, 36, 0.14), 0 2px 6px rgba(28, 32, 36, 0.06);
 
   /* 字体:全站统一的自托管字体包(src/fonts/,ADR-0007):拉丁与数字 Inter,汉字 Noto Sans SC。
      这两行必须和 src/fonts/package/fonts.css 里的 --font-sans / --font-mono 一字不差,
@@ -111,22 +110,22 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --color-canvas: #101211;
-      --color-surface: #171918;
-      --color-surface-2: #202221;
-      --color-surface-3: #272a29;
-      --color-line: #373b39;
-      --color-line-2: #444947;
-      --color-ink: #eceeed;
-      --color-ink-2: #adb5b2;
-      --color-ink-3: #717d79;
-      --color-brand: #12a594;
-      --color-brand-2: #0eb39e;
-      --color-brand-wash: #0d2d2a;
-      --color-brand-wash-2: #023b37;
-      --color-brand-line: #1c6961;
-      --color-brand-text: #0bd8b6;
-      --color-brand-deep: #adf0dd;
+      --color-canvas: #111113;
+      --color-surface: #18191b;
+      --color-surface-2: #212225;
+      --color-surface-3: #272a2d;
+      --color-line: #363a3f;
+      --color-line-2: #43484e;
+      --color-ink: #edeef0;
+      --color-ink-2: #b0b4ba;
+      --color-ink-3: #777b84;
+      --color-brand: #3e63dd;
+      --color-brand-2: #5472e4;
+      --color-brand-wash: #182449;
+      --color-brand-wash-2: #1d2e62;
+      --color-brand-line: #304384;
+      --color-brand-text: #9eb1ff;
+      --color-brand-deep: #d6e1ff;
       --color-on-brand: #ffffff;
       --color-ok: #46a758;
       --color-ok-wash: #1b2a1e;
@@ -151,22 +150,22 @@
   /* 暗色:显式选了暗,压过系统偏好 */
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --color-canvas: #101211;
-    --color-surface: #171918;
-    --color-surface-2: #202221;
-    --color-surface-3: #272a29;
-    --color-line: #373b39;
-    --color-line-2: #444947;
-    --color-ink: #eceeed;
-    --color-ink-2: #adb5b2;
-    --color-ink-3: #717d79;
-    --color-brand: #12a594;
-    --color-brand-2: #0eb39e;
-    --color-brand-wash: #0d2d2a;
-    --color-brand-wash-2: #023b37;
-    --color-brand-line: #1c6961;
-    --color-brand-text: #0bd8b6;
-    --color-brand-deep: #adf0dd;
+    --color-canvas: #111113;
+    --color-surface: #18191b;
+    --color-surface-2: #212225;
+    --color-surface-3: #272a2d;
+    --color-line: #363a3f;
+    --color-line-2: #43484e;
+    --color-ink: #edeef0;
+    --color-ink-2: #b0b4ba;
+    --color-ink-3: #777b84;
+    --color-brand: #3e63dd;
+    --color-brand-2: #5472e4;
+    --color-brand-wash: #182449;
+    --color-brand-wash-2: #1d2e62;
+    --color-brand-line: #304384;
+    --color-brand-text: #9eb1ff;
+    --color-brand-deep: #d6e1ff;
     --color-on-brand: #ffffff;
     --color-ok: #46a758;
     --color-ok-wash: #1b2a1e;

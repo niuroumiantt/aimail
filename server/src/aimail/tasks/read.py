@@ -65,6 +65,8 @@ def read_message(
     s = result.summary
     payload = {
         "is_inquiry": s.is_inquiry,
+        "is_trade": s.is_trade,
+        "trade_role": s.trade_role,
         "mail_type": "inquiry"
         if s.is_inquiry
         else (s.mail_type if s.mail_type != "inquiry" else "other"),

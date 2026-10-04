@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""在标注集上跑 summarize_inquiry,报四个指标。
+"""在标注集上跑 summarize_inquiry，报告分类和引用数字核验指标。
 
     uv run python evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.jsonl --no-judge
     LOCAL_MODEL=brain uv run python evals/summarize_inquiry/run.py ... --out .../brain.tsv
 
-确定性(不合规率、幻觉率、is_inquiry 准确率)由代码算,可信;覆盖率由 Claude 当裁判,是估计值。
-裁判绝不是被测模型本身。幻觉率大于 0 或有不合规样本,退出码非零——能直接挂 CI。
+结构合规、引用数字核验和人工分类标签由代码评分；覆盖率由 Claude 当裁判，是估计值。
+引用数字核验不代表所有语义都正确。裁判绝不是被测模型本身。
+数字未通过、有不合规样本或分类不符时退出码非零；可保存真实模型基线比较。
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -19,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "server" / "src"))
 
 from aimail import backends  # noqa: E402
-from aimail.tasks.summarize import summarize  # noqa: E402
+from aimail.tasks.summarize import TASK_VERSION, summarize  # noqa: E402
 
 JUDGE_SYSTEM = (
     "你在核对一份摘要有没有覆盖到给定的事实点。对每一个参考事实点,判断它是否被摘要表达出来了"
@@ -59,6 +61,8 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--no-judge", action="store_true")
     parser.add_argument("--out", type=Path, default=Path("evals/summarize_inquiry/results.tsv"))
+    parser.add_argument("--report-json", type=Path)
+    parser.add_argument("--baseline", type=Path, help="同一数据集的真实模型基线 JSON")
     args = parser.parse_args()
 
     ok, why = backends.ready()
@@ -72,6 +76,9 @@ def main() -> int:
     if not rows:
         print("数据集是空的", file=sys.stderr)
         return 2
+    type_expected = sum("mail_type" in row["reference"] for row in rows)
+    trade_expected = sum("is_trade" in row["reference"] for row in rows)
+    role_expected = sum("trade_role" in row["reference"] for row in rows)
 
     judge_client = None
     if not args.no_judge:
@@ -85,7 +92,9 @@ def main() -> int:
 
     malformed = hallucinated = inquiry_ok = covered_total = facts_total = 0
     type_ok = type_total = 0
-    lines = ["id\ttrap\t不合规\t幻觉\tis_inquiry对\t覆盖\t摘要"]
+    trade_ok = trade_total = role_ok = role_total = 0
+    predictions = []
+    lines = ["id\ttrap\t不合规\t幻觉\tis_inquiry对\tis_trade对\ttrade_role对\t覆盖\t摘要"]
     for row in rows:
         ref = row["reference"]
         try:
@@ -93,7 +102,8 @@ def main() -> int:
         except backends.LLMError as exc:
             malformed += 1
             reason = str(exc).replace("\t", " ").replace("\n", " ")[:120]
-            lines.append(f"{row['id']}\t{row.get('trap', '')}\tYES\t\t\t\t{reason}")
+            lines.append(f"{row['id']}\t{row.get('trap', '')}\tYES\t\t\t\t\t\t{reason}")
+            predictions.append({"id": row["id"], "status": "failed", "reason": reason})
             print(f"  {row['id']}  ✘ 不合规:{reason}")
             continue
         s = result.summary
@@ -104,6 +114,26 @@ def main() -> int:
         predicted_type = (
             "inquiry" if s.is_inquiry else (s.mail_type if s.mail_type != "inquiry" else "other")
         )
+        # @4 没有明确交易字段，基线沿用旧界面的 inquiry/business 判定。
+        # 这只是旧合同兼容，不从正文用关键词猜测语义。
+        explicit_trade = getattr(s, "is_trade", None)
+        predicted_trade = s.is_inquiry or (
+            explicit_trade if explicit_trade is not None else predicted_type == "business"
+        )
+        predicted_role = getattr(s, "trade_role", None)
+        if predicted_role is None:
+            predicted_role = (
+                "buyer" if s.is_inquiry else ("transaction" if predicted_trade else "none")
+            )
+        trade_right = role_right = "-"
+        if "is_trade" in ref:
+            trade_total += 1
+            trade_right = predicted_trade == ref["is_trade"]
+            trade_ok += int(trade_right)
+        if "trade_role" in ref:
+            role_total += 1
+            role_right = predicted_role == ref["trade_role"]
+            role_ok += int(role_right)
         if "mail_type" in ref:
             type_total += 1
             type_ok += int(predicted_type == ref["mail_type"])
@@ -116,7 +146,21 @@ def main() -> int:
             cov = f"{sum(covered)}/{len(covered)}"
         flag = ",".join(result.unverified)
         clean = s.summary_zh.replace("\t", " ").replace("\n", " ")
-        lines.append(f"{row['id']}\t{row.get('trap', '')}\t\t{flag}\t{right}\t{cov}\t{clean}")
+        lines.append(
+            f"{row['id']}\t{row.get('trap', '')}\t\t{flag}\t{right}\t{trade_right}"
+            f"\t{role_right}\t{cov}\t{clean}"
+        )
+        predictions.append(
+            {
+                "id": row["id"],
+                "status": "ok",
+                "is_inquiry": s.is_inquiry,
+                "is_trade": predicted_trade,
+                "trade_role": predicted_role,
+                "mail_type": predicted_type,
+                "unverified": list(result.unverified),
+            }
+        )
         print(
             f"  {row['id']}  幻觉={flag or '无'}  is_inquiry={'对' if right else '错'}  覆盖={cov}"
         )
@@ -133,12 +177,66 @@ def main() -> int:
         print(f"  is_inquiry  {inquiry_ok}/{answered} = {inquiry_ok / answered:.1%}")
     if type_total:
         print(f"  mail_type   {type_ok}/{type_total} = {type_ok / type_total:.1%}")
+    if trade_total:
+        print(f"  is_trade    {trade_ok}/{trade_total} = {trade_ok / trade_total:.1%}")
+    if role_total:
+        print(f"  trade_role  {role_ok}/{role_total} = {role_ok / role_total:.1%}")
     if facts_total:
         print("\n=== 估计值(裁判 Claude,务必抽查)===")
         print(f"  事实覆盖率  {covered_total}/{facts_total} = {covered_total / facts_total:.1%}")
     print(f"\n逐条对照:{args.out}")
+    dataset_hash = hashlib.sha256(
+        json.dumps(rows, ensure_ascii=False, sort_keys=True).encode()
+    ).hexdigest()
+    metrics = {
+        "malformed": malformed / total,
+        "unverified_numbers": hallucinated / answered if answered else 1,
+        "is_inquiry": inquiry_ok / total,
+        "mail_type": type_ok / type_expected if type_expected else None,
+        "is_trade": trade_ok / trade_expected if trade_expected else None,
+        "trade_role": role_ok / role_expected if role_expected else None,
+    }
+    report = {
+        "model": backends.describe(),
+        "task_version": TASK_VERSION,
+        "dataset_sha256": dataset_hash,
+        "sample_count": total,
+        "metrics": metrics,
+        "predictions": predictions,
+    }
+    if args.report_json:
+        args.report_json.parent.mkdir(parents=True, exist_ok=True)
+        args.report_json.write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n", "utf-8"
+        )
+    regressed = False
+    if args.baseline:
+        baseline = json.loads(args.baseline.read_text("utf-8"))
+        if baseline["dataset_sha256"] != dataset_hash or baseline["model"] != report["model"]:
+            print("基线模型或数据集不一致，不能报告无倒退", file=sys.stderr)
+            return 2
+        for key, score in metrics.items():
+            before = baseline["metrics"].get(key)
+            if score is None or before is None:
+                continue
+            failed = (
+                score > before if key in {"malformed", "unverified_numbers"} else score < before
+            )
+            if failed:
+                regressed = True
+                print(f"指标倒退：{key} {before:.1%} → {score:.1%}", file=sys.stderr)
     return (
-        1 if (hallucinated or malformed or inquiry_ok != answered or type_ok != type_total) else 0
+        1
+        if (
+            hallucinated
+            or malformed
+            or inquiry_ok != answered
+            or type_ok != type_total
+            or trade_ok != trade_total
+            or role_ok != role_total
+            or regressed
+        )
+        else 0
     )
 
 

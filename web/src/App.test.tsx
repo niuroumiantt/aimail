@@ -4,9 +4,9 @@ import App from "./App";
 
 afterEach(() => window.history.pushState({}, "", "/"));
 
-it("shell renders the product name", async () => {
+it("shell offers the shared product link back to the inbox", async () => {
   render(<App />);
-  expect(await screen.findByRole("heading", { name: "aimail" })).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: "Aimail 首页" })).toHaveAttribute("href", "/");
 });
 
 it("thread page shows the messages from the detail which the list does not carry", async () => {

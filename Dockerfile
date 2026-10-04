@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir uv && useradd -m app && mkdir /data && chown app 
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY server ./server
+# Synthetic qualification data lets operators verify the configured model without
+# loading real mailbox contents or enabling IMAP/SMTP in the evaluation process.
+COPY evals/summarize_inquiry/run.py evals/summarize_inquiry/dataset.sample.jsonl ./evals/summarize_inquiry/
 RUN uv sync --frozen --no-dev
 COPY --from=web /app/web/dist ./web/dist
 USER app

@@ -20,7 +20,7 @@
 | 守卫:抄来的文件必须登记 | ✅ | test_header_without_listing_is_caught, test_listing_without_file_is_caught, test_listed_and_headed_file_passes |
 | 守卫:派生表必须有署名字段 | ✅ | test_derived_table_missing_attribution_is_caught, test_nullable_attribution_column_is_caught, test_unmarked_table_is_not_a_derived_table |
 | 跳过的测试导致 CI 失败 | ✅ | test_skipped_test_fails_the_run |
-| web 工具链:构建、测试、lint 可跑 | ✅ | shell renders the product name |
+| web 工具链:构建、测试、lint 可跑 | ✅ | shell offers the shared product link back to the inbox |
 | 读数卡:四种状态,署名可见,可疑摘要压在警告下并调暗 | ✅ | shows who produced the reading, puts the warning above a summary with unverified numbers and dims it, renders the failure state instead of an empty summary, labels a newsletter without judging its value, says plainly when there is no reading yet |
 | 主题:亮 / 暗 / 跟随系统,显式选择盖过系统偏好 | ✅ | theme toggle stamps data-theme on the root and clears it for system |
 | 字体:全站统一的自托管 Inter + Noto Sans SC,包与清单一致,主题与包同一字体栈,不从 Google Fonts 取字 | ✅ | font package matches its manifest byte for byte, theme and font package declare the same stack and nothing loads from Google Fonts |

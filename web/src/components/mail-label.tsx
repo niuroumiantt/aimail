@@ -14,7 +14,9 @@ export function mailType(reading?: Reading): MailType | undefined {
 }
 
 export function isLeadThread(thread: Thread): boolean {
-  return Boolean(thread.has_lead || thread.has_trade || ["inquiry", "business"].includes(mailType(thread.reading) ?? ""));
+  if (thread.has_lead || thread.has_trade) return true;
+  if (thread.reading?.status === "ok" && typeof thread.reading.is_trade === "boolean") return thread.reading.is_trade;
+  return ["inquiry", "business"].includes(mailType(thread.reading) ?? "");
 }
 
 export function MailLabel({ thread }: { thread: Thread }) {

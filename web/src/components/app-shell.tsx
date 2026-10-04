@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { CircleUserRound, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { CircleUserRound, Inbox, Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { PaneResize } from "./pane-resize";
 import "@/tokens/mail-layout.css";
 import { cn } from "@/lib/cn";
@@ -17,6 +17,19 @@ function loadLayout(): { width: number; autoHide: boolean } {
   } catch { return { width: DEFAULT_WIDTH, autoHide: false }; }
 }
 
+/** Shared brand, location and account bar on every application page. */
+export function ApplicationHeader({ title = "邮箱", onNavigation, navigation }: {
+  title?: string; onNavigation?: () => void; navigation?: ReactNode;
+}) {
+  return <div className="mail-topbar">
+    {onNavigation && <button className="mail-topbar-menu mail-icon-button" type="button" aria-label="展开主导航" onClick={onNavigation}><Menu size={18} /></button>}
+    <a href="/" className="mail-product-mark" aria-label="Aimail 首页"><span><Inbox size={17} /></span>aimail</a>
+    <span className="mail-topbar-location">{title}</span>
+    {navigation}
+    <AccountMenu />
+  </div>;
+}
+
 /** 三栏壳:侧栏 | 列表 | 详情;或 侧栏 | 主区。手机上列表与详情二选一,由路由决定。 */
 export function AppShell({
   sidebar,
@@ -28,6 +41,7 @@ export function AppShell({
   showDetail = false,
   readerKey = "",
   customer,
+  title,
 }: {
   sidebar: ReactNode;
   list?: ReactNode;
@@ -38,32 +52,39 @@ export function AppShell({
   showDetail?: boolean;
   readerKey?: string;
   customer?: ReactNode;
+  title?: string;
 }) {
   const [layout, setLayout] = useState(loadLayout);
   const [hidden, setHidden] = useState(false);
   const [expandedFor, setExpandedFor] = useState<string>();
   const [navigation, setNavigation] = useState(() => {
-    try { const saved = JSON.parse(localStorage.getItem("aimail-navigation-layout") ?? "{}"); return { width: Number.isFinite(saved.width) ? Math.max(180, Math.min(280, saved.width)) : 204, collapsed: saved.collapsed === true }; }
-    catch { return { width: 204, collapsed: false }; }
+    try { const saved = JSON.parse(localStorage.getItem("aimail-navigation-layout") ?? "{}"); return { width: Number.isFinite(saved.width) ? Math.max(180, Math.min(280, saved.width)) : 216, collapsed: saved.collapsed === true }; }
+    catch { return { width: 216, collapsed: false }; }
   });
   const [customerOpen, setCustomerOpen] = useState(false);
   const [navigationOverlay, setNavigationOverlay] = useState(false);
-  const compactNavigation = Boolean(customer) && window.innerWidth < 1300;
+  const [viewport, setViewport] = useState(window.innerWidth);
+  const compactNavigation = viewport < 768 || Boolean(customer) && viewport < 1300;
   const navigationVisible = compactNavigation ? navigationOverlay : !navigation.collapsed;
   const collapsed = showDetail && (hidden || (layout.autoHide && expandedFor !== readerKey));
   useEffect(() => {
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* 私密浏览仍可调整当前布局。 */ }
   }, [layout]);
   useEffect(() => { try { localStorage.setItem("aimail-navigation-layout", JSON.stringify(navigation)); } catch { /* 当前布局仍可用。 */ } }, [navigation]);
+  useEffect(() => {
+    const resized = () => setViewport(window.innerWidth);
+    window.addEventListener("resize", resized);
+    return () => window.removeEventListener("resize", resized);
+  }, []);
   const expand = () => { setHidden(false); setExpandedFor(readerKey); };
   return (
     <div className={cn("mail-app-shell flex h-full min-h-0 w-full flex-col bg-canvas", Boolean(customer) && "mail-customer-workspace", assistantOpen && "mail-assistant-open")}>
-      <AccountMenu />
+      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => setNavigationOverlay(value => !value)} />
       <div className="mail-app-panes flex min-h-0 flex-1">
         <div className="mail-navigation" data-collapsed={navigation.collapsed} data-overlay={navigationOverlay} style={{ "--mail-nav-width": `${navigation.width}px` } as CSSProperties}>
           <button className="mail-navigation-toggle" type="button" aria-label={navigationVisible ? "隐藏左侧导航" : "展开左侧导航"} onClick={() => { if (compactNavigation) setNavigationOverlay(value => !value); else setNavigation(value => ({ ...value, collapsed: !value.collapsed })); }}>{navigationVisible ? <PanelLeftClose size={17} strokeWidth={1.75} /> : <PanelLeftOpen size={17} strokeWidth={1.75} />}</button>
-          <div className="mail-navigation-content">{sidebar}</div>
-          {!navigation.collapsed && <PaneResize label="调整左侧导航宽度" value={navigation.width} min={180} max={280} onChange={width => setNavigation(value => ({ ...value, width }))} onReset={() => setNavigation(value => ({ ...value, width: 204 }))} />}
+          <div className="mail-navigation-content" onClick={event => { if ((event.target as HTMLElement).closest("a")) setNavigationOverlay(false); }}>{sidebar}</div>
+          {!navigation.collapsed && <PaneResize label="调整左侧导航宽度" value={navigation.width} min={180} max={280} onChange={width => setNavigation(value => ({ ...value, width }))} onReset={() => setNavigation(value => ({ ...value, width: 216 }))} />}
         </div>
         {main ? (
           <main className="min-w-0 flex-1 overflow-y-auto">{main}</main>
@@ -85,7 +106,7 @@ export function AppShell({
               )}
             >
               <div className="mail-list-controls">
-                <span>邮件列表</span>
+                <span>收件箱</span>
                 <label title="打开邮件时自动收起列表，展开按钮始终保留">
                   <input type="checkbox" checked={layout.autoHide} onChange={event => {
                     setLayout(value => ({ ...value, autoHide: event.target.checked }));

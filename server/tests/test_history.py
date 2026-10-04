@@ -172,6 +172,8 @@ def test_reader_shows_the_model_this_customers_history(conn, mailbox, customer, 
         return json.dumps(
             {
                 "is_inquiry": True,
+                "is_trade": True,
+                "trade_role": "buyer",
                 "detected_language": "en",
                 "summary_zh": "再加 10 台",
                 "summary_en": "10 more",

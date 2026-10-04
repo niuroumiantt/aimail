@@ -36,6 +36,24 @@ it("separates sales progress, neutral mail types and the trash count", () => {
   expect(screen.getByText("其他邮件")).toBeInTheDocument();
 });
 
+it("respects explicit ordinary classifications and retains trade cues in title-only rows", () => {
+  const ordinary: Thread = { ...inquiry, id: "ordinary", has_lead: false, has_trade: false,
+    reading: inquiry.reading?.status === "ok" ? { ...inquiry.reading, is_trade: false, mail_type: "business", is_inquiry: false } : undefined };
+  expect(inFolder(ordinary, "leads")).toBe(false);
+  expect(inFolder({ ...ordinary, has_trade: true }, "leads")).toBe(true);
+  wrap(<ThreadRow thread={inquiry} search="" compact />);
+  expect(screen.getByLabelText("SALES LEAD")).toBeInTheDocument();
+  expect(screen.getByText(inquiry.subject)).toBeInTheDocument();
+  expect(screen.queryByText(inquiry.company)).not.toBeInTheDocument();
+});
+
+it("shows a warning instead of an ungrounded summary in the inbox preview", () => {
+  const suspect = { ...inquiry, reading: inquiry.reading?.status === "ok" ? { ...inquiry.reading, summary_zh: "虚构 9999 台", unverified: ["9999"] } : undefined };
+  wrap(<ThreadRow thread={suspect} search="" />);
+  expect(screen.getByText("摘要中的数字未通过核对，请阅读原文。")).toBeInTheDocument();
+  expect(screen.queryByText("虚构 9999 台")).not.toBeInTheDocument();
+});
+
 it("shows deletion failure and does not pretend the conversation was deleted", async () => {
   const organize = vi.fn().mockResolvedValue("不能访问这个邮箱");
   wrap(<ThreadDetail thread={newsletter} backSearch="" onOrganize={organize} />);

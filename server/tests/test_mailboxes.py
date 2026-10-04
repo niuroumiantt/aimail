@@ -127,6 +127,8 @@ def test_tasks_profile_turns_lead_suggestions_off(conn, mailbox, monkeypatch):
         lambda s, u, h: json.dumps(
             {
                 "is_inquiry": True,
+                "is_trade": True,
+                "trade_role": "buyer",
                 "detected_language": "en",
                 "summary_zh": "要 48 台",
                 "summary_en": "48 units",

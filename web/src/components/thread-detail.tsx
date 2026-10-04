@@ -5,7 +5,7 @@ import type { AttachmentText, Thread } from "@/data/types";
 import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { CustomerHistory } from "./customer-history";
-import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
+import { FOLDER_LABEL } from "./folders";
 import { MessageView } from "./message";
 import { Pill } from "./pill";
 import { ReadingCard } from "./reading-card";
@@ -58,33 +58,36 @@ export function ThreadDetail({
   };
   return (
     <>
-      <header className="flex flex-wrap items-start gap-3 border-b border-line bg-surface px-5 py-4">
+      <header className="mail-detail-header">
+        <div className="mail-detail-title">
         <Link
           to={{ pathname: "/", search: backSearch }}
           aria-label="返回列表"
-          className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-md text-ink-2 hover:bg-surface-2 md:hidden"
+          className="mail-icon-button md:hidden"
         >
-          <ArrowLeft size={16} strokeWidth={2} />
+          <ArrowLeft size={18} />
         </Link>
-        <Avatar name={thread.contact} size="lg" muted />
-        <div className="min-w-0 flex-1 basis-48">
-          <h2 className="text-base font-semibold leading-snug text-ink text-balance">{thread.subject}</h2>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-2">
+          <h2>{thread.subject}</h2>
+        </div>
+        <div className="mail-detail-meta">
+          <Avatar name={thread.contact} size="sm" muted />
+          <p>
             <span className="font-medium text-ink">{thread.contact}</span>
-            <span>{thread.company}</span>
+            {thread.company !== thread.contact && <span>{thread.company}</span>}
             {thread.region && <span className="text-ink-3">·</span>}
             {thread.region && <span>{thread.region}</span>}
             <span className="text-ink-3">·</span>
-            <span className="font-mono">{thread.email}</span>
+            <span>{thread.email}</span>
+            {thread.history?.length === 0 && <span>第一次来信</span>}
           </p>
         </div>
-        <div className="flex basis-full shrink-0 flex-wrap items-center justify-end gap-1.5 md:basis-auto">
-          {!thread.deleted_at && import.meta.env.VITE_DATA_SOURCE === "api" && <Link to={`/followups/${thread.id}`}>分配 / 转交</Link>}
+        <div className="mail-detail-actions">
           <MailLabel thread={thread} />
-          {["quote", "replied"].includes(thread.folder) && <Pill tone={FOLDER_TONE[thread.folder]} dot>
+          {["quote", "replied"].includes(thread.folder) && <Pill tone="neutral" dot>
             {FOLDER_LABEL[thread.folder]}
           </Pill>}
-          {thread.history?.length === 0 && <Pill tone="brand">第一次来信</Pill>}
+          <span className="mail-detail-action-spacer" />
+          {!thread.deleted_at && import.meta.env.VITE_DATA_SOURCE === "api" && <Link className="mail-detail-assignment" to={`/followups/${thread.id}`}>分配</Link>}
           {onAssistant && <Button size="sm" variant={assistantOpen ? "soft" : "outline"} aria-pressed={assistantOpen} icon={<Sparkles size={14} />} onClick={onAssistant}>AI 阅读</Button>}
           <Tip label={reply ? "回复这封信" : "回复(要接上服务端)"}>
             <Button
@@ -107,8 +110,8 @@ export function ThreadDetail({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto grid max-w-3xl gap-5 px-5 py-5">
+      <div className="mail-detail-scroll min-h-0 flex-1 overflow-y-auto">
+        <div className="mail-detail-body">
           {thread.deleted_at && <div role="status" className="rounded-md border border-line bg-surface-2 px-4 py-3 text-sm text-ink-2">
             已移入 Aimail 回收站，可点击“恢复”。邮箱服务商中的原件仍保留；此会话收到新回复时会重新出现在收件列表。
           </div>}

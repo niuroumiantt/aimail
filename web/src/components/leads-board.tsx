@@ -6,6 +6,7 @@ import { LeadTable } from "./lead-table";
 import { NamePrompt } from "./name-prompt";
 import { Pill } from "./pill";
 import { Tip } from "./tip";
+import "@/tokens/workspace-layout.css";
 
 /** 线索页:上面是模型的建议(等人确认),下面是事实(人确认过的)。两块永远分开。 */
 export function LeadsBoard({
@@ -33,14 +34,18 @@ export function LeadsBoard({
   onUpdateLead: (id: string, patch: { status?: LeadStatus; next_step?: string }) => Promise<string>;
 }) {
   return (
-    <div className="mx-auto grid max-w-6xl gap-8 px-6 py-6">
+    <div className="mail-leads-page">
+      <header>
+        <h1 className="mail-page-heading">销售线索</h1>
+        <p className="mail-page-description">从邮件建议到确认后的客户需求，集中查看每笔生意的下一步。</p>
+      </header>
       {!user && <NamePrompt why="确认线索会记下是谁确认的。先写上你的名字:" user={user} onSetUser={onSetUser} />}
 
       <section className="grid gap-3">
-        <header className="flex flex-wrap items-baseline gap-2">
-          <h2 className="text-base font-semibold text-ink">待确认的建议</h2>
+        <header className="mail-leads-section-heading">
+          <h2 className="mail-section-heading">待确认的建议</h2>
           <span className="font-mono text-xs tabular-nums text-ink-2">{suggestions.length}</span>
-          <p className="ml-2 text-xs text-ink-2">模型从邮件里提出来的;你确认之前它不算数。</p>
+          <p className="mail-muted">模型从邮件里提出来的；你确认之前它不算数。</p>
           {failed > 0 && (
             <p className="ml-auto text-xs text-danger-text">
               有 <span className="font-mono">{failed}</span> 封询盘没提出线索,请看原信
@@ -65,10 +70,10 @@ export function LeadsBoard({
       </section>
 
       <section className="grid gap-3">
-        <header className="flex items-baseline gap-2">
-          <h2 className="text-base font-semibold text-ink">线索</h2>
+        <header className="mail-leads-section-heading">
+          <h2 className="mail-section-heading">线索</h2>
           <span className="font-mono text-xs tabular-nums text-ink-2">{leads.length}</span>
-          <p className="ml-2 text-xs text-ink-2">人确认过的事实。状态可以直接改。</p>
+          <p className="mail-muted">人确认过的事实。状态可以直接改。</p>
           <span className="ml-auto flex items-center gap-2">
             {outbox?.configured && outbox.failed > 0 && (
               <Tip label={`推送给下游失败,还会再试:${outbox.last_error}`}>
@@ -80,9 +85,9 @@ export function LeadsBoard({
             <a
               href="/api/leads.csv"
               download
-              className="inline-flex h-7 items-center gap-1 rounded-md border border-line bg-surface px-2.5 text-xs font-medium text-ink hover:bg-surface-2"
+              className="inline-flex h-8 items-center gap-2 rounded-md border border-line bg-surface px-3 text-xs font-medium text-ink hover:bg-surface-2"
             >
-              <Download size={13} strokeWidth={2} />
+              <Download size={16} strokeWidth={1.75} />
               导出 CSV
             </a>
           </span>

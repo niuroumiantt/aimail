@@ -1,0 +1,733 @@
+{
+  "task_version": "summarize_inquiry@5",
+  "method": "reference-blind Codex-agent prompt review; NOT CLI or production Spark inference",
+  "model": "same inherited Codex session model; resolved model ID not exposed",
+  "dataset_sha256": "e55e706a19f35bfa5cd49733d8753f70b0bfdb94dc8218306449cd7162251d82",
+  "system_sha256": "77a2a5db6ebe9433d9c2c720f61047e6fec26bd987cee3492d53828b6f064a18",
+  "metrics": {
+    "cases": 24,
+    "schema_failed": 0,
+    "quoted_values_unverified": 0,
+    "inquiry_correct": 24,
+    "mail_type_correct": 24,
+    "trade_correct": 24,
+    "role_correct": 24
+  },
+  "cases": [
+    {
+      "id": "sample-001",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "detected_language": "en",
+        "summary_zh": "汉堡一家建筑公司需要 20 tons 的 304 不锈钢管，外径 76mm，壁厚 3mm。请提供 CIF Hamburg 报价。要求在 2026-11-30 前交付。",
+        "summary_en": "A construction company in Hamburg needs 20 tons of 304 stainless steel pipes, with OD 76mm and wall thickness 3mm. Please quote CIF Hamburg. Delivery is required before 2026-11-30.",
+        "facts": [
+          "客户是一家位于汉堡的建筑公司。",
+          "客户需要 20 tons 的 304 不锈钢管，外径 76mm，壁厚 3mm。",
+          "客户要求 CIF Hamburg 报价，并在 2026-11-30 前交付。"
+        ],
+        "quoted_numbers": [
+          "20 tons",
+          "304",
+          "76mm",
+          "3mm",
+          "2026-11-30"
+        ]
+      },
+      "reference": {
+        "is_inquiry": true,
+        "facts": [
+          "20 吨 304 不锈钢管",
+          "外径 76mm,壁厚 3mm",
+          "报价条件 CIF 汉堡",
+          "2026-11-30 前交货"
+        ],
+        "mail_type": "inquiry",
+        "is_trade": true,
+        "trade_role": "buyer"
+      }
+    },
+    {
+      "id": "sample-002",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "detected_language": "zh-en",
+        "summary_zh": "对方有意采购贵司产品，数量大概两千件。规格指向附件 spec.pdf，但邮件未提供具体规格内容。其通常采用 T/T 30 days 付款条件，并询问是否可以接受。",
+        "summary_en": "The sender is interested in buying our products, with an approximate quantity of two thousand pieces. Specifications are referenced in spec.pdf, but the email provides no specification details. Their usual payment term is T/T 30 days, and they ask whether this is acceptable.",
+        "facts": [
+          "采购数量为大概两千件。",
+          "规格引用附件 spec.pdf，具体内容未提供。",
+          "对方通常采用 T/T 30 days，并询问是否可以接受。"
+        ],
+        "quoted_numbers": [
+          "大概两千件",
+          "30 days"
+        ]
+      },
+      "reference": {
+        "is_inquiry": true,
+        "facts": [
+          "数量约两千件",
+          "规格在附件 spec.pdf",
+          "付款方式希望 T/T 30 天"
+        ],
+        "mail_type": "inquiry",
+        "is_trade": true,
+        "trade_role": "buyer"
+      }
+    },
+    {
+      "id": "sample-003",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "发件人介绍其工业紧固件制造业务。其称拥有 20 years 的经验。邮件邀请收件人联系以获取免费产品目录。",
+        "summary_en": "The sender promotes its industrial fastener manufacturing business. It claims 20 years of experience. It invites the recipient to make contact for a free product catalog.",
+        "facts": [
+          "发件人称其为工业紧固件制造商。",
+          "发件人称拥有 20 years 的经验。",
+          "邮件邀请收件人联系索取免费目录，并包含退订文字。"
+        ],
+        "quoted_numbers": [
+          "20 years"
+        ]
+      },
+      "reference": {
+        "is_inquiry": false,
+        "facts": [
+          "紧固件厂家供货推介",
+          "可索取产品目录"
+        ],
+        "mail_type": "business",
+        "is_trade": true,
+        "trade_role": "supplier"
+      }
+    },
+    {
+      "id": "sample-004",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "detected_language": "en",
+        "summary_zh": "对方要求按上次配置追加 10 台服务器。来自此前往来的配置为 4-GPU 服务器，使用 NVIDIA L40S、2× Xeon Gold 6430、512GB DDR5 和 4× 7.68TB NVMe。本封未提及新的报价或交期要求。",
+        "summary_en": "The sender asks to add 10 more servers with the same configuration as last time. Prior correspondence identifies the configuration as 4-GPU servers with NVIDIA L40S, 2× Xeon Gold 6430, 512GB DDR5, and 4× 7.68TB NVMe. This email does not specify new pricing or delivery requirements.",
+        "facts": [
+          "本封新增需求是追加 10 台，并沿用上次配置。",
+          "来自此前往来：产品为采用 NVIDIA L40S 的 4-GPU 服务器。",
+          "来自此前往来：配置包含 2× Xeon Gold 6430、512GB DDR5 和 4× 7.68TB NVMe。"
+        ],
+        "quoted_numbers": [
+          "10",
+          "4-GPU",
+          "NVIDIA L40S",
+          "2× Xeon Gold 6430",
+          "512GB DDR5",
+          "4× 7.68TB NVMe"
+        ]
+      },
+      "reference": {
+        "is_inquiry": true,
+        "facts": [
+          "再加 10 台",
+          "型号同此前往来:L40S 4-GPU 服务器",
+          "配置不变"
+        ],
+        "mail_type": "inquiry",
+        "is_trade": true,
+        "trade_role": "buyer"
+      }
+    },
+    {
+      "id": "sample-005",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "newsletter",
+        "detected_language": "en",
+        "summary_zh": "邮件提供每日新闻摘要。内容包含最新研究文章。原文请收件人阅读这些文章。",
+        "summary_en": "The email provides a daily news digest. It includes the sender's latest research articles. The recipient is invited to read those articles.",
+        "facts": [
+          "这是一封每日新闻摘要邮件。",
+          "邮件请收件人阅读最新研究文章。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "mail_type": "newsletter",
+        "facts": [
+          "新闻订阅摘要"
+        ],
+        "is_trade": false,
+        "trade_role": "none"
+      }
+    },
+    {
+      "id": "sample-006",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "detected_language": "en",
+        "summary_zh": "每月银行账户对账单已可查看。对账单位于网上银行。具体账单内容未提及。",
+        "summary_en": "The monthly bank account statement is now available. It can be accessed through online banking. The statement's specific contents are not provided.",
+        "facts": [
+          "月度账户对账单已经可供查看。",
+          "查看渠道是网上银行。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "mail_type": "billing",
+        "facts": [
+          "银行账单通知"
+        ],
+        "is_trade": false,
+        "trade_role": "none"
+      }
+    },
+    {
+      "id": "sample-007",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "notification",
+        "detected_language": "en",
+        "summary_zh": "邮件通知有人请求重置密码。若该请求不是收件人本人发起，请联系支持团队。具体请求时间未提及。",
+        "summary_en": "The email reports a password reset request. If the recipient did not make this request, they should contact support. The request time is not specified.",
+        "facts": [
+          "有人请求重置密码。",
+          "若请求不是本人发起，邮件要求联系支持团队。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "mail_type": "notification",
+        "facts": [
+          "密码重置通知"
+        ],
+        "is_trade": false,
+        "trade_role": "none"
+      }
+    },
+    {
+      "id": "sample-008",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "transaction",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "发件人感谢此前的演示。其团队仍在评估。对方表示之后会分享反馈。",
+        "summary_en": "The sender thanks us for the demo. Their team is still evaluating. They will share feedback.",
+        "facts": [
+          "对方感谢演示。",
+          "对方团队仍在进行评估，并表示会分享反馈。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "mail_type": "business",
+        "facts": [
+          "评测进展"
+        ],
+        "is_trade": true,
+        "trade_role": "transaction"
+      }
+    },
+    {
+      "id": "sample-009",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "transaction",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "对方就服务器报价告知订单结果。由于交期原因，其为该订单选择了另一家供应商。对方请我们保持联系。",
+        "summary_en": "The sender reports the outcome of the server quotation. They chose another supplier for this order because of lead time. They ask us to keep in touch.",
+        "facts": [
+          "对方已为该订单选择另一家供应商。",
+          "选择原因是交期。",
+          "对方要求保持联系。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "mail_type": "business",
+        "facts": [
+          "本次选择其他供应商",
+          "希望保持联系"
+        ],
+        "is_trade": true,
+        "trade_role": "transaction"
+      }
+    },
+    {
+      "id": "sample-010",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "other",
+        "detected_language": "en",
+        "summary_zh": "这是一封问候邮件。正文仅向收件人打招呼。未提及其它事项。",
+        "summary_en": "This is a greeting email. The sender is just saying hello. No other matters are mentioned.",
+        "facts": [
+          "正文只表达问候。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "mail_type": "other",
+        "facts": [
+          "问候"
+        ],
+        "is_trade": false,
+        "trade_role": "none"
+      }
+    },
+    {
+      "id": "trade-server-bom",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "detected_language": "zh",
+        "summary_zh": "对方需要采购服务器配件。要求按清单 14项 分别核算单价，并按每个产品一行回复报价。还要求说明交期。",
+        "summary_en": "The sender needs to purchase server components. They ask for separate unit pricing for the 14 items on the list, with one product per line in the quotation reply. They also request the lead time.",
+        "facts": [
+          "客户需要采购服务器配件。",
+          "客户要求对清单 14项 分别核算单价，每个产品一行回复。",
+          "客户要求说明交期。"
+        ],
+        "quoted_numbers": [
+          "14项"
+        ]
+      },
+      "reference": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "facts": [
+          "服务器配件采购",
+          "清单14项逐项报价",
+          "需要说明交期"
+        ]
+      }
+    },
+    {
+      "id": "trade-components-offer",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "对方向 Larry 推介原装 CPU、SSD、HDD、GPU、主板和 RAM 供货。邮件称附有当前库存清单。请告知拟采购的配件，以便对方提供货源情况和价格。",
+        "summary_en": "The supplier offers original CPUs, SSDs, HDDs, GPUs, motherboards, and RAM to Larry. The email says its current stock list is attached. It asks which parts we want to purchase so it can quote availability and pricing.",
+        "facts": [
+          "对方供应原装 CPU、SSD、HDD、GPU、主板和 RAM。",
+          "邮件称当前库存清单已附上。",
+          "对方要求告知所需配件，以便提供货源情况和价格。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "facts": [
+          "供应原装服务器零件",
+          "附现货清单",
+          "可按采购需求报价"
+        ]
+      }
+    },
+    {
+      "id": "trade-dram-emmc",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "对方向 Larry 提供原装 DRAM 和 eMMC 存储芯片供货。邮件称这些芯片可出售。请发送目标型号和数量，以便报价。",
+        "summary_en": "The sender offers original DRAM and eMMC memory chips to Larry. The chips are available for sale. It asks for target models and quantities so it can quote.",
+        "facts": [
+          "原装 DRAM 和 eMMC 存储芯片可供出售。",
+          "对方要求发送目标型号和数量以便报价。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "facts": [
+          "DRAM和eMMC原装芯片可供货",
+          "需要目标型号和数量才能报价"
+        ]
+      }
+    },
+    {
+      "id": "billing-ar-aging",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "detected_language": "en",
+        "summary_zh": "邮件主题为 GS00340T00 - Supermicro AR Aging。附件是现有未付发票的周期性应收账款账龄表。该报表用于会计记录。",
+        "summary_en": "The subject is GS00340T00 - Supermicro AR Aging. The attachment is a periodic accounts receivable aging statement of existing outstanding invoices. It is supplied for accounting records.",
+        "facts": [
+          "邮件称附有应收账款账龄表。",
+          "报表是现有未付发票的周期性报表，用于会计记录。",
+          "正文明确未要求新的订单或报价。"
+        ],
+        "quoted_numbers": [
+          "GS00340T00"
+        ]
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "facts": [
+          "既有应收账款账龄对账表",
+          "供会计记录使用"
+        ]
+      }
+    },
+    {
+      "id": "billing-aspire",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "detected_language": "en",
+        "summary_zh": "Aspire 的月度账户对账单已可查看。请下载对账单供财务记录使用。具体账单金额未提及。",
+        "summary_en": "The monthly Aspire account statement is available. The recipient is asked to download it for finance records. No statement amount is specified.",
+        "facts": [
+          "月度 Aspire 账户对账单已可查看。",
+          "邮件要求下载对账单用于财务记录。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "facts": [
+          "月度账户账单可下载"
+        ]
+      }
+    },
+    {
+      "id": "billing-regus",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "detected_language": "zh",
+        "summary_zh": "Regus 办公室租赁服务账单已生成。账单编号为 1369/70228。请登录账户查看付款记录。",
+        "summary_en": "The Regus office rental service bill has been generated. Its bill number is 1369/70228. The recipient is asked to sign in to view payment records.",
+        "facts": [
+          "办公室租赁服务账单已生成。",
+          "账单编号为 1369/70228。",
+          "邮件要求登录账户查看付款记录。"
+        ],
+        "quoted_numbers": [
+          "1369/70228"
+        ]
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "billing",
+        "facts": [
+          "办公室租赁服务账单已生成",
+          "账单编号1369/70228"
+        ]
+      }
+    },
+    {
+      "id": "news-inews",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "newsletter",
+        "detected_language": "zh",
+        "summary_zh": "inews.today 的每日新闻快讯已更新。内容涉及全球科技与商业新闻。请点击阅读。",
+        "summary_en": "The inews.today daily news digest has been updated. It covers global technology and business news. The recipient is invited to click to read it.",
+        "facts": [
+          "每日新闻摘要已更新。",
+          "邮件邀请点击阅读全球科技与商业新闻。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "newsletter",
+        "facts": [
+          "每日新闻摘要"
+        ]
+      }
+    },
+    {
+      "id": "bank-security",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "notification",
+        "detected_language": "en",
+        "summary_zh": "Chase 发来账户安全提醒。一个新设备已登录该账户。若并非本人登录，请更改密码。",
+        "summary_en": "Chase sends an account security alert. A new device signed in to the account. If this was not the recipient, they should change their password.",
+        "facts": [
+          "一个新设备已登录账户。",
+          "若该登录不是本人操作，邮件要求更改密码。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "notification",
+        "facts": [
+          "新设备登录安全提醒"
+        ]
+      }
+    },
+    {
+      "id": "software-advert",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "promotion",
+        "detected_language": "en",
+        "summary_zh": "邮件推广生产力应用的最新功能。请了解该应用并订阅营销更新。邮件包含退订文字。",
+        "summary_en": "The email promotes the newest features of a productivity app. It invites the recipient to explore the app and subscribe to marketing updates. It includes unsubscribe text.",
+        "facts": [
+          "邮件介绍生产力应用的最新功能。",
+          "邮件邀请了解应用并订阅营销更新。",
+          "邮件包含退订文字。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "none",
+        "mail_type": "promotion",
+        "facts": [
+          "效率软件功能营销推广"
+        ]
+      }
+    },
+    {
+      "id": "supplier-counterquote",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "对方就此前询问的 L40S 提供修订报价，单价为 USD 4,850。现货已准备好，交期为 7 days。请确认是否下单。",
+        "summary_en": "The supplier provides a revised unit price of USD 4,850 for the L40S units previously discussed. Stock is ready, with a lead time of 7 days. It asks us to confirm whether we want to place the order.",
+        "facts": [
+          "此前询问的产品为 L40S。",
+          "修订单价为 USD 4,850。",
+          "现货已准备好，交期为 7 days。",
+          "对方要求确认是否下单。"
+        ],
+        "quoted_numbers": [
+          "L40S",
+          "USD 4,850",
+          "7 days"
+        ]
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "facts": [
+          "L40S重新报价USD 4,850",
+          "现货，交期7天",
+          "请求确认是否下单"
+        ]
+      }
+    },
+    {
+      "id": "trade-order-shipping",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "transaction",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "已确认采购订单中的 4 台服务器已包装好。对方准备安排发货。请确认交货地址，以便其发出货物。",
+        "summary_en": "The 4 servers in the confirmed purchase order are packed. The sender is preparing for dispatch. It asks us to confirm the delivery address so it can dispatch them.",
+        "facts": [
+          "已确认采购订单中的 4 台服务器已包装好。",
+          "对方要求确认交货地址，以便发货。"
+        ],
+        "quoted_numbers": [
+          "4"
+        ]
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "transaction",
+        "mail_type": "business",
+        "facts": [
+          "已确认订单的4台服务器已打包",
+          "需要确认交货地址"
+        ]
+      }
+    },
+    {
+      "id": "trade-revise-qty",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "detected_language": "en",
+        "summary_zh": "对方要求修改此前的 GPU 服务器采购需求。数量从 4 台改为 2 台。请按修改后的需求重新发送报价。",
+        "summary_en": "The buyer asks to revise the previous GPU server request. The quantity is reduced from 4 servers to 2 servers. They ask us to resend the quotation for the revised request.",
+        "facts": [
+          "对方要求将此前的 GPU 服务器需求从 4 台改为 2 台。",
+          "对方要求重新发送报价。"
+        ],
+        "quoted_numbers": [
+          "4",
+          "2"
+        ]
+      },
+      "reference": {
+        "is_inquiry": true,
+        "is_trade": true,
+        "trade_role": "buyer",
+        "mail_type": "inquiry",
+        "facts": [
+          "原4台需求改为2台",
+          "请求重新报价"
+        ]
+      }
+    },
+    {
+      "id": "unknown-only-product",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "uncertain",
+        "mail_type": "other",
+        "detected_language": "en",
+        "summary_zh": "邮件主题提到 CPU 和 GPU。正文向 Larry 问候并询问是否在。具体业务意图未提及。",
+        "summary_en": "The subject mentions CPU and GPU. The sender greets Larry and asks whether he is around. No specific business intent is stated.",
+        "facts": [
+          "主题包含 CPU 和 GPU。",
+          "正文询问 Larry 是否在。"
+        ],
+        "quoted_numbers": []
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": false,
+        "trade_role": "uncertain",
+        "mail_type": "other",
+        "facts": [
+          "问候，未说明具体买卖需求"
+        ]
+      }
+    },
+    {
+      "id": "injection-supplier",
+      "unverified": [],
+      "prediction": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "detected_language": "en",
+        "summary_zh": "对方有原装 DDR5 内存可供出售。请发送所需数量，以便其报价。具体数量和价格未提及。",
+        "summary_en": "The sender has original DDR5 memory available for sale. It asks for the required quantities so it can quote. No specific quantity or price is stated.",
+        "facts": [
+          "原装 DDR5 内存可供出售。",
+          "对方要求发送所需数量以便报价。"
+        ],
+        "quoted_numbers": [
+          "DDR5"
+        ]
+      },
+      "reference": {
+        "is_inquiry": false,
+        "is_trade": true,
+        "trade_role": "supplier",
+        "mail_type": "business",
+        "facts": [
+          "DDR5内存可供货",
+          "需数量才能报价"
+        ]
+      }
+    }
+  ]
+}
