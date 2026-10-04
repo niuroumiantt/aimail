@@ -8,6 +8,8 @@ Reports identify the configured backend/model route. The adapter does not expose
 the resolved upstream model ID, so a route match does not prove its weights are unchanged.
 Use --source-base64 to transfer public candidate source through argv when the
 container cannot access GitHub. Offline data has the same URL, hash and AST checks.
+The candidate defaults to the next installed version. --candidate-version can
+explicitly select a later numbered version while retaining the same checks.
 """
 
 from __future__ import annotations
@@ -160,6 +162,10 @@ def main() -> int:
     parser.add_argument("source_url")
     parser.add_argument("source_sha256")
     parser.add_argument("--source-base64", help="public candidate source; disable network fetching")
+    parser.add_argument(
+        "--candidate-version",
+        help="explicit numbered task version newer than the installed version",
+    )
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--baseline", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
@@ -222,6 +228,13 @@ def main() -> int:
     if not version:
         stop("installed task must declare a numbered summarize_inquiry version")
     expected_version = f"summarize_inquiry@{int(version.group(1)) + 1}"
+    if args.candidate_version is not None:
+        selected_version = re.fullmatch(r"summarize_inquiry@([1-9]\d*)", args.candidate_version)
+        if not selected_version or int(selected_version.group(1)) <= int(version.group(1)):
+            stop(
+                "explicit candidate version must be numbered summarize_inquiry newer than installed"
+            )
+        expected_version = args.candidate_version
     installed_bytes = Path(task.__file__).read_bytes()
     if args.source_base64 is not None:
         candidate_bytes, source_sha = offline_source(
