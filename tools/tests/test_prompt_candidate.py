@@ -100,10 +100,11 @@ def experiment(tmp_path, monkeypatch):
     return root, rows, baseline_path, baseline, out, report, calls
 
 
-def candidate_source() -> bytes:
+def candidate_source(version: int | None = None) -> bytes:
     """Generate a candidate locally; the added statement must never execute."""
     tree = ast.parse(Path(task.__file__).read_text("utf-8"))
-    version = int(task.TASK_VERSION.split("@")[1]) + 1
+    if version is None:
+        version = int(task.TASK_VERSION.split("@")[1]) + 1
     for node in tree.body:
         if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
             if node.targets[0].id == "TASK_VERSION":
@@ -171,7 +172,7 @@ def test_candidate_reads_download_as_data_and_restores_process_state(experiment,
     )
     report = json.loads(report_path.read_text("utf-8"))
     assert out.exists() and report["baseline_task_version"] == original_version
-    assert report["task_version"] != original_version
+    assert report["task_version"] == f"summarize_inquiry@{int(original_version.split('@')[1]) + 1}"
     assert report["system_sha256"] and report["schema_sha256"]
 
 
@@ -196,6 +197,70 @@ def test_candidate_offline_transfer_uses_same_checks_without_network(
     assert report["candidate_transport"] == "offline_base64"
     output = capsys.readouterr()
     assert encoded not in output.out + output.err
+
+
+def test_candidate_explicit_newer_version_can_skip_versions_without_changing_contract(
+    experiment, monkeypatch
+):
+    _, rows, _, _, _, report_path, calls = experiment
+    selected_version = int(task.TASK_VERSION.split("@")[1]) + 2
+    payload = candidate_source(selected_version)
+    encoded = base64.b64encode(payload).decode("ascii")
+    args = [
+        *sys.argv,
+        "--candidate-version",
+        f"summarize_inquiry@{selected_version}",
+        "--source-base64",
+        encoded,
+    ]
+    args[2] = candidate.checksum(payload)
+    monkeypatch.setattr(sys, "argv", args)
+    monkeypatch.setattr(candidate, "download_source", lambda *args: pytest.fail("no network"))
+    assert candidate.main() == 0
+    assert len(calls) == len(rows)
+    report = json.loads(report_path.read_text("utf-8"))
+    assert report["task_version"] == f"summarize_inquiry@{selected_version}"
+    assert report["candidate_source_file_sha256"] == candidate.checksum(payload)
+    expected_schema_hash = candidate.checksum(
+        json.dumps(
+            task.InquirySummary.model_json_schema(), ensure_ascii=False, sort_keys=True
+        ).encode()
+    )
+    assert report["schema_sha256"] == expected_schema_hash
+
+
+@pytest.mark.parametrize("selection", ["same", "older", "summary@99", "summarize_inquiry@x"])
+def test_candidate_explicit_invalid_version_stops_before_network_and_model(
+    experiment, monkeypatch, selection
+):
+    *_, calls = experiment
+    installed = int(task.TASK_VERSION.split("@")[1])
+    if selection in {"same", "older"}:
+        selection = f"summarize_inquiry@{installed if selection == 'same' else installed - 1}"
+    monkeypatch.setattr(sys, "argv", [*sys.argv, "--candidate-version", selection])
+    monkeypatch.setattr(candidate, "download_source", lambda *args: pytest.fail("no network"))
+    with pytest.raises(SystemExit) as stopped:
+        candidate.main()
+    assert stopped.value.code == 2 and not calls
+
+
+def test_candidate_source_literal_must_match_explicit_selected_version(experiment, monkeypatch):
+    *_, calls = experiment
+    selected_version = int(task.TASK_VERSION.split("@")[1]) + 2
+    payload = candidate_source()
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            *sys.argv,
+            "--candidate-version",
+            f"summarize_inquiry@{selected_version}",
+        ],
+    )
+    monkeypatch.setattr(candidate, "download_source", lambda *args: (payload, "a" * 40))
+    with pytest.raises(SystemExit) as stopped:
+        candidate.main()
+    assert stopped.value.code == 2 and not calls
 
 
 @pytest.mark.parametrize("encoded", ["", "not base64!", "é", "YWJj\n", "YQ"])

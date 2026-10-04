@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, model_validator
 from aimail import backends
 from aimail.verify.numbers import unverified_numbers
 
-TASK_VERSION = "summarize_inquiry@6"  # @6 先判断沟通行为，避免把非询价买卖往来漏成广告或其他
+TASK_VERSION = "summarize_inquiry@7"  # @7 区分当前供货报价、订单执行与意图不明的产品来信
 
 SYSTEM = """你在帮外贸公司阅读工作邮箱。先结合本封 Subject、新增正文和本封可读附件，
 判断主要沟通行为，一次选定一组分类字段，最后写中英摘要。
@@ -36,11 +36,15 @@ is_inquiry=false 只表示没有客户新增采购需求，不代表 is_trade=fa
    不要求已有订单、具体型号、数量或价格；供货目录推介也是买卖沟通。
    工业品或服务器零件、芯片的厂家介绍，只要表达供货或索取目录的意思，就属于这一类。
    群发、广告语气、有退订链接都不改变这种供货意图。
+   对方在本封给出或修订供货报价、邀请我们确认购买时，supplier 优先于下面的 transaction。
+   即使回复已有询价，当前报价行为也不因已有往来改成交易进展角色。
+   已确认订单的付款或交付安排、执行状态属于第3类，而不是新的供货报价。
 3. 本封承接具体产品、商业样品/演示、报价或订单，报告评测进展、议价/决策、
    确认、付款交货条件、交付、取消、成交或选择其他供应商的结果：
    is_inquiry=false，is_trade=true，trade_role=transaction，mail_type=business。
    产品试用评测和报价后的丢单反馈仍是交易往来，不需要再次询价或重写型号/数量。
    主题可说明本封承接哪项业务，正文要表明实际往来；仅有产品词不能证明买卖。
+   本类用于报告交易的进展、决策或执行；尚待采购确认的供货报价归第2类 supplier。
 4. 不涉及上述买卖行为时，按实际用途分类：
    月结单、发票、AR aging/应收账款账龄表等仅供财务记录或会计对账的邮件：billing。
    登录安全、密码、服务状态等系统事项：notification。
@@ -51,6 +55,9 @@ is_inquiry=false 只表示没有客户新增采购需求，不代表 is_trade=fa
    银行安全提醒仍是 notification；新闻包含产品价格仍是 newsletter。
 5. 明确只是社交问候：mail_type=other，is_inquiry=false，is_trade=false，trade_role=none。
    产品主题词加模糊问候，证据不足以判断意图：other、false、false、uncertain。
+   none 表示已确认是非买卖用途，uncertain 表示用途尚无法判断，二者不能混用。
+   没有提出采购或正文只有问候，并不足以确认非买卖用途；若主题涉及产品而正文未解释意图，
+   又没有可确定的日常用途，应选 uncertain，不把缺少证据当作 none。
    不确定用途时使用 other，不把没有新增询价的交易往来当作 other。
 
 分类后，把每封邮件压成简短中文 + 英文摘要，说明主题、关键信息和原文要求的行动。
