@@ -61,6 +61,11 @@ PROBE_SCHEMA = {
     "additionalProperties": False,
 }
 _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
+REMOTE_CHECK_SCRIPT = (
+    b"import json\n"
+    b"from aimail.backends import cli_bridge\n"
+    b'print(json.dumps({"enabled": cli_bridge.enabled()}))\n'
+)
 
 
 class RemoteError(RuntimeError):
@@ -159,12 +164,42 @@ class SSHTransport:
     host: str = "aliyun"
     container: str = DEFAULT_CONTAINER
     timeout: float = 20
+    ssh_sudo: bool = False
 
     def __post_init__(self) -> None:
         if not _SAFE_NAME.fullmatch(self.host) or not _SAFE_NAME.fullmatch(self.container):
             raise ValueError("SSH alias and container must contain only letters, digits, ._- ")
         if not 0.05 <= self.timeout <= 60:
             raise ValueError("SSH timeout must be between 0.05 and 60 seconds")
+        if type(self.ssh_sudo) is not bool:
+            raise ValueError("SSH sudo must be an explicit boolean")
+
+    def _arguments(self, *python_arguments: str) -> list[str]:
+        return [
+            "ssh",
+            "-T",
+            "-oBatchMode=yes",
+            "-oConnectTimeout=8",
+            self.host,
+            *(["sudo", "-n"] if self.ssh_sudo else []),
+            "docker",
+            "exec",
+            "-i",
+            self.container,
+            "uv",
+            "run",
+            "--no-sync",
+            "python",
+            *python_arguments,
+        ]
+
+    def check(self) -> None:
+        """Check remote import/access and opt-in before spending a model probe."""
+        response = self._request(self._arguments("-"), REMOTE_CHECK_SCRIPT)
+        if response.get("enabled") is False:
+            raise RemoteError("Remote CLI bridge is disabled", retryable=False)
+        if response.get("enabled") is not True:
+            raise RemoteError("Remote CLI bridge readiness unavailable", retryable=False)
 
     def call(
         self,
@@ -175,22 +210,18 @@ class SSHTransport:
     ) -> dict[str, Any]:
         if action not in {"heartbeat", "claim", "finish"}:
             raise ValueError("Unknown worker operation")
-        arguments = [
-            "ssh",
-            "-T",
-            "-oBatchMode=yes",
-            "-oConnectTimeout=8",
-            self.host,
-            "docker",
-            "exec",
-            "-i",
-            self.container,
-            "python",
-            "-m",
-            "aimail.cli_worker",
-            action,
-        ]
         request = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        return self._request(
+            self._arguments("-m", "aimail.cli_worker", action), request, cancel=cancel
+        )
+
+    def _request(
+        self,
+        arguments: list[str],
+        request: bytes,
+        *,
+        cancel: threading.Event | None = None,
+    ) -> dict[str, Any]:
         output = _run_ssh(arguments, request, self.timeout, cancel)
         try:
             response = json.loads(output)
@@ -405,18 +436,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--container", default=DEFAULT_CONTAINER, help="Remote Aimail container name"
     )
+    parser.add_argument(
+        "--ssh-sudo",
+        action="store_true",
+        help="Use fixed sudo -n for remote Docker; requires existing passwordless permission",
+    )
     parser.add_argument("--codex-model", help="Exact model available to the locally logged-in CLI")
     parser.add_argument("--claude-model", help="Exact model available to the locally logged-in CLI")
     parser.add_argument("--once", action="store_true", help="Register and claim at most one job")
     args = parser.parse_args(argv)
     try:
-        transport = SSHTransport(args.ssh_host, args.container)
+        transport = SSHTransport(args.ssh_host, args.container, ssh_sudo=args.ssh_sudo)
     except ValueError:
         print(
             "Invalid SSH alias or container; use an existing trusted SSH configuration", flush=True
         )
         return 2
     try:
+        transport.check()
+        print("Remote CLI bridge enabled; checking local CLI connections", flush=True)
         capabilities = probe_capabilities(
             codex_model=args.codex_model, claude_model=args.claude_model
         )

@@ -75,9 +75,11 @@ Claude Code 2.1.69 npm CLI 参数定义（仅查看发行源码，没有安装�
 
 服务器不需要安装 CLI。操作员明确设置 `LLM_CLI_BRIDGE_ENABLED=1` 后，运行在 m5
 上的拉取客户端通过已有 SSH 别名访问服务器容器。容器只提供固定的
-`python -m aimail.cli_worker heartbeat / claim / finish` 标准输入输出协议，
+`uv run --no-sync python -m aimail.cli_worker heartbeat / claim / finish` 标准输入输出协议，
 没有新增 HTTP 接口、监听端口或凭据传输。邮件任务只经 SSH 的 stdin/stdout 传递，
 不拼进 shell 命令，不扫描或导出主邮箱数据库。
+Docker 镜像把应用安装在项目虚拟环境中，因此远端调用使用 `uv run --no-sync`，
+不会触发依赖安装或使用没有安装 Aimail 的系统 Python。
 
 启用配置须在新版镜像部署前由已有 SSH 操作员写入运行环境，并在下一次部署创建新
 容器时生效。仅对旧容器设置配置文件、启动一次部署检查或运行本地客户端，都不能
@@ -97,11 +99,19 @@ m5（在已解压的 worker 代码包根目录；现有 SSH 别名为 `aliyun`�
 `mainland-aimail-1`，本机账号能访问下列明确型号）：
 
 ```bash
-python3 tools/run_cli_worker.py --ssh-host aliyun --container mainland-aimail-1 --codex-model gpt-5.4 --claude-model sonnet
+python3 tools/run_cli_worker.py --ssh-host aliyun --ssh-sudo --container mainland-aimail-1 --codex-model gpt-5.4 --claude-model sonnet
 ```
 
-只安装了一种 CLI 时，仅传对应的型号选项也能运行。实际启动会逐个检查本机可执行
+该生产主机使用 `sudo docker`；`--ssh-sudo` 只在远端 Docker 命令前加固定的
+`sudo -n`，要求该 SSH 账号已有免密码执行权限，不能传入自定义 shell 命令或密码。
+它不会改变容器内的 `app` 用户。默认不使用 sudo，SSH 账号本身有 Docker 权限的
+研发环境可以省略此开关。权限不足时直接失败，不等待密码，不传输登录资料。
+
+客户端首先执行固定的只读远端检查：在容器内导入桥接模块并检查启用标志，不打开
+队列或邮箱数据库，不注册工作站、不领取任务。SSH、Docker、应用导入或桥接开关
+检查失败时，不调用本机模型。检查通过后，才逐个检查本机可执行
 文件与型号，并调用一次不含邮件的合成 JSON 任务；仅注册实际成功的能力。
+只安装了一种 CLI 时，仅传对应的型号选项也能运行。
 每次重启客户端会重新做这一次连接验收，计入相应 CLI 的模型使用量。
 后续心跳、队列轮询、网页刷新和读取已完成摘要**不调用模型**。不要用 `--once` 作为
 持续服务：它只领取最多一个任务，适合测试。正常运行需保持客户端及 m5 网络连接。
