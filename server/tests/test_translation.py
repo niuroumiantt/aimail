@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import UTC, datetime
 
 from aimail import translation_store
@@ -49,3 +50,54 @@ def test_local_translation_model_does_not_override_a_selected_cli(monkeypatch):
     for provider in ("codex_cli", "claude_code_cli", "claude"):
         with backends.use_backend(provider):
             assert routed_model() is None
+
+
+def test_cache_checks_body_and_task_version_without_using_provider(monkeypatch):
+    # A minimal mutable source exercises input replacement without weakening the
+    # immutable RFC822 tables or triggers in the application schema.
+    conn = sqlite3.connect(":memory:", isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE message(id INTEGER PRIMARY KEY,body_new TEXT NOT NULL)")
+    conn.execute("INSERT INTO message VALUES(1,'Need 500 pcs SATA SSD.')")
+    translation_store.prepare(conn)
+    calls = []
+
+    def translate(source):
+        calls.append(source)
+        return Translation(text_zh=source.replace("Need", "需要"))
+
+    monkeypatch.setattr(translation_store.task, "translate", translate)
+    first = translation_store.translate_cached(conn, 1)
+    assert translation_store.translate_cached(conn, 1) == first
+    conn.execute("UPDATE message SET body_new='Need 600 pcs SATA SSD.' WHERE id=1")
+    assert translation_store.get_current(conn, 1) is None
+    assert "600" in translation_store.translate_cached(conn, 1)["text_zh"]
+    monkeypatch.setattr(translation_store.task, "TASK_VERSION", "translate_mail@next")
+    assert translation_store.get_current(conn, 1) is None
+    assert translation_store.translate_cached(conn, 1)["task_version"] == "translate_mail@next"
+    assert calls == ["Need 500 pcs SATA SSD.", "Need 600 pcs SATA SSD.", "Need 600 pcs SATA SSD."]
+    assert conn.execute("SELECT COUNT(*) FROM message_translation").fetchone()[0] == 3
+    conn.close()
+
+
+def test_existing_prototype_translation_migrates_without_model_call(conn, mailbox, monkeypatch):
+    conn.execute("DROP TABLE message_translation")
+    conn.execute(
+        "CREATE TABLE message_translation(id INTEGER PRIMARY KEY,source_id INTEGER NOT NULL,"
+        "model TEXT NOT NULL,task_version TEXT NOT NULL,produced_at TEXT NOT NULL,"
+        "status TEXT NOT NULL,payload TEXT NOT NULL DEFAULT '{}',reason TEXT NOT NULL DEFAULT '')"
+    )
+    pk, _ = store_raw(conn, mailbox, make_raw(), "in", datetime.now(UTC))
+    conn.execute(
+        "INSERT INTO message_translation VALUES(1,?,'Historical model','translate_mail@1',"
+        "'2026-10-01','ok','{\"text_zh\":\"历史译文\"}','')",
+        (pk,),
+    )
+    monkeypatch.setattr(
+        translation_store.task, "translate", lambda _s: (_ for _ in ()).throw(AssertionError())
+    )
+    translation_store.prepare(conn)
+    translation_store.prepare(conn)
+    assert translation_store.get(conn, pk)["text_zh"] == "历史译文"
+    assert translation_store.get_current(conn, pk) is None
+    assert conn.execute("SELECT source_hash FROM message_translation").fetchone()[0] == ""

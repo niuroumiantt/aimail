@@ -86,6 +86,7 @@ it("clears read deadlines after normal success or an HTTP error", async () => {
 
 const writes: [string, (source: DataSource) => Promise<unknown>][] = [
   ["POST", source => source.analyzeThread("1")],
+  ["POST translation", source => source.translateMessage("1")],
   ["PATCH", source => source.updateLead("1", { next_step: "Follow up" }, "Operator")],
   ["PUT", source => source.setModelSelection("codex_cli", "Operator")],
 ];
@@ -101,11 +102,31 @@ it.each(writes)("leaves %s pending without a read deadline, cancellation or auto
   await vi.advanceTimersByTimeAsync(60_000);
   expect(settled).toBe(false);
   expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(fetcher.mock.calls[0][1].method).toBe(method);
+  expect(fetcher.mock.calls[0][1].method).toBe(method.split(" ")[0]);
   expect(fetcher.mock.calls[0][1].signal).toBeUndefined();
   expect(vi.getTimerCount()).toBe(0);
   response.resolve(Response.json({}));
   await request;
+});
+
+it("scopes cached translation reads and explicit requests to their original mailbox", async () => {
+  const response = deferred<Response>();
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json(null))
+    .mockReturnValueOnce(response.promise).mockResolvedValueOnce(Response.json(null));
+  vi.stubGlobal("fetch", fetcher);
+  const sales = apiSource("sales@example.test");
+  expect(await sales.getMessageTranslation("3")).toBeNull();
+  const translating = sales.translateMessage("3");
+  const privateMailbox = sales.selectMailbox("private@example.test");
+  await privateMailbox.getMessageTranslation("4");
+  response.resolve(Response.json({ status: "ok", text_zh: "已翻译", model: "Original model" }));
+  await expect(translating).resolves.toMatchObject({ model: "Original model" });
+  expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
+    "/api/messages/3/translation", "/api/messages/3/translation", "/api/messages/4/translation",
+  ]);
+  expect(fetcher.mock.calls.map(([, init]) => new Headers(init.headers).get("X-Mailbox-Address")))
+    .toEqual(["sales@example.test", "sales@example.test", "private@example.test"]);
+  expect(fetcher.mock.calls[1][1].method).toBe("POST");
 });
 
 it("does not cancel or repeat an uncertain send after the token was issued", async () => {

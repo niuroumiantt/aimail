@@ -219,6 +219,48 @@ def test_customer_api_respects_mailbox_boundary_and_retains_lead_signal(conn, ma
         assert client.get("/api/threads", headers=headers).json()[0]["has_trade"] is True
 
 
+def test_customer_api_reads_and_analyzes_only_the_selected_topic(conn, mailbox, fake_model):
+    _, gpu = add(conn, mailbox, "selected-gpu", "4 H200 units.")
+    add(conn, mailbox, "gpu-reply", "Our quotation for 4 H200 units.", thread=gpu, direction="out")
+    add(
+        conn,
+        mailbox,
+        "gpu-latest",
+        "Latest requirement: 2 H200 units.",
+        thread=gpu,
+        date=datetime(2026, 10, 5, tzinfo=UTC),
+    )
+    _, storage = add(conn, mailbox, "separate-storage", "12 storage nodes.", subject="STORAGE")
+    with TestClient(create_app(conn, mailbox)) as client:
+        before = client.get(f"/api/threads/{gpu}/customer").json()
+        assert [project["id"] for project in before["projects"]] == [str(gpu)]
+        assert fake_model == []
+        assert client.post(f"/api/threads/{gpu}/customer").json()["queued"] == 1
+        for _ in range(100):
+            current = client.get(f"/api/threads/{gpu}/customer").json()["projects"][0]
+            if current["state"] == "ok":
+                break
+            time.sleep(0.01)
+        assert current["state"] == "ok"
+        assert current["scope"]["total"] == 3
+        assert current["summary"]["findings"][0]["text"] == "Latest requirement: 2 H200 units."
+        assert len(fake_model) == 1
+        assert any(
+            source["text"].endswith("Our quotation for 4 H200 units.") for source in fake_model[0]
+        )
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM customer_summary WHERE source_id=?", (storage,)
+            ).fetchone()[0]
+            == 0
+        )
+        assert client.post(f"/api/threads/{gpu}/customer?retry=true").json()["queued"] == 0
+        assert len(fake_model) == 1
+        separate = client.get(f"/api/threads/{storage}/customer").json()["projects"]
+        assert len(separate) == 1 and separate[0]["id"] == str(storage)
+        assert separate[0]["state"] == "none"
+
+
 def test_summary_wait_does_not_block_file_backed_inbox_reads(tmp_path, monkeypatch):
     path = tmp_path / "mail.sqlite3"
     conn = connect(path)

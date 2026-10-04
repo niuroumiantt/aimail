@@ -128,6 +128,14 @@ export type Message = {
   attachments?: AttachmentRef[];
 };
 
+/** 按需翻译的当前新增正文；缓存与模型选择无关，保留生成时的署名。 */
+export type MessageTranslation = Attribution & {
+  status: "ok" | "failed";
+  text_zh: string;
+  reason: string;
+  coverage: string;
+};
+
 /** 这位客户此前的一条往来。代码从不可变记录里查出来的(ADR-0005),不是模型写的 */
 export type HistoryItem = {
   id: string;

@@ -134,18 +134,22 @@ def _matching(conn: sqlite3.Connection, thread: sqlite3.Row, identity: list) -> 
     return next((row for row in matches if row["status"] == "ok"), matches[0] if matches else None)
 
 
-def _threads(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> list[sqlite3.Row]:
+def _threads(
+    conn: sqlite3.Connection, mailbox_id: int, contact: str, thread_id: int | None = None
+) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM thread WHERE mailbox_id=? AND lower(trim(contact_email))=? "
         "AND NOT EXISTS (SELECT 1 FROM thread_mail_state s WHERE s.thread_id=thread.id "
-        "AND s.deleted_at<>'') ORDER BY last_at DESC,id DESC",
-        (mailbox_id, contact.strip().casefold()),
+        "AND s.deleted_at<>'') AND (? IS NULL OR thread.id=?) ORDER BY last_at DESC,id DESC",
+        (mailbox_id, contact.strip().casefold(), thread_id, thread_id),
     ).fetchall()
 
 
-def context(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> dict:
+def context(
+    conn: sqlite3.Connection, mailbox_id: int, contact: str, *, thread_id: int | None = None
+) -> dict:
     projects = []
-    for thread in _threads(conn, mailbox_id, contact):
+    for thread in _threads(conn, mailbox_id, contact, thread_id):
         identity, _, scope = _input_data(conn, thread)
         current = _matching(conn, thread, identity)
         saved = (
@@ -196,16 +200,24 @@ def claim(
     *,
     retry: bool = False,
     backend: str | None = None,
+    thread_id: int | None = None,
 ) -> list[dict]:
     with model_selection.use(conn, mailbox_id, backend=backend):
-        return _claim(conn, mailbox_id, contact, retry=retry)
+        return _claim(conn, mailbox_id, contact, retry=retry, thread_id=thread_id)
 
 
-def _claim(conn: sqlite3.Connection, mailbox_id: int, contact: str, *, retry: bool) -> list[dict]:
+def _claim(
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    contact: str,
+    *,
+    retry: bool,
+    thread_id: int | None,
+) -> list[dict]:
     jobs = []
     now = datetime.now(UTC)
     cutoff = (now - LEASE).isoformat()
-    for thread in _threads(conn, mailbox_id, contact):
+    for thread in _threads(conn, mailbox_id, contact, thread_id):
         identity, sources, scope = _input_data(conn, thread)
         key = _fingerprint(identity)
         if not sources:

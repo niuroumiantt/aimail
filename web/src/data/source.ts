@@ -15,6 +15,7 @@ import type {
   LeadSuggestion,
   LeadStatus,
   Message,
+  MessageTranslation,
   ReplyDraft,
   SendRequest,
   Thread,
@@ -39,6 +40,8 @@ export interface DataSource {
   send(threadId: string, request: SendRequest, user: string): Promise<void>;
   /** 一份附件里读出来的文字(或读不出的原因) */
   attachmentText(attachmentId: string): Promise<AttachmentText>;
+  getMessageTranslation(messageId: string): Promise<MessageTranslation | null>;
+  translateMessage(messageId: string): Promise<MessageTranslation>;
   /** 推送给下游的状态 */
   outbox(): Promise<OutboxStatus>;
   /** 伺候的是哪个邮箱、开了哪些任务 */
@@ -209,6 +212,8 @@ export async function fixtureSource(): Promise<DataSource> {
       if (!found) throw new Error("没有这个附件");
       return found;
     },
+    getMessageTranslation: async () => null,
+    translateMessage: async () => { throw new Error("设计样本不调用真实模型，请连接邮箱后翻译"); },
     // 样本里故意留一条没送到的:这个状态得让人看见
     outbox: async () => ({
       configured: true,
@@ -326,6 +331,8 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
       await api(`/api/threads/${id}/send`, asPerson(user, { ...request, token }, "POST"));
     },
     attachmentText: (id) => api<AttachmentText>(`/api/attachments/${id}/text`),
+    getMessageTranslation: id => api<MessageTranslation | null>(`/api/messages/${id}/translation`),
+    translateMessage: id => api<MessageTranslation>(`/api/messages/${id}/translation`, { method: "POST" }),
     outbox: () => api<OutboxStatus>("/api/outbox"),
     mailbox: () => api<MailboxInfo>("/api/mailbox"),
     mailboxes: () => call<MailboxAccess>("/api/mailboxes"),
