@@ -250,7 +250,9 @@ export async function fixtureSource(): Promise<DataSource> {
   return source;
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+const READ_TIMEOUT_MS = 20_000;
+
+async function fetchResult<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     let detail = response.statusText;
@@ -262,6 +264,29 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail);
   }
   return (await response.json()) as T;
+}
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  // Only reads have a deadline. Cancelling a write could hide a completed send
+  // or model operation; never retry those requests here.
+  if ((init?.method ?? "GET").toUpperCase() !== "GET") return fetchResult<T>(path, init);
+
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("读取超时，请检查连接后重试。"));
+      controller.abort();
+    }, READ_TIMEOUT_MS);
+  });
+  try {
+    // Keep the same deadline through response.json(), including an error body.
+    return await Promise.race([
+      fetchResult<T>(path, { ...init, signal: controller.signal }), deadline,
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 /** 以人的身份发请求。没有 body 就是 POST;带 body 默认 PATCH,可指定 */

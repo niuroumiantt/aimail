@@ -3,6 +3,12 @@ import { Popover } from "radix-ui";
 import { useEffect, useRef, useState } from "react";
 import type { ModelProvider, ModelSelection } from "@/data/types";
 
+const PROVIDERS: { id: ModelProvider; label: string }[] = [
+  { id: "codex_cli", label: "Codex CLI" },
+  { id: "claude_code_cli", label: "Claude Code CLI" },
+  { id: "local", label: "Spark" },
+];
+
 export function ModelSelector({ mailbox, load, save }: {
   mailbox: string;
   load: () => Promise<ModelSelection>;
@@ -60,11 +66,15 @@ export function ModelSelector({ mailbox, load, save }: {
         <header><div><h2>邮件识别模型</h2><small>用于新分析；已有摘要保留</small></div><button className="mail-icon-button" type="button" aria-label="刷新模型连接状态" title="只读取连接状态，不重新分析邮件" disabled={saving} onClick={() => setRetry(value => value + 1)}><RefreshCw size={16} /></button></header>
         {!selection && !currentError && <p role="status">正在读取可用模型…</p>}
         {selection && !selected && <p>当前服务默认：{selection.model || selection.selected}。下列连接用于后续新分析。</p>}
-        {selection?.options.map(option => <button key={option.id} className="mail-model-option" type="button" disabled={!option.available || saving} aria-pressed={option.id === selection.selected} onClick={() => void choose(option.id)}>
-          {option.id === "local" ? <Cpu size={16} /> : <Terminal size={16} />}
-          <span><strong>{option.label}</strong><small>{!option.available ? `未连接 · ${option.reason}` : option.model || option.reason || "可用于新分析"}</small>{option.available && option.model && option.reason && <small>{option.reason}</small>}</span>
-          {option.id === selection.selected && <Check size={16} />}
-        </button>)}
+        {PROVIDERS.map(provider => {
+          const option = selection?.options.find(item => item.id === provider.id);
+          const isSelected = Boolean(option && provider.id === selection?.selected);
+          return <button key={provider.id} className="mail-model-option" type="button" disabled={!option?.available || saving} aria-pressed={isSelected} onClick={() => void choose(provider.id)}>
+            {provider.id === "local" ? <Cpu size={16} /> : <Terminal size={16} />}
+            <span><strong>{provider.label}</strong><small>{!option ? selection || currentError ? "连接状态暂不可用，请重新读取" : "正在读取连接状态…" : !option.available ? `未连接 · ${option.reason}` : option.model || option.reason || "可用于新分析"}</small>{option?.available && option.model && option.reason && <small>{option.reason}</small>}</span>
+            {isSelected && <Check size={16} />}
+          </button>;
+        })}
         {saving && <p role="status">正在保存当前邮箱的模型设置…</p>}
         {currentError && <div className="mail-model-error"><p role="alert">{currentError}</p>{!selection && <button type="button" onClick={() => setRetry(value => value + 1)}><RefreshCw size={14} />重新读取</button>}</div>}
         <footer>切换不会重读已有邮件。旧摘要旁的模型署名保持原样。</footer>

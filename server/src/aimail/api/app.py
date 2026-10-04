@@ -355,7 +355,10 @@ def create_app(
             finally:
                 reader.close()
         if path.startswith(("/api/", "/v1/")):
-            await anyio.to_thread.run_sync(api_connection_lock.acquire)
+            # A lock waiter must not occupy a worker needed by synchronous routes.
+            # Keep shared-connection serialization across app event loops.
+            while not api_connection_lock.acquire(blocking=False):
+                await anyio.sleep(0.01)
             try:
                 return await call_next(request)
             finally:

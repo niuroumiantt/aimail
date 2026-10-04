@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import type { ModelProvider, ModelSelection } from "@/data/types";
+import { apiSource } from "@/data/source";
 import { ModelSelector } from "./model-selector";
 
 const selection = (selected: ModelProvider = "local"): ModelSelection => ({
@@ -16,6 +17,68 @@ function deferred<T>() {
   return { promise, resolve };
 }
 const open = () => fireEvent.click(screen.getByRole("button", { name: /选择邮件识别模型/ }));
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it("shows all three disabled choices while connection state is pending without inventing a selection", async () => {
+  const pending = deferred<ModelSelection>();
+  const load = vi.fn().mockReturnValue(pending.promise);
+  const save = vi.fn();
+  render(<ModelSelector mailbox="sales@test" load={load} save={save} />);
+  open();
+  expect(screen.getByRole("status")).toHaveTextContent("正在读取可用模型");
+  for (const label of ["Codex CLI", "Claude Code CLI", "Spark"]) {
+    const option = screen.getByRole("button", { name: new RegExp(`^${label}`) });
+    expect(option).toBeDisabled();
+    expect(option).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(option);
+  }
+  expect(save).not.toHaveBeenCalled();
+  expect(load).toHaveBeenCalledTimes(1);
+  await act(async () => pending.resolve(selection()));
+  expect(screen.getByRole("button", { name: /^Spark/ })).toHaveAttribute("aria-pressed", "true");
+});
+
+it("keeps a choice missing from the catalogue disabled and unselected", async () => {
+  const state = selection();
+  const save = vi.fn();
+  render(<ModelSelector mailbox="sales@test" load={vi.fn().mockResolvedValue({ ...state, options: state.options.filter(option => option.id !== "local") })} save={save} />);
+  await screen.findByRole("button", { name: "选择邮件识别模型：local-model · 服务默认" });
+  open();
+  const option = screen.getByRole("button", { name: /^Spark/ });
+  expect(option).toBeDisabled();
+  expect(option).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(option);
+  expect(save).not.toHaveBeenCalled();
+});
+
+it("surfaces a stalled catalogue timeout and retries only its GET before enabling verified choices", async () => {
+  vi.useFakeTimers();
+  const stalled = deferred<Response>();
+  const fetcher = vi.fn().mockReturnValueOnce(stalled.promise).mockResolvedValueOnce(Response.json(selection()));
+  vi.stubGlobal("fetch", fetcher);
+  const source = apiSource("sales@test");
+  const save = vi.fn();
+  render(<ModelSelector mailbox="sales@test" load={source.modelSelection} save={save} />);
+  open();
+  await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+  expect(screen.getByRole("alert")).toHaveTextContent("读取超时，请检查连接后重试。");
+  for (const label of ["Codex CLI", "Claude Code CLI", "Spark"]) {
+    expect(screen.getByRole("button", { name: new RegExp(`^${label}`) })).toBeDisabled();
+  }
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "重新读取" })); });
+  expect(screen.getByRole("button", { name: "选择邮件识别模型：Spark" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Codex CLI/ })).toBeEnabled();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(fetcher.mock.calls.every(([path, init]) => path === "/api/model-selection" && !init.method)).toBe(true);
+  expect(save).not.toHaveBeenCalled();
+  await act(async () => stalled.resolve(Response.json(selection("codex_cli"))));
+  expect(screen.getByRole("button", { name: "选择邮件识别模型：Spark" })).toBeInTheDocument();
+});
 
 it("lists all three providers, explains unavailable options, and saves without model work", async () => {
   const load = vi.fn().mockResolvedValue(selection());
