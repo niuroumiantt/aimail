@@ -7,6 +7,8 @@ import type {
   CustomerContext,
   Lead,
   MailboxInfo,
+  ModelProvider,
+  ModelSelection,
   OutboxStatus,
   LeadStatus,
   LeadSuggestion,
@@ -54,6 +56,8 @@ type State = {
   clearAssistant: () => Promise<AssistantState>;
   customerContext: (id: string) => Promise<CustomerContext>;
   refreshCustomerContext: (id: string, retry?: boolean) => Promise<{ queued: number }>;
+  modelSelection: () => Promise<ModelSelection>;
+  setModelSelection: (selected: ModelProvider) => Promise<ModelSelection>;
 };
 
 const NO_OUTBOX: OutboxStatus = { configured: false, pending: 0, failed: 0, delivered: 0, last_error: "" };
@@ -234,6 +238,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!source) throw new Error("还没加载完");
     return source.refreshCustomerContext(id, retry);
   }, [source]);
+  const modelSelection = useCallback(async () => {
+    if (!source) throw new Error("还没加载完");
+    return source.modelSelection();
+  }, [source]);
+  const setModelSelection = useCallback(async (selected: ModelProvider) => {
+    if (!source) throw new Error("还没加载完");
+    // Save only the preference. Existing threads and customer snapshots stay intact.
+    return source.setModelSelection(selected, user);
+  }, [source, user]);
 
   const value = useMemo<State>(
     () => ({
@@ -314,8 +327,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
       customerContext,
       refreshCustomerContext,
+      modelSelection,
+      setModelSelection,
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, customerContext, refreshCustomerContext],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, customerContext, refreshCustomerContext, modelSelection, setModelSelection],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

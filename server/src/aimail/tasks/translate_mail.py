@@ -54,4 +54,6 @@ def translate(source: str) -> Translation:
 
 def routed_model() -> str | None:
     """Translation is quality-sensitive; extraction keeps the fast default route."""
+    if backends.backend() != "local":
+        return None
     return os.environ.get("MAIL_TRANSLATION_MODEL", "").strip() or None

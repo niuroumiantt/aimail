@@ -9,6 +9,8 @@ import type {
   Lead,
   MailboxInfo,
   MailboxAccess,
+  ModelProvider,
+  ModelSelection,
   OutboxStatus,
   LeadSuggestion,
   LeadStatus,
@@ -51,6 +53,8 @@ export interface DataSource {
   clearAssistant(user: string): Promise<AssistantState>;
   customerContext(threadId: string): Promise<CustomerContext>;
   refreshCustomerContext(threadId: string, retry?: boolean): Promise<{ queued: number }>;
+  modelSelection(): Promise<ModelSelection>;
+  setModelSelection(selected: ModelProvider, user: string): Promise<ModelSelection>;
 }
 
 /** 样本附件的文字。真系统里是 pypdf / openpyxl 读出来落库的。 */
@@ -236,6 +240,12 @@ export async function fixtureSource(): Promise<DataSource> {
     clearAssistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
     customerContext: async id => ({ email: threads.find(t => t.id === id)?.email ?? "", configured: false, reason: "设计样本不调用真实模型", projects: [] }),
     refreshCustomerContext: async () => ({ queued: 0 }),
+    modelSelection: async () => ({ selected: "local", model: "", options: [
+      { id: "codex_cli", label: "Codex CLI", available: false, model: "", reason: "设计样本未连接真实模型" },
+      { id: "claude_code_cli", label: "Claude Code CLI", available: false, model: "", reason: "设计样本未连接真实模型" },
+      { id: "local", label: "Spark", available: false, model: "", reason: "设计样本未连接真实模型" },
+    ] }),
+    setModelSelection: async () => { throw new Error("设计样本未连接真实模型"); },
   };
   return source;
 }
@@ -255,7 +265,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /** 以人的身份发请求。没有 body 就是 POST;带 body 默认 PATCH,可指定 */
-const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH"): RequestInit => ({
+const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH" | "PUT"): RequestInit => ({
   method: method ?? (body === undefined ? "POST" : "PATCH"),
   headers: { "X-User": user, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
   body: body === undefined ? undefined : JSON.stringify(body),
@@ -305,6 +315,8 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
     clearAssistant: (user) => api<AssistantState>("/api/assistant/clear", asPerson(user)),
     customerContext: id => api<CustomerContext>(`/api/threads/${id}/customer`),
     refreshCustomerContext: (id, retry = false) => api<{ queued: number }>(`/api/threads/${id}/customer?retry=${retry}`, { method: "POST" }),
+    modelSelection: () => api<ModelSelection>("/api/model-selection"),
+    setModelSelection: (selected, user) => api<ModelSelection>("/api/model-selection", asPerson(user, { selected }, "PUT")),
   };
 }
 

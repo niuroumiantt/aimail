@@ -15,6 +15,7 @@ import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from uuid import uuid4
 
 import anyio
@@ -35,6 +36,7 @@ from aimail.store import (
     history,
     leads,
     mail_state,
+    model_selection,
     outbox,
     repo,
 )
@@ -151,6 +153,10 @@ class SendBody(BaseModel):
 
 class AssistantQuestion(BaseModel):
     question: str
+
+
+class ModelSelectionChange(BaseModel):
+    selected: Literal["local", "codex_cli", "claude_code_cli"]
 
 
 def _draft_out(row: sqlite3.Row | None) -> dict | None:
@@ -311,7 +317,13 @@ def create_app(
     database_path = next(
         (row[2] for row in conn.execute("PRAGMA database_list") if row[1] == "main"), ""
     )
-    read_paths = {"/api/session", "/api/mailboxes", "/api/mailbox", "/api/threads"}
+    read_paths = {
+        "/api/session",
+        "/api/mailboxes",
+        "/api/mailbox",
+        "/api/threads",
+        "/api/model-selection",
+    }
 
     @app.middleware("http")
     async def serialize_shared_sqlite(request: Request, call_next):
@@ -452,6 +464,21 @@ def create_app(
             "tasks": sorted(_mailbox_tasks(m["address"])),
         }
 
+    @app.get("/api/model-selection")
+    def get_model_selection(request: Request) -> dict:
+        selected = _mailbox_row(request)
+        return model_selection.state(_inbox_conn(request), int(selected["id"]))
+
+    @app.put("/api/model-selection")
+    def set_model_selection(body: ModelSelectionChange, request: Request) -> dict:
+        actor = _person(request)
+        selected = _mailbox_row(request)
+        option = next(item for item in backends.provider_catalog() if item["id"] == body.selected)
+        if not option["available"]:
+            raise HTTPException(503, option["reason"] or "该模型后端当前不可用")
+        model_selection.choose(conn, int(selected["id"]), body.selected, actor)
+        return model_selection.state(conn, int(selected["id"]))
+
     @app.get("/api/threads")
     def threads(
         request: Request, folder: str | None = None, include_trash: bool = False
@@ -509,10 +536,13 @@ def create_app(
     def refresh_customer_context(thread_id: int, request: Request, retry: bool = False) -> dict:
         selected = _mailbox_row(request)
         contact = _customer_contact(conn, thread_id, selected)
-        ready, _ = backends.ready()
-        if not ready:
-            raise HTTPException(503, "AI 尚未配置，仍可阅读邮件原文。")
-        jobs = customer_workspace.claim(conn, int(selected["id"]), contact, retry=retry)
+        with model_selection.use(conn, int(selected["id"])) as backend:
+            ready, _ = backends.ready()
+            if not ready:
+                raise HTTPException(503, "AI 尚未配置，仍可阅读邮件原文。")
+            jobs = customer_workspace.claim(
+                conn, int(selected["id"]), contact, retry=retry, backend=backend
+            )
         if jobs:
             threading.Thread(target=_run_customer_jobs, args=(jobs,), daemon=True).start()
         return {"queued": len(jobs)}
@@ -540,24 +570,33 @@ def create_app(
         row = repo.get_thread(conn, thread_id, int(selected["id"]))
         if row is None:
             raise HTTPException(404, "没有这条线程")
-        ready, reason = backends.ready()
-        if not ready:
-            raise HTTPException(503, f"AI 尚未配置：{reason}")
-        messages = repo.thread_messages(conn, thread_id)
-        source = next((item for item in reversed(messages) if item["direction"] == "in"), None)
-        if source is None:
-            raise HTTPException(422, "这个话题没有可分析的来信")
-        read_message(conn, int(source["id"]), tasks=_mailbox_tasks(selected["address"]))
+        with model_selection.use(conn, int(selected["id"])) as backend:
+            ready, reason = backends.ready()
+            if not ready:
+                raise HTTPException(503, f"AI 尚未配置：{reason}")
+            messages = repo.thread_messages(conn, thread_id)
+            source = next((item for item in reversed(messages) if item["direction"] == "in"), None)
+            if source is None:
+                raise HTTPException(422, "这个话题没有可分析的来信")
+            read_message(
+                conn,
+                int(source["id"]),
+                tasks=_mailbox_tasks(selected["address"]),
+                backend=backend,
+                model=backends.model_name(),
+            )
         refreshed = repo.get_thread(conn, thread_id, int(selected["id"]))
         assert refreshed is not None
         return _thread_out(conn, refreshed, with_messages=True)
 
     def _assistant_status(selected: sqlite3.Row) -> dict:
-        ready, reason = backends.ready()
+        with model_selection.use(conn, int(selected["id"])):
+            ready, reason = backends.ready()
+            model = backends.describe() if ready else ""
         return {
             "configured": ready,
             "reason": reason,
-            "model": backends.describe() if ready else "",
+            "model": model,
             "mailbox": selected["address"],
             "turns": assistant.conversation(conn, int(selected["id"])),
         }
@@ -577,6 +616,10 @@ def create_app(
     def assistant_ask(body: AssistantQuestion, request: Request) -> dict:
         selected = _mailbox_row(request)
         actor = _person(request)
+        with model_selection.use(conn, int(selected["id"])):
+            return _ask_selected_mailbox(body, selected, actor)
+
+    def _ask_selected_mailbox(body: AssistantQuestion, selected: sqlite3.Row, actor: str) -> dict:
         question = body.question.strip()
         if not question:
             raise HTTPException(422, "请输入问题")
@@ -800,8 +843,9 @@ def create_app(
     @app.post("/api/threads/{thread_id}/draft")
     def make_draft(thread_id: int, request: Request) -> dict:
         _person(request)
-        _drafting_thread(thread_id, request)
-        draft_id = draft_mod.make_draft(conn, thread_id)
+        selected = _drafting_thread(thread_id, request)
+        with model_selection.use(conn, int(selected["id"])):
+            draft_id = draft_mod.make_draft(conn, thread_id)
         row = conn.execute("SELECT * FROM reply_draft WHERE id = ?", (draft_id,)).fetchone()
         return {"draft": _draft_out(row)}
 

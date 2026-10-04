@@ -9,6 +9,14 @@ CREATE TABLE IF NOT EXISTS mailbox (
   created_at TEXT NOT NULL
 );
 
+-- Per-mailbox routing preference; saving it never schedules analysis.
+CREATE TABLE IF NOT EXISTS mailbox_model_selection (
+  mailbox_id INTEGER PRIMARY KEY REFERENCES mailbox(id),
+  backend TEXT NOT NULL CHECK(backend IN ('local','codex_cli','claude_code_cli')),
+  selected_by TEXT NOT NULL CHECK(length(trim(selected_by)) > 0),
+  selected_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS thread (
   id INTEGER PRIMARY KEY,
   mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),

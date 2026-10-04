@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 from aimail import backends
 from aimail.ingest import attachments
+from aimail.store import model_selection
 from aimail.tasks import ask_mailbox
 
 QUESTION = (
@@ -36,6 +37,19 @@ def _model() -> str:
 
 
 def inputs(conn: sqlite3.Connection, thread: sqlite3.Row) -> tuple[str, list[dict], dict]:
+    identity, sources, scope = _input_data(conn, thread)
+    return _fingerprint(identity), sources, scope
+
+
+def _fingerprint(identity: list, legacy_model: str | None = None) -> str:
+    if legacy_model is not None:
+        # customer_workspace@1 previously put the model between source and
+        # task identity. Match that exact old key without rewriting attribution.
+        identity = [*identity[:4], legacy_model, *identity[4:]]
+    return hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
+
+
+def _input_data(conn: sqlite3.Connection, thread: sqlite3.Row) -> tuple[list, list[dict], dict]:
     rows = conn.execute(
         "SELECT * FROM message WHERE thread_id=? AND mailbox_id=? ORDER BY sent_at DESC,id DESC",
         (thread["id"], thread["mailbox_id"]),
@@ -87,15 +101,13 @@ def inputs(conn: sqlite3.Connection, thread: sqlite3.Row) -> tuple[str, list[dic
         thread["id"],
         thread["contact_email"].strip().casefold(),
         sorted(manifest),
-        _model(),
         ask_mailbox.TASK_VERSION,
         VIEW_VERSION,
         QUESTION,
         SOURCE_BUDGET,
     ]
-    key = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
     return (
-        key,
+        identity,
         list(reversed(sources)),
         {
             "total": len(rows),
@@ -104,6 +116,22 @@ def inputs(conn: sqlite3.Connection, thread: sqlite3.Row) -> tuple[str, list[dic
             "unread_attachments": unread_attachments,
         },
     )
+
+
+def _matching(conn: sqlite3.Connection, thread: sqlite3.Row, identity: list) -> sqlite3.Row | None:
+    key = _fingerprint(identity)
+    matches = [
+        row
+        for row in conn.execute(
+            "SELECT * FROM customer_summary WHERE source_id=? AND mailbox_id=? "
+            "AND task_version=? ORDER BY id DESC",
+            (thread["id"], thread["mailbox_id"], ask_mailbox.TASK_VERSION),
+        )
+        if row["input_hash"] in {key, _fingerprint(identity, row["model"])}
+    ]
+    # Any successful snapshot of the same inputs can be reused, even when a
+    # different provider failed on those inputs later. No automatic provider retry.
+    return next((row for row in matches if row["status"] == "ok"), matches[0] if matches else None)
 
 
 def _threads(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> list[sqlite3.Row]:
@@ -118,18 +146,15 @@ def _threads(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> list[sq
 def context(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> dict:
     projects = []
     for thread in _threads(conn, mailbox_id, contact):
-        key, _, scope = inputs(conn, thread)
-        current = conn.execute(
-            "SELECT * FROM customer_summary WHERE source_id=? AND input_hash=?",
-            (thread["id"], key),
-        ).fetchone()
+        identity, _, scope = _input_data(conn, thread)
+        current = _matching(conn, thread, identity)
         saved = (
             current
             if current and current["status"] == "ok"
             else conn.execute(
                 "SELECT * FROM customer_summary WHERE source_id=? AND mailbox_id=? AND status='ok' "
-                "AND model=? AND task_version=? ORDER BY id DESC LIMIT 1",
-                (thread["id"], mailbox_id, _model(), ask_mailbox.TASK_VERSION),
+                "ORDER BY id DESC LIMIT 1",
+                (thread["id"], mailbox_id),
             ).fetchone()
         )
         messages = conn.execute(
@@ -137,7 +162,7 @@ def context(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> dict:
             "WHERE mailbox_id=? AND thread_id=? ORDER BY sent_at,id",
             (mailbox_id, thread["id"]),
         ).fetchall()
-        stale = saved is not None and saved["input_hash"] != key
+        stale = saved is not None and (current is None or current["status"] != "ok")
         state = current["status"] if current else "none"
         projects.append(
             {
@@ -159,25 +184,38 @@ def context(conn: sqlite3.Connection, mailbox_id: int, contact: str) -> dict:
                 "messages": [{**dict(m), "id": str(m["id"])} for m in messages],
             }
         )
-    ready, reason = backends.ready()
+    with model_selection.use(conn, mailbox_id):
+        ready, reason = backends.ready()
     return {"email": contact, "configured": ready, "reason": reason, "projects": projects}
 
 
 def claim(
-    conn: sqlite3.Connection, mailbox_id: int, contact: str, *, retry: bool = False
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    contact: str,
+    *,
+    retry: bool = False,
+    backend: str | None = None,
 ) -> list[dict]:
+    with model_selection.use(conn, mailbox_id, backend=backend):
+        return _claim(conn, mailbox_id, contact, retry=retry)
+
+
+def _claim(conn: sqlite3.Connection, mailbox_id: int, contact: str, *, retry: bool) -> list[dict]:
     jobs = []
     now = datetime.now(UTC)
     cutoff = (now - LEASE).isoformat()
     for thread in _threads(conn, mailbox_id, contact):
-        key, sources, scope = inputs(conn, thread)
+        identity, sources, scope = _input_data(conn, thread)
+        key = _fingerprint(identity)
         if not sources:
             continue
-        row = conn.execute(
-            "SELECT * FROM customer_summary WHERE source_id=? AND input_hash=?",
-            (thread["id"], key),
-        ).fetchone()
-        if row is None:
+        row = _matching(conn, thread, identity)
+        may_retry = row is not None and (
+            (row["status"] == "failed" and retry)
+            or (row["status"] == "running" and row["produced_at"] < cutoff)
+        )
+        if row is None or (may_retry and row["input_hash"] != key):
             result = conn.execute(
                 "INSERT OR IGNORE INTO customer_summary(mailbox_id,source_id,input_hash,model,"
                 "task_version,produced_at,status,payload,reason) "
@@ -191,13 +229,11 @@ def claim(
                     now.isoformat(),
                 ),
             )
-        elif (row["status"] == "failed" and retry) or (
-            row["status"] == "running" and row["produced_at"] < cutoff
-        ):
+        elif may_retry:
             result = conn.execute(
-                "UPDATE customer_summary SET status='running',reason='',produced_at=? "
+                "UPDATE customer_summary SET status='running',reason='',produced_at=?,model=? "
                 "WHERE id=? AND status=? AND produced_at=?",
-                (now.isoformat(), row["id"], row["status"], row["produced_at"]),
+                (now.isoformat(), _model(), row["id"], row["status"], row["produced_at"]),
             )
         else:
             continue
@@ -209,6 +245,9 @@ def claim(
                     "sources": sources,
                     "scope": scope,
                     "lease": now.isoformat(),
+                    "backend": backends.backend(),
+                    "model": _model(),
+                    "raw_model": backends.model_name(),
                 }
             )
     return jobs
@@ -216,7 +255,8 @@ def claim(
 
 def generate(job: dict) -> dict:
     # No previous derived result in the task's history or inputs.
-    findings = ask_mailbox.ask(QUESTION, job["sources"], [])
+    with backends.use_backend(job["backend"], model=job["raw_model"]):
+        findings = ask_mailbox.ask(QUESTION, job["sources"], [])
     return {"findings": findings, "scope": job["scope"]}
 
 

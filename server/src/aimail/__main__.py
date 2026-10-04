@@ -2,7 +2,7 @@
 
 serve  = 起 API(含前端)+ 后台每 POLL_SECONDS 秒收一次信,来信立刻读数
 ingest = 收一次信就退出,接线时用
-read   = 给还没有读数的来信补读,换模型或改合同后用
+read   = 给还没有读数的来信补读,切换模型不会重新分析已有读数
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from aimail.ingest.run import ingest_once
 from aimail.send import SmtpTransport
 from aimail.send.accounts import from_env as sending_accounts_from_env
 from aimail.send.accounts import receiving_configs
-from aimail.store import outbox, repo
+from aimail.store import model_selection, outbox, repo
 from aimail.store.db import connect
 from aimail.tasks.read import read_message, unread_incoming
 
@@ -62,22 +62,33 @@ def _ingest_all(config: Config, mailbox_id: int) -> None:
 
 
 def _reader(config: Config):
-    """后端配好了就边收边读;没配好就只收不读,STATUS 会显示「还没有读数」。"""
-    ok, why = backends.ready()
-    if not ok:
-        log.warning("模型后端没配好(%s),只收信不读数", why)
-        return None
-    return lambda conn, pk: read_message(conn, pk, tasks=config.tasks)
+    """Check each incoming mailbox's selected backend, without scanning stored mail."""
+
+    def read_selected(conn, pk):
+        row = conn.execute("SELECT mailbox_id FROM message WHERE id=?", (pk,)).fetchone()
+        if row is None:
+            return None
+        with model_selection.use(conn, int(row["mailbox_id"])):
+            ok, _ = backends.ready()
+            if not ok:
+                log.warning("邮箱模型尚未连接，只收信不读数，mailbox_id=%d", row["mailbox_id"])
+                return None
+            return read_message(conn, pk, tasks=config.tasks, backend=backends.backend())
+
+    return read_selected
 
 
 def _read_pending(config: Config, mailbox_id: int) -> None:
     conn = connect(config.db_path)
-    pending = unread_incoming(conn, mailbox_id)
-    log.info("待读 %d 封,后端 %s", len(pending), backends.describe())
-    for pk in pending:
-        status = read_message(conn, pk, tasks=config.tasks)
-        log.info("message %s → %s", pk, status)
-    conn.close()
+    try:
+        with model_selection.use(conn, mailbox_id):
+            pending = unread_incoming(conn, mailbox_id)
+            log.info("待读 %d 封,后端 %s", len(pending), backends.describe())
+            for pk in pending:
+                status = read_message(conn, pk, tasks=config.tasks, backend=backends.backend())
+                log.info("message %s → %s", pk, status)
+    finally:
+        conn.close()
 
 
 def _deliver_once(config: Config, mailbox_id: int) -> tuple[int, int]:
@@ -198,8 +209,9 @@ def main(argv: list[str]) -> int:
             _ingest_all(shared_config, shared_mailbox_id)
         return 0
     if command == "read":
+        with model_selection.use(conn, mailbox_id):
+            ok, why = backends.ready()
         conn.close()
-        ok, why = backends.ready()
         if not ok:
             print(f"跑不了:{why}", file=sys.stderr)
             return 2

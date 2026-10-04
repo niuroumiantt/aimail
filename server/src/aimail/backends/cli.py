@@ -51,6 +51,10 @@ def label(backend: str) -> str:
 
 
 def model_name(backend: str) -> str:
+    from . import cli_bridge
+
+    if cli_bridge.enabled():
+        return cli_bridge.model_name(backend)
     return os.environ.get(_CONFIG[backend][2], "").strip()
 
 
@@ -62,7 +66,7 @@ def configuration(backend: str, model: str | None = None) -> Config:
     executable = shutil.which(command)
     if executable is None or not Path(executable).is_file():
         raise CLIError(f"找不到 {label(backend)}；请安装并登录 CLI，检查 {command_var}")
-    selected_model = (model or model_name(backend)).strip()
+    selected_model = (model if model is not None else model_name(backend)).strip()
     if (
         not selected_model
         or len(selected_model) > 200
@@ -82,9 +86,13 @@ def configuration(backend: str, model: str | None = None) -> Config:
     return Config(backend, str(Path(executable).resolve()), selected_model, timeout, output_limit)
 
 
-def ready(backend: str) -> tuple[bool, str]:
+def ready(backend: str, *, model: str | None = None) -> tuple[bool, str]:
+    from . import cli_bridge
+
+    if cli_bridge.enabled():
+        return cli_bridge.ready(backend, model)
     try:
-        config = configuration(backend)
+        config = configuration(backend, model)
     except CLIError as exc:
         return False, str(exc)
     return True, f"{label(backend)} · {config.model}（需已登录；连接在调用时核验）"
@@ -325,7 +333,23 @@ def complete(
     schema: dict[str, Any],
     *,
     model: str | None = None,
+    allow_bridge: bool = True,
 ) -> str:
+    from . import cli_bridge
+
+    if allow_bridge and cli_bridge.enabled():
+        try:
+            return cli_bridge.complete(backend, system, user, schema, model)
+        except (cli_bridge.BridgeError, OSError) as exc:
+            messages = {
+                "worker_disconnected": "CLI 工作站未连接或连接已中断",
+                "request_timeout": "CLI 工作站调用超时，结果没有保存",
+                "worker_call_failed": "CLI 工作站模型调用失败，请检查工作站登录和模型权限",
+                "input_too_large": "CLI 工作站输入超限，任务没有发送",
+                "output_too_large": "CLI 工作站输出超限，结果没有保存",
+                "queue_busy": "CLI 工作站繁忙，请稍后重试",
+            }
+            raise CLIError(messages.get(str(exc), "CLI 工作站配置或队列未就绪")) from None
     config = configuration(backend, model)
     # Treat everything in the source object as inert data, including instructions
     # quoted by a sender. Commands and schemas never contain mail-derived values.

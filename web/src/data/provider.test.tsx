@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DataProvider, useData } from "./provider";
 import { apiSource } from "./source";
 import { threads as fixtures } from "@/fixtures/threads";
+import { useState } from "react";
 
 vi.mock("./source", async importOriginal => {
   const original = await importOriginal<typeof import("./source")>();
@@ -24,6 +25,7 @@ function Probe() {
     <output aria-label="loading">{String(data.loading)}</output>
     <output aria-label="threads">{data.threads.map(t => t.subject).join(",")}</output>
     <output aria-label="details">{Object.values(data.details).map(t => t.subject).join(",")}</output>
+    <output aria-label="attribution">{data.details["1"]?.reading?.model}</output>
     <output aria-label="error">{data.error}</output>
     <button onClick={() => void data.selectMailbox(SALES)}>Sales</button>
     <button onClick={() => void data.selectMailbox(LARRY)}>Larry</button>
@@ -32,6 +34,11 @@ function Probe() {
     <button onClick={() => void data.organizeThread("1", "trash")}>Delete</button>
     <output aria-label="deleted">{data.details["1"]?.deleted_at ?? ""}</output>
   </>;
+}
+function ModelProbe() {
+  const data = useData();
+  const [selected, setSelected] = useState("");
+  return <><output aria-label="selected model">{selected}</output><button onClick={() => void data.setModelSelection("codex_cli").then(value => setSelected(value.selected))}>Select Codex</button></>;
 }
 function serve(override: (path: string, address: string) => Promise<Response> | undefined = () => undefined) {
   const fetcher = vi.fn((path: string, init?: RequestInit) => {
@@ -140,4 +147,42 @@ it("keeps token issuance and sending in the original mailbox across a switch", a
   await larry.threads();
   expect(fetcher.mock.calls.map(([, init]) => new Headers(init?.headers).get("X-Mailbox-Address")))
     .toEqual([SALES, SALES, LARRY]);
+});
+
+it("saves only a model preference and preserves already loaded mail and its attribution", async () => {
+  localStorage.setItem("mail2leads.user", "UI Operator");
+  const fetcher = serve(path => path === "/api/model-selection"
+    ? Promise.resolve(Response.json({ selected: "codex_cli", model: "codex-test", options: [] })) : undefined);
+  render(<DataProvider><Probe /><ModelProbe /></DataProvider>);
+  await waitFor(() => expect(screen.getByLabelText("threads")).toHaveTextContent(SALES));
+  fireEvent.click(screen.getByText("Read"));
+  await waitFor(() => expect(screen.getByLabelText("details")).toHaveTextContent(SALES));
+  expect(screen.getByLabelText("attribution")).toHaveTextContent(fixtures[0].reading!.model);
+  const previous = fetcher.mock.calls.length;
+  fireEvent.click(screen.getByText("Select Codex"));
+  await waitFor(() => expect(screen.getByLabelText("selected model")).toHaveTextContent("codex_cli"));
+  expect(screen.getByLabelText("threads")).toHaveTextContent(SALES);
+  expect(screen.getByLabelText("details")).toHaveTextContent(SALES);
+  expect(screen.getByLabelText("attribution")).toHaveTextContent(fixtures[0].reading!.model);
+  const calls = fetcher.mock.calls.slice(previous);
+  expect(calls).toHaveLength(1);
+  expect(calls[0][0]).toBe("/api/model-selection");
+  expect(calls[0][1]?.method).toBe("PUT");
+  expect(new Headers(calls[0][1]?.headers).get("X-User")).toBe("UI Operator");
+  expect(new Headers(calls[0][1]?.headers).get("X-Mailbox-Address")).toBe(SALES);
+  expect(JSON.parse(calls[0][1]?.body as string)).toEqual({ selected: "codex_cli" });
+});
+
+it("keeps a model preference request scoped to its original authorized mailbox", async () => {
+  const saved = deferred<Response>();
+  const fetcher = serve(path => path === "/api/model-selection" ? saved.promise : undefined);
+  const sales = apiSource(SALES);
+  const update = sales.setModelSelection("codex_cli", "API Operator");
+  const larry = sales.selectMailbox(LARRY);
+  await larry.threads();
+  saved.resolve(Response.json({ selected: "codex_cli", model: "codex-test", options: [] }));
+  await update;
+  expect(fetcher.mock.calls.map(([, init]) => new Headers(init?.headers).get("X-Mailbox-Address"))).toEqual([SALES, LARRY]);
+  expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("X-User")).toBe("API Operator");
+  expect(new Headers(fetcher.mock.calls[0][1]?.headers).get("Content-Type")).toBe("application/json");
 });

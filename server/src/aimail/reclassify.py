@@ -16,6 +16,7 @@ from urllib.parse import quote
 
 from aimail import backends
 from aimail.config import default_database_path
+from aimail.store import model_selection
 from aimail.store.db import connect
 from aimail.tasks.read import read_message
 from aimail.tasks.summarize import TASK_VERSION
@@ -63,6 +64,18 @@ def run_batch(
     apply: bool = False,
     retry_failed: bool = False,
 ) -> dict:
+    with model_selection.use(conn, mailbox_id):
+        return _run_batch(conn, mailbox_id, limit=limit, apply=apply, retry_failed=retry_failed)
+
+
+def _run_batch(
+    conn: sqlite3.Connection,
+    mailbox_id: int,
+    *,
+    limit: int,
+    apply: bool,
+    retry_failed: bool,
+) -> dict:
     if not 1 <= limit <= MAX_LIMIT:
         raise ValueError(f"limit 必须在 1 到 {MAX_LIMIT} 之间")
     pending = candidates(conn, mailbox_id, retry_failed=retry_failed)
@@ -94,7 +107,13 @@ def run_batch(
         if latest and latest["task_version"] == TASK_VERSION:
             if not (retry_failed and latest["status"] == "failed"):
                 continue
-        status = read_message(conn, int(row["id"]), tasks=frozenset({"read"}))
+        status = read_message(
+            conn,
+            int(row["id"]),
+            tasks=frozenset({"read"}),
+            backend=backends.backend(),
+            model=backends.model_name(),
+        )
         report["processed"] += 1
         report[status] += 1
     return report
