@@ -14,6 +14,7 @@
 .mail-outlook-workspace .mail-topbar summary:hover { background: var(--color-brand-2); }
 .mail-global-search input:focus-visible { outline-color: var(--color-on-brand); }
 .mail-outlook-workspace .mail-topbar-menu { color: var(--color-on-brand); }
+.mail-outlook-workspace .mail-topbar-menu:hover { background: var(--color-brand-2); }
 .mail-commandbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-space-2); min-height: 48px; padding: var(--ui-space-1) var(--ui-space-4); background: var(--color-surface-3); flex-shrink: 0; }
 .mail-command-actions, .mail-commandbar-options { display: flex; align-items: center; gap: var(--ui-space-2); min-width: 0; }
 .mail-commandbar-options { margin-left: auto; }
