@@ -1,11 +1,28 @@
-/* Default typography only; sender paragraphs, lists, tables and inline styling remain intact. */
+/* Uniform reading typography. Sender text and semantic structure are preserved. */
 :root { color-scheme: light; }
 html { margin: 0; padding: 0; }
-body { margin: 0; padding: 0; background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading, 15px); line-height: 1.5; overflow-wrap: anywhere; }
-p { margin: 0 0 1em; }
-ul, ol { margin-block: 0 1em; padding-inline-start: 1.6em; }
-li { margin-block: .2em; }
-img { max-width: 100%; height: auto; }
-table { max-width: 100%; }
-pre { white-space: pre-wrap; }
-a { color: var(--mail-document-link); }
+body { margin: 0; padding: 0; background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading, 15px); line-height: 1.6; overflow-wrap: anywhere; }
+*, *::before, *::after { box-sizing: border-box; }
+p { margin: 0 0 .85em; }
+h1, h2 { margin: 1em 0 .6em; font-size: 1.15em; line-height: 1.4; font-weight: 600; }
+h3, h4, h5, h6 { margin: 1em 0 .6em; font-size: 1em; line-height: 1.4; font-weight: 600; }
+ul, ol { margin-block: .4em .85em; padding-inline-start: 1.6em; }
+li { margin-block: .25em; }
+li p { margin-bottom: .25em; }
+img { display: inline-block; max-width: 100%; height: auto; vertical-align: middle; }
+table { width: 100%; max-width: 100%; border-collapse: collapse; margin-block: .85em; }
+table table { margin-block: 0; }
+td, th { vertical-align: top; }
+table[data-mail-table="grid"] > :is(thead, tbody, tfoot) > tr > :is(td, th), table[data-mail-table="grid"] > tr > :is(td, th) { padding: .5em .65em; border: 1px solid var(--color-mail-line); }
+table[data-mail-table="grid"] th { background: var(--color-mail-wash); font-weight: 600; text-align: start; }
+td p, th p { margin-bottom: .25em; }
+blockquote { margin: .85em 0; padding-inline-start: 1em; border-inline-start: 2px solid var(--color-mail-line); }
+pre { margin: .85em 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .95em; }
+a { color: var(--mail-document-link); text-decoration: underline; text-underline-offset: 2px; }
+hr { margin-block: 1em; border: 0; border-top: 1px solid var(--color-mail-line); }
+[data-mail-spacer] { display: block; height: .6em; min-height: 0; margin: 0; padding: 0; font-size: 0; line-height: 0; }
+[data-mail-spacer] + [data-mail-spacer], br + br + br { display: none; }
+[hidden] { display: none !important; }
+small, big, font { font-size: inherit; }
+center { text-align: start; }
+b, strong { font-weight: 600; }

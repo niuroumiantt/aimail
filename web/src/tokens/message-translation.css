@@ -12,7 +12,7 @@
 .mail-message-text[hidden] { display: none; }
 .mail-message-text h3 { margin-bottom: var(--ui-space-2); font-size: var(--ui-font-meta); font-weight: 500; color: var(--color-ink-2); }
 .mail-message-text > div { white-space: pre-wrap; overflow-wrap: anywhere; }
-.mail-message-text > .mail-original-html { white-space: normal; }
+.mail-message-text > :is(.mail-original-html, .mail-plain-original) { white-space: normal; }
 .mail-original-html { min-width: 0; padding: var(--ui-space-2); border-radius: var(--radius-sm); background: var(--color-mail-paper); }
 .mail-original-html-frame { display: block; width: 100%; height: var(--mail-document-height, 80px); border: 0; background: var(--color-mail-paper); }
 .mail-original-notice { margin-top: var(--ui-space-2); font-size: var(--ui-font-meta); color: var(--color-ink-3); }
@@ -28,3 +28,6 @@
 }
 @media (prefers-reduced-motion: reduce) { .mail-translation-spinner { animation: none; } }
 @media (max-width: 767px) { .mail-translation-tools { margin-left: 32px; } }
+.mail-plain-original { white-space: normal; padding: var(--ui-space-2); border-radius: var(--radius-md); background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading); line-height: 1.6; overflow-wrap: anywhere; }
+.mail-plain-original p { margin: 0 0 .85em; white-space: pre-wrap; }
+.mail-plain-original p:last-child { margin-bottom: 0; }

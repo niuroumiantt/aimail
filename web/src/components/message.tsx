@@ -9,6 +9,7 @@ import { Button } from "./button";
 import { Pill } from "./pill";
 import { Tip } from "./tip";
 import { OriginalMail } from "./original-mail";
+import { PlainMail } from "./plain-mail";
 import "@/tokens/message-translation.css";
 
 type TranslationMode = "original" | "zh" | "compare";
@@ -231,7 +232,7 @@ export function MessageView({
         <div className="mail-message-texts" data-mode={translation ? mode : "original"}>
           <section className="mail-message-text" aria-label="邮件原文" hidden={translation !== null && mode === "zh"}>
             {translation && mode === "compare" && <h3>原文</h3>}
-            {message.body_html ? <OriginalMail message={message} /> : <div>{message.body}</div>}
+            {message.body_html ? <OriginalMail message={message} /> : <PlainMail text={message.body} />}
             {message.original_notice && <p className="mail-original-notice">{message.original_notice}</p>}
           </section>
           {translation?.status === "ok" && <section className="mail-message-text mail-message-translated" aria-label="中文译文" hidden={mode === "original"}>

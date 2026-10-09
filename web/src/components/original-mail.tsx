@@ -17,10 +17,10 @@ export function OriginalMail({ message }: { message: Message }) {
     const doc = element?.contentDocument;
     if (!element || !doc) return;
     const host = getComputedStyle(element);
-    for (const name of ["--font-sans", "--ui-font-reading", "--color-mail-paper", "--color-mail-ink"]) {
+    for (const name of ["--font-sans", "--ui-font-reading", "--color-mail-paper", "--color-mail-ink", "--color-mail-line", "--color-mail-wash"]) {
       doc.documentElement.style.setProperty(name, host.getPropertyValue(name));
     }
-    // Keep sender-authored colors on a white document in both application themes.
+    // Reading typography uses the same light paper and colors in both application themes.
     doc.documentElement.style.setProperty("--mail-document-link", host.getPropertyValue("--color-brand"));
     const resize = () => {
       const height = Math.min(30000, Math.max(80, doc.body.scrollHeight, doc.body.getBoundingClientRect().height));
