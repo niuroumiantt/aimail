@@ -19,6 +19,7 @@ export function ThreadDetail({
   backSearch,
   reply,
   onAttachment,
+  onAttachmentFile,
   onGetTranslation,
   onTranslate,
   assistantOpen = false,
@@ -36,6 +37,7 @@ export function ThreadDetail({
   reply?: ReplyHandlers;
   /** 点附件时取它的文字;没有就只显示名字 */
   onAttachment?: (attachmentId: string) => Promise<AttachmentText>;
+  onAttachmentFile?: (attachmentId: string) => Promise<Blob>;
   assistantOpen?: boolean;
   onAssistant?: () => void;
   onAnalyze?: () => Promise<string>;
@@ -136,7 +138,7 @@ export function ThreadDetail({
           {!externalContext && thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
           {!externalContext && <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />}
           {thread.messages.map((m) => (
-            <MessageView key={m.id} message={m} onAttachment={onAttachment}
+            <MessageView key={m.id} message={m} onAttachment={onAttachment} onAttachmentFile={onAttachmentFile}
               mailboxAddress={mailboxAddress}
               onGetTranslation={onGetTranslation} onTranslate={onTranslate} />
           ))}

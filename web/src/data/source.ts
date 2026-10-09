@@ -40,6 +40,7 @@ export interface DataSource {
   send(threadId: string, request: SendRequest, user: string): Promise<void>;
   /** 一份附件里读出来的文字(或读不出的原因) */
   attachmentText(attachmentId: string): Promise<AttachmentText>;
+  attachmentFile(attachmentId: string): Promise<Blob>;
   getMessageTranslation(messageId: string): Promise<MessageTranslation | null>;
   translateMessage(messageId: string): Promise<MessageTranslation>;
   /** 推送给下游的状态 */
@@ -207,6 +208,7 @@ export async function fixtureSource(): Promise<DataSource> {
         x.id === id ? { ...x, folder: "replied", updated_at: now, messages: [...x.messages, out] } : x,
       );
     },
+    attachmentFile: async () => { throw new Error("设计样本没有原始附件文件"); },
     attachmentText: async (id) => {
       const found = FIXTURE_ATTACHMENTS[id];
       if (!found) throw new Error("没有这个附件");
@@ -257,7 +259,7 @@ export async function fixtureSource(): Promise<DataSource> {
 
 const READ_TIMEOUT_MS = 20_000;
 
-async function fetchResult<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchResult<T>(path: string, init?: RequestInit, binary = false): Promise<T> {
   const response = await fetch(path, init);
   if (!response.ok) {
     let detail = response.statusText;
@@ -268,13 +270,13 @@ async function fetchResult<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail);
   }
-  return (await response.json()) as T;
+  return (await (binary ? response.blob() : response.json())) as T;
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+async function call<T>(path: string, init?: RequestInit, binary = false): Promise<T> {
   // Only reads have a deadline. Cancelling a write could hide a completed send
   // or model operation; never retry those requests here.
-  if ((init?.method ?? "GET").toUpperCase() !== "GET") return fetchResult<T>(path, init);
+  if ((init?.method ?? "GET").toUpperCase() !== "GET") return fetchResult<T>(path, init, binary);
 
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -287,7 +289,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     // Keep the same deadline through response.json(), including an error body.
     return await Promise.race([
-      fetchResult<T>(path, { ...init, signal: controller.signal }), deadline,
+      fetchResult<T>(path, { ...init, signal: controller.signal }, binary), deadline,
     ]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
@@ -330,6 +332,9 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
       const { token } = await api<{ token: string }>(`/api/threads/${id}/send-token`, asPerson(user));
       await api(`/api/threads/${id}/send`, asPerson(user, { ...request, token }, "POST"));
     },
+    attachmentFile: id => call<Blob>(`/api/attachments/${encodeURIComponent(id)}/file`, {
+      headers: selected ? { "X-Mailbox-Address": selected } : {},
+    }, true),
     attachmentText: (id) => api<AttachmentText>(`/api/attachments/${id}/text`),
     getMessageTranslation: id => api<MessageTranslation | null>(`/api/messages/${id}/translation`),
     translateMessage: id => api<MessageTranslation>(`/api/messages/${id}/translation`, { method: "POST" }),

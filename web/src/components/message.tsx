@@ -8,6 +8,7 @@ import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { Pill } from "./pill";
 import { Tip } from "./tip";
+import { AttachmentPreview } from "./attachment-preview";
 import { OriginalMail } from "./original-mail";
 import { PlainMail } from "./plain-mail";
 import "@/tokens/message-translation.css";
@@ -29,8 +30,10 @@ function sizeLabel(bytes: number): string {
 function AttachmentChip({
   attachment,
   onOpen,
+  original = false,
 }: {
   attachment: AttachmentRef;
+  original?: boolean;
   onOpen?: (a: AttachmentRef) => void;
 }) {
   const failed = attachment.read === "failed";
@@ -41,7 +44,7 @@ function AttachmentChip({
   ) : (
     <Paperclip size={11} strokeWidth={2} />
   );
-  const label = failed
+  const label = original ? `${attachment.name} · ${sizeLabel(attachment.size)} · 查看原始附件` : failed
     ? `${attachment.name}:没读出来,${attachment.reason ?? ""}`
     : attachment.read === "ok"
       ? `${attachment.name} · ${sizeLabel(attachment.size)} · 点开看读出的文字`
@@ -53,7 +56,7 @@ function AttachmentChip({
         data-testid="attachment"
         data-read={attachment.read}
         aria-label={label}
-        disabled={!onOpen || attachment.read === "none"}
+        disabled={!onOpen || !original && attachment.read === "none"}
         onClick={() => onOpen?.(attachment)}
         className={cn(
           "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-mono text-2xs",
@@ -121,6 +124,7 @@ function AttachmentSheet({
 export function MessageView({
   message,
   onAttachment,
+  onAttachmentFile,
   onGetTranslation,
   onTranslate,
   mailboxAddress,
@@ -128,9 +132,11 @@ export function MessageView({
   message: Message;
   /** 取一份附件的文字;没有就只列名字 */
   onAttachment?: (attachmentId: string) => Promise<AttachmentText>;
+  onAttachmentFile?: (attachmentId: string) => Promise<Blob>;
   mailboxAddress?: string;
 }) {
   const [showQuoted, setShowQuoted] = useState(false);
+  const [previewFile, setPreviewFile] = useState(true);
   const [opened, setOpened] = useState<AttachmentRef | null>(null);
   const [content, setContent] = useState<AttachmentText | { error: string } | null>(null);
   const [translated, setTranslated] = useState<{ source: string; value: MessageTranslation } | null>(null);
@@ -175,12 +181,14 @@ export function MessageView({
     }
   };
 
-  const open = onAttachment
+  const open = onAttachment || onAttachmentFile
     ? async (a: AttachmentRef) => {
         setOpened(a);
+        setPreviewFile(true);
         setContent(null);
+        if (onAttachmentFile) return;
         try {
-          setContent(await onAttachment(a.id));
+          setContent(await onAttachment!(a.id));
         } catch (e) {
           setContent({ error: e instanceof Error ? e.message : String(e) });
         }
@@ -256,7 +264,7 @@ export function MessageView({
         {message.attachments && message.attachments.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
             {message.attachments.map((a) => (
-              <AttachmentChip key={a.id} attachment={a} onOpen={open} />
+              <AttachmentChip key={a.id} attachment={a} original={Boolean(onAttachmentFile)} onOpen={open} />
             ))}
           </div>
         )}
@@ -285,7 +293,12 @@ export function MessageView({
         )}
       </div>
 
-      <AttachmentSheet attachment={opened} content={content} onClose={() => setOpened(null)} />
+      {onAttachmentFile && previewFile ? <AttachmentPreview key={opened?.id} attachment={opened} load={onAttachmentFile}
+        onClose={() => setOpened(null)} onText={onAttachment && opened ? async () => {
+          setPreviewFile(false); setContent(null);
+          try { setContent(await onAttachment(opened.id)); }
+          catch { setContent({ error: "附件文字暂不可用，请重试。" }); }
+        } : undefined} /> : <AttachmentSheet attachment={opened} content={content} onClose={() => setOpened(null)} />}
     </article>
   );
 }
