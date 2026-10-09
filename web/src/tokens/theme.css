@@ -35,6 +35,8 @@
   --color-ink: #1c2024;
   --color-ink-2: #60636c;
   --color-ink-3: #80838d;
+  --color-scroll-thumb: color-mix(in srgb, var(--color-ink-3) 28%, transparent);
+  --color-scroll-thumb-hover: color-mix(in srgb, var(--color-ink-3) 52%, transparent);
 
   /* 品牌 —— indigo */
   --color-brand: #3e63dd;

@@ -23,7 +23,7 @@ export function OriginalMail({ message }: { message: Message }) {
     // Reading typography uses the same light paper and colors in both application themes.
     doc.documentElement.style.setProperty("--mail-document-link", host.getPropertyValue("--color-brand"));
     const resize = () => {
-      const height = Math.min(30000, Math.max(80, doc.body.scrollHeight, doc.body.getBoundingClientRect().height));
+      const height = Math.max(80, Math.ceil(Math.max(doc.body.scrollHeight, doc.body.getBoundingClientRect().height)) + 2);
       element.style.setProperty("--mail-document-height", `${height}px`);
     };
     const observer = new ResizeObserver(resize);

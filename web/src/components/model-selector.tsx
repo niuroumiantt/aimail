@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Cpu, RefreshCw, Terminal } from "lucide-react";
+import { Check, Cpu, RefreshCw, Terminal } from "lucide-react";
 import { Popover } from "radix-ui";
 import { useEffect, useRef, useState } from "react";
 import type { ModelProvider, ModelSelection } from "@/data/types";
@@ -59,11 +59,12 @@ export function ModelSelector({ mailbox, load, save }: {
   };
   return <div className="mail-model-selector">
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild><button type="button" className="mail-model-trigger" aria-label={`选择邮件识别模型：${label}`} title={selection ? `${label} · ${selection.model || "未连接"}。用于新分析；已有摘要保留。` : "读取当前邮箱的模型设置"}>
-        <Cpu size={16} /><span>{saving ? "正在保存…" : selection ? label : currentError ? "模型未加载" : "读取模型…"}</span><ChevronDown size={14} />
+      <Popover.Trigger asChild><button type="button" className="mail-model-trigger mail-model-icon" aria-busy={saving} data-error={Boolean(currentError || selected && !selected.available)} aria-label={`选择邮件识别模型：${label}`} title={selection ? `${label} · ${selected?.available ? "已连接" : "未连接"} · ${selected?.model || selection.model || "未连接"}。用于新分析；已有摘要保留。` : "读取当前邮箱的模型设置"}>
+        <Cpu size={18} aria-hidden />
       </button></Popover.Trigger>
       <Popover.Portal><Popover.Content className="mail-model-menu" align="start" sideOffset={8} collisionPadding={16} aria-label="邮件识别模型">
         <header><div><h2>邮件识别模型</h2><small>用于新分析；已有摘要保留</small></div><button className="mail-icon-button" type="button" aria-label="刷新模型连接状态" title="只读取连接状态，不重新分析邮件" disabled={saving} onClick={() => setRetry(value => value + 1)}><RefreshCw size={16} /></button></header>
+        {selection && <p className="mail-model-current">当前：{label} · {selected?.model || selection.model || "未连接"}</p>}
         {!selection && !currentError && <p role="status">正在读取可用模型…</p>}
         {selection && !selected && <p>当前服务默认：{selection.model || selection.selected}。下列连接用于后续新分析。</p>}
         {PROVIDERS.map(provider => {

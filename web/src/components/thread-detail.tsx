@@ -1,5 +1,5 @@
 import { ArrowLeft, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type { AttachmentText, Thread } from "@/data/types";
 import { Avatar } from "./avatar";
@@ -46,6 +46,7 @@ export function ThreadDetail({
   replyControl?: { open: boolean; onChange: (open: boolean) => void };
   mailboxAddress?: string;
 }) {
+  const replyPanel = useRef<HTMLDivElement>(null);
   const [localReplying, setLocalReplying] = useState(false);
   const replying = replyControl?.open ?? localReplying;
   const setReplying = (open: boolean) => replyControl ? replyControl.onChange(open) : setLocalReplying(open);
@@ -54,6 +55,9 @@ export function ThreadDetail({
   const [organizing, setOrganizing] = useState(false);
   const [organizeError, setOrganizeError] = useState("");
   const { hash } = useLocation();
+  useEffect(() => {
+    if (replying) replyPanel.current?.scrollIntoView?.({ block: "start" });
+  }, [replying]);
   useEffect(() => {
     const match = /^#mail-(\d+)$/.exec(hash);
     if (match && thread.messages.some(message => message.id === match[1])) document.getElementById(`mail-${match[1]}`)?.scrollIntoView({ block: "center" });
@@ -137,7 +141,7 @@ export function ThreadDetail({
               onGetTranslation={onGetTranslation} onTranslate={onTranslate} />
           ))}
           {replying && reply && (
-            <ReplyComposer thread={thread} reply={reply} cacheKey={draftScope} onClose={() => setReplying(false)} />
+            <div ref={replyPanel}><ReplyComposer thread={thread} reply={reply} cacheKey={draftScope} onClose={() => setReplying(false)} /></div>
           )}
         </div>
       </div>

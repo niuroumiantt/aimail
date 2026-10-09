@@ -205,3 +205,11 @@ it("external image opt-in is limited to the selected original message", () => {
   expect(screen.getByRole('button', { name: '加载本封外部图片' })).toBeVisible();
   expect(screen.getByTitle('客户原始邮件').getAttribute('srcdoc')).not.toContain('src="https://example.test/logo"');
 });
+
+
+it("explains a disconnected selected model without exposing arbitrary upstream errors", async () => {
+  render(<MessageView message={message} onTranslate={vi.fn().mockRejectedValue(new Error("所选模型暂不可用，仍可阅读原文与已保存的译文。"))} />, { wrapper: TipProvider });
+  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("当前翻译模型未连接，请点击顶栏的模型图标检查连接状态");
+  expect(screen.getByLabelText("邮件原文")).toBeVisible();
+});

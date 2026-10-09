@@ -4,7 +4,7 @@ import { EmptyState } from "./empty-state";
 import { FOLDER_LABEL, FOLDER_ORDER, type FolderKey } from "./folders";
 import { SearchBox } from "./search-box";
 import { ThreadRow } from "./thread-row";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AlignLeft, ChevronDown, ChevronRight, List } from "lucide-react";
 
 export function ThreadList({
@@ -14,6 +14,8 @@ export function ThreadList({
   loading = false,
   error,
   query: controlledQuery,
+  headerControl,
+  notice,
 }: {
   threads: Thread[];
   folder: FolderKey;
@@ -21,6 +23,8 @@ export function ThreadList({
   loading?: boolean;
   error?: string;
   query?: string;
+  headerControl?: ReactNode;
+  notice?: string;
 }) {
   const navigate = useNavigate();
   const [localQuery, setQuery] = useState("");
@@ -50,6 +54,7 @@ export function ThreadList({
         <div className="mail-list-title">
           <h2>{FOLDER_LABEL[folder]}</h2>
           <span>{threads.length}</span>
+          {headerControl}
         </div>
         <select aria-label="邮件分组" value={folder} className="h-8 min-w-0 rounded-md border border-line bg-surface px-2 text-sm text-ink md:hidden"
           onChange={e => navigate(e.target.value === "all" ? "/" : `/?f=${e.target.value}`)}>
@@ -58,8 +63,9 @@ export function ThreadList({
         {controlledQuery === undefined && <SearchBox value={query} onChange={setQuery} />}
         <div className="mail-view-controls"><div><button type="button" aria-pressed={preferences.compact} onClick={() => changePreferences({ compact: true })}><List size={14} />简洁</button><button type="button" aria-pressed={!preferences.compact} onClick={() => changePreferences({ compact: false })}><AlignLeft size={14} />概括</button></div><label><input type="checkbox" checked={preferences.grouped} onChange={event => changePreferences({ grouped: event.target.checked })} />按联系人聚拢</label></div>
       </header>
+      {notice && <p role="status" className="mail-sync-notice">{notice}</p>}
       {error && <p role="alert" className="border-b border-line px-4 py-3 text-xs text-danger-text">加载失败：{error}。请刷新页面重试。</p>}
-      <div aria-busy={loading} className="min-h-0 flex-1 overflow-y-auto">
+      <div aria-busy={loading} className="mail-thread-list-scroll min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <p role="status" className="px-4 py-6 text-sm text-ink-2">正在加载邮件…</p>
         ) : visible.length === 0 && !error ? (
