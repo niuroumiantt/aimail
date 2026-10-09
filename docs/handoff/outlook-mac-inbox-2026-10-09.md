@@ -14,7 +14,7 @@ Tailwind、Lucide、自托管字体和单套亮暗令牌；不引入新 UI 库�
 - 浏览器在 1600、1180、390px 和暗色下检查；样本邮件，不代表线上数据或部署。
   m5 截图：`~/.local/state/aimail/ui-review/2026-10-09/`，运行状态不进仓库。
 - 完整本地 precommit：ruff 通过；pytest 704 通过，8 个既有 CLI 子进程 0.2 秒时限测试失败。
-  本批未改 Python。138 项前端测试、typecheck、lint、build 和全部守卫独立通过；
+  本批未改 Python。139 项前端测试、typecheck、lint、build 和全部守卫独立通过；
   Linux CI 首版完整 precommit 和 Docker 构建通过（运行 `37883644482`）；手机主题入口补齐后
   最终提交仍需通过其对应 CI，查看 PR #74 的最新检查。
 

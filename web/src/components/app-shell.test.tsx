@@ -130,6 +130,16 @@ it("opens the customer overlay on mobile without replacing the saved desktop lay
   expect(JSON.parse(localStorage.getItem("aimail-customer-layout")!)).toEqual({ width: 400, collapsed: true });
 });
 
+it("budgets the application rail and card gutters when the customer pane is open", () => {
+  Object.defineProperty(window, "innerWidth", { value: 1100, configurable: true });
+  localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 600 }));
+  localStorage.setItem("aimail-customer-layout", JSON.stringify({ width: 520, collapsed: false }));
+  render(<AppShell {...props} toolbar={<div>Commands</div>} rail={<nav>Apps</nav>} customer={<div>Business</div>} />);
+  const listWidth = Number(screen.getByRole("separator", { name: "调整邮件列表宽度" }).getAttribute("aria-valuenow"));
+  const customerWidth = Number(screen.getByRole("separator", { name: "调整正文与客户工作区宽度" }).getAttribute("aria-valuenow"));
+  expect(1100 - 40 - 52 - 44 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
+});
+
 
 it("does not mount customer analysis while the customer workspace is hidden", () => {
   const load = vi.fn();
