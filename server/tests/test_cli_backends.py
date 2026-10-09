@@ -96,7 +96,9 @@ else:
     monkeypatch.setenv("CLAUDE_CODE_CLI_COMMAND", str(executable))
     monkeypatch.setenv("CLAUDE_CODE_CLI_MODEL", "synthetic-model")
     monkeypatch.setenv("AIMAIL_TEST_CAPTURE", str(capture))
-    monkeypatch.setenv("LLM_CLI_TIMEOUT", "3")
+    # macOS may inspect each newly created executable before Python starts.
+    # Only the dedicated timeout cases should depend on a short deadline.
+    monkeypatch.setenv("LLM_CLI_TIMEOUT", "10")
     monkeypatch.setenv("LLM_CLI_MAX_OUTPUT_BYTES", "2097152")
     monkeypatch.delenv("AIMAIL_TEST_MODE", raising=False)
     return executable, capture
