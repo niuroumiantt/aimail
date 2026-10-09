@@ -16,13 +16,15 @@ export function AccountMenu() {
       .catch(() => {});
     return () => { active = false; };
   }, []);
+  const username = session?.username.trim() ?? "";
+  const displayName = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(username) ? "" : username;
 
   return (
     <header className="flex h-10 shrink-0 items-center justify-end border-b border-line bg-surface px-4 text-xs">
       <details className="group relative">
         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-ink-2 hover:bg-surface-2">
           <span className="mail-account-icon" aria-hidden><CircleUserRound size={18} strokeWidth={1.75} /></span>
-          <span className="mail-account-name max-w-56 truncate">{session ? session.username.trim() || session.identity.split("@")[0] : "正在读取账号…"}</span>
+          <span className="mail-account-name max-w-56 truncate">{session ? displayName || session.identity.split("@")[0] : "正在读取账号…"}</span>
           <ChevronDown size={13} aria-hidden />
         </summary>
         <div className="absolute right-0 z-50 mt-1 grid min-w-52 gap-1 rounded-lg border border-line bg-surface p-2 shadow-lg">

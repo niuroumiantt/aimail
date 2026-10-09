@@ -104,3 +104,29 @@ def test_existing_prototype_translation_migrates_without_model_call(conn, mailbo
     assert translation_store.get(conn, pk)["text_zh"] == "历史译文"
     assert translation_store.get_current(conn, pk) is None
     assert conn.execute("SELECT source_hash FROM message_translation").fetchone()[0] == ""
+
+
+def test_legacy_history_translation_is_invalidated_without_deleting_original_or_calling_model(
+    monkeypatch,
+):
+    from hashlib import sha256
+
+    conn = sqlite3.connect(":memory:", isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE TABLE message(id INTEGER PRIMARY KEY,body_new TEXT,body_quoted TEXT)")
+    original = "Need 12 units.\n\n---- 回复的原邮件 ----\nEarlier offer: 10 units."
+    conn.execute("INSERT INTO message VALUES(1,?,'')", (original,))
+    translation_store.prepare(conn)
+    conn.execute(
+        "INSERT INTO message_translation(source_id,model,task_version,produced_at,status,"
+        "payload,source_hash) VALUES(1,'Old model',?,'2026-10-09','ok','{}',?)",
+        (translation_store.task.TASK_VERSION, sha256(original.encode()).hexdigest()),
+    )
+    monkeypatch.setattr(
+        translation_store.task, "translate", lambda _: (_ for _ in ()).throw(AssertionError())
+    )
+    assert translation_store.get_current(conn, 1) is None
+    assert translation_store._source(conn, 1) == "Need 12 units."
+    assert conn.execute("SELECT body_new FROM message").fetchone()[0] == original
+    assert conn.execute("SELECT COUNT(*) FROM message_translation").fetchone()[0] == 1
+    conn.close()

@@ -274,9 +274,7 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
                 "sent_at": m["sent_at"],
                 "body": quote.readable_body(m["body_new"], m["body_quoted"]),
                 **original.display_parts(m["raw"]),
-                "quoted": (m["body_quoted"] or None)
-                if m["body_new"].strip() or not quote.readable_body(m["body_new"], m["body_quoted"])
-                else None,
+                "quoted": quote.readable_parts(m["body_new"], m["body_quoted"])[1] or None,
                 "attachments": _attachments_out(conn, int(m["id"])),
             }
             for m in messages

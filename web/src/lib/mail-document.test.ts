@@ -94,11 +94,28 @@ it("separates explicit quoted history without losing any original text or multip
   const html = '<p>New price: USD 25.</p><div class="J-reply ntes-mailmaster-quote"><p>From: Buyer</p><div class="ntes-mailmaster-quote"><p>Earlier quote: USD 20.</p></div></div>';
   const doc = body(html);
   const history = doc.querySelector('details[data-mail-history]');
-  expect(history?.hasAttribute('open')).toBe(false);
+  expect(history?.hasAttribute('open')).toBe(true);
   expect(doc.querySelectorAll('details')).toHaveLength(1);
-  expect(doc.querySelector('[data-mail-quote-depth="2"]')?.textContent).toBe('Earlier quote: USD 20.');
+  expect(doc.querySelector('[data-mail-quote-depth="2"]')).toBeNull();
   doc.querySelectorAll('[data-mail-generated]').forEach(node => node.remove());
   expect(doc.body.textContent).toBe(new DOMParser().parseFromString(html, 'text/html').body.textContent);
+});
+
+it("shows copied reply headers but never turns repeated client paragraph classes into reply levels", () => {
+  const html = '<p>Current.</p><div class="ntes-mailmaster-quote"><table><tr><td>发件人</td><td>Buyer &lt;buyer@example.test&gt;</td></tr><tr><td>发送日期</td><td>2026年10月4日 19:25</td></tr></table><div class="ntes-mailmaster-quote"><br></div><div class="ntes-mailmaster-quote">Earlier reply.</div></div>';
+  const doc = body(html);
+  expect(doc.querySelectorAll('[data-mail-quote-depth]')).toHaveLength(1);
+  expect(doc.querySelector('[data-mail-reply-header]')?.textContent).toContain('2026年10月4日 19:25');
+  doc.querySelectorAll('[data-mail-generated]').forEach(node => node.remove());
+  expect(doc.body.textContent).toBe(new DOMParser().parseFromString(html, 'text/html').body.textContent);
+});
+
+it("left-aligns marketing prose while retaining decimal values, table spans and emphasis", () => {
+  const doc = body('<table><tr><td align="center" style="text-align:center"><strong>10 × H100</strong><p>USD 20.50.</p></td></tr></table>');
+  expect(doc.querySelector('td')?.style.textAlign).toBe('');
+  expect(doc.querySelector('td')?.hasAttribute('align')).toBe(false);
+  expect(doc.querySelector('strong')?.textContent).toBe('10 × H100');
+  expect(doc.querySelector('p')?.textContent).toBe('USD 20.50.');
 });
 
 it("does not mistake customer quotations or sender-supplied markers for mail history", () => {
