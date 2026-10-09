@@ -6,6 +6,7 @@ import { isLeadThread, MailLabel } from "./mail-label";
 import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
 import { Pill } from "./pill";
 import { Zap } from "lucide-react";
+import { Avatar } from "./avatar";
 
 export function ThreadRow({ thread, search, compact = false }: { thread: Thread; search: string; compact?: boolean }) {
   const lead = isLeadThread(thread);
@@ -28,8 +29,9 @@ export function ThreadRow({ thread, search, compact = false }: { thread: Thread;
       }
     >
       {compact && lead && <Zap className="mail-compact-trade" size={15} aria-label="SALES LEAD" />}
+      {!compact && <Avatar name={thread.contact || thread.email} className="mail-contact-avatar mail-thread-avatar" />}
       {!compact && <div className="mail-thread-sender">
-        <span>{thread.company || thread.contact}</span>
+        <span title={thread.email}>{thread.contact || thread.email}</span>
         <MailLabel thread={thread} />
         {["quote", "replied"].includes(thread.folder) && <Pill className="mail-thread-progress" tone={FOLDER_TONE[thread.folder]}>{FOLDER_LABEL[thread.folder]}</Pill>}
       </div>}

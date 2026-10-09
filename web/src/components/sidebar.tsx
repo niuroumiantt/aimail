@@ -20,6 +20,7 @@ export function Sidebar({
   onMailboxChange,
   onSync,
   syncing = false,
+  foldersOnly = false,
 }: {
   counts: Record<FolderKey, number>;
   activeFolder: FolderKey;
@@ -30,6 +31,7 @@ export function Sidebar({
   onMailboxChange?: (address: string) => Promise<void>;
   onSync?: () => Promise<string>;
   syncing?: boolean;
+  foldersOnly?: boolean;
 }) {
   const { pathname } = useLocation();
   const [syncError, setSyncError] = useState("");
@@ -40,11 +42,11 @@ export function Sidebar({
   return (
     <nav
       aria-label="主导航"
-      className="mail-sidebar flex h-full w-full shrink-0 flex-col border-r border-line bg-surface-2"
+      className={cn("mail-sidebar flex h-full w-full shrink-0 flex-col border-r border-line bg-surface-2", foldersOnly && "mail-folder-sidebar")}
     >
       <div className="mail-sidebar-mailbox">
         <div><span aria-hidden><Inbox size={16} /></span><strong>我的邮箱</strong></div>
-        <p title={mailbox.address}>{mailbox.address || "正在读取邮箱…"}</p>
+        {(!foldersOnly || mailboxes.length <= 1) && <p title={mailbox.address}>{mailbox.address || "正在读取邮箱…"}</p>}
         {mailboxes.length > 1 && <select aria-label="查看邮箱" value={mailbox.address}
           onChange={e => void onMailboxChange?.(e.target.value)}
           className="border border-line bg-surface px-2 text-xs text-ink">
@@ -112,7 +114,7 @@ export function Sidebar({
 
       <div className="mail-sidebar-footer">
         <span>原文保留 · AI 待核对</span>
-        <ThemeToggle />
+        {!foldersOnly && <ThemeToggle />}
       </div>
     </nav>
   );

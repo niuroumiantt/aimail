@@ -134,6 +134,7 @@ export function ReplyComposer({
   const root = useRef<HTMLElement>(null);
   const restored = useRef(false);
   useEffect(() => { if (cacheKey) localDrafts.set(cacheKey, { to, subject, body, draft }); }, [cacheKey, to, subject, body, draft]);
+  useEffect(() => { root.current?.scrollIntoView?.({ block: "nearest" }); }, []);
 
   // 打开时把上次的草稿找回来:真模型要几十秒,不能因为切了一下线程就丢
   useEffect(() => {
@@ -153,7 +154,6 @@ export function ReplyComposer({
       .catch(() => {
         /* 找不回来就从空白开始 */
       });
-    root.current?.scrollIntoView?.({ block: "nearest" });
     return () => {
       alive = false;
     };

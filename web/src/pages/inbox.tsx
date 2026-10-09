@@ -11,6 +11,9 @@ import { ThreadList } from "@/components/thread-list";
 import { useData } from "@/data/provider";
 import { CustomerWorkspace } from "@/components/customer-workspace";
 import { ModelSelector } from "@/components/model-selector";
+import { ApplicationRail } from "@/components/application-rail";
+import { InboxToolbar } from "@/components/inbox-toolbar";
+import { SearchBox } from "@/components/search-box";
 
 function folderOf(value: string | null): FolderKey {
   return FOLDER_ORDER.includes(value as FolderKey) ? (value as FolderKey) : "all";
@@ -22,6 +25,10 @@ export default function InboxPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [replyingFor, setReplyingFor] = useState("");
+  const [organizing, setOrganizing] = useState(false);
+  const [commandError, setCommandError] = useState<{ scope: string; message: string }>();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
   const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
@@ -41,22 +48,48 @@ export default function InboxPage() {
 
   const visible = threads.filter(t => inFolder(t, folder));
   const selected = id ? (details[id] ?? threads.find((t) => t.id === id)) : undefined;
+  const scope = `${mailbox.address}:${id ?? ""}`;
+  const replying = replyingFor === scope;
+  const organize = async () => {
+    if (!selected || organizing) return;
+    setOrganizing(true); setCommandError(undefined);
+    try { setCommandError({ scope, message: await organizeThread(selected.id, selected.deleted_at ? "restore" : "trash") }); }
+    catch (e) { setCommandError({ scope, message: e instanceof Error ? e.message : String(e) }); }
+    finally { setOrganizing(false); }
+  };
+  const syncNow = async () => {
+    setCommandError(undefined);
+    try { setCommandError({ scope, message: await sync() }); }
+    catch (e) { setCommandError({ scope, message: e instanceof Error ? e.message : String(e) }); }
+  };
 
   return (
     <AppShell
+      rail={<ApplicationRail leads={mailbox.tasks.includes("leads")} />}
+      searchControl={<SearchBox placeholder="搜索当前视图 · 公司、型号、主题" value={query} onChange={setQuery} />}
+      toolbar={<><InboxToolbar thread={selected} syncing={syncing} onSync={() => void syncNow()}
+        replying={replying} onReply={() => setReplyingFor(replying ? "" : scope)}
+        assistantOpen={assistantOpen} onAssistant={() => setAssistantOpen(value => !value)}
+        busy={organizing} onOrganize={() => void organize()} />
+        {commandError?.scope === scope && commandError.message && <p role="alert" className="mail-command-error">{commandError.message}</p>}</>}
+      customerInitiallyCollapsed
       modelControl={mailbox.address && <ModelSelector mailbox={mailbox.address} load={modelSelection} save={setModelSelection} />}
-      sidebar={<Sidebar counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
+      sidebar={<Sidebar foldersOnly counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
         if (address === mailbox.address) return;
         navigate(`/${search}`);
         setAssistantOpen(false);
+        setReplyingFor(""); setQuery(""); setCommandError(undefined);
         await selectMailbox(address);
-      }} onSync={sync} syncing={syncing} />}
-      list={<ThreadList threads={visible} folder={folder} search={search} loading={loading} error={error} />}
+      }} />}
+      list={<ThreadList threads={visible} folder={folder} search={search} query={query} loading={loading} error={error} />}
       detail={
         selected ? (
           <ThreadDetail
             key={`${mailbox.address}:${selected.id}`}
             thread={selected}
+            toolbarActions
+            mailboxAddress={mailbox.address}
+            replyControl={{ open: replying, onChange: open => setReplyingFor(open ? scope : "") }}
             backSearch={search}
             reply={selected.deleted_at ? undefined : reply}
             onAttachment={attachmentText}

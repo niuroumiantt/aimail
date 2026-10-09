@@ -16,15 +16,15 @@ it("resizes by keyboard, clamps, persists and resets without changing the reader
   const view = render(<AppShell {...props} />);
   const handle = screen.getByRole("separator", { name: "调整邮件列表宽度" });
   fireEvent.keyDown(handle, { key: "ArrowRight" });
-  expect(handle).toHaveAttribute("aria-valuenow", "332");
-  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).width).toBe(332);
+  expect(handle).toHaveAttribute("aria-valuenow", "432");
+  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).width).toBe(432);
   for (let i = 0; i < 30; i++) fireEvent.keyDown(handle, { key: "ArrowRight" });
   expect(handle).toHaveAttribute("aria-valuenow", "600");
   view.unmount();
   render(<AppShell {...props} />);
   expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "600");
   fireEvent.doubleClick(screen.getByRole("separator", { name: "调整邮件列表宽度" }));
-  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "320");
+  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "420");
   expect(screen.getByText("Reading")).toBeInTheDocument();
 });
 
@@ -128,6 +128,16 @@ it("opens the customer overlay on mobile without replacing the saved desktop lay
   fireEvent.click(screen.getByRole("button", { name: "收起客户工作区" }));
   expect(screen.queryByRole("complementary", { name: "客户需求栏" })).not.toBeInTheDocument();
   expect(JSON.parse(localStorage.getItem("aimail-customer-layout")!)).toEqual({ width: 400, collapsed: true });
+});
+
+it("budgets the application rail and card gutters when the customer pane is open", () => {
+  Object.defineProperty(window, "innerWidth", { value: 1100, configurable: true });
+  localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 600 }));
+  localStorage.setItem("aimail-customer-layout", JSON.stringify({ width: 520, collapsed: false }));
+  render(<AppShell {...props} toolbar={<div>Commands</div>} rail={<nav>Apps</nav>} customer={<div>Business</div>} />);
+  const listWidth = Number(screen.getByRole("separator", { name: "调整邮件列表宽度" }).getAttribute("aria-valuenow"));
+  const customerWidth = Number(screen.getByRole("separator", { name: "调整正文与客户工作区宽度" }).getAttribute("aria-valuenow"));
+  expect(1100 - 40 - 52 - 44 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
 });
 
 

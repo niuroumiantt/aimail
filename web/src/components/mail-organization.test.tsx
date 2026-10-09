@@ -22,7 +22,7 @@ it("keeps ordinary mail readable and highlights only potential leads", () => {
   expect(screen.getByText("新闻订阅")).toBeInTheDocument();
   expect(screen.getByText("SALES LEAD")).toBeInTheDocument();
   expect(screen.queryByText("无效")).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: new RegExp(newsletter.company) })).not.toHaveClass("opacity-70");
+  expect(screen.getByRole("link", { name: new RegExp(newsletter.contact) })).not.toHaveClass("opacity-70");
 });
 
 it("separates sales progress, neutral mail types and the trash count", () => {
@@ -75,7 +75,7 @@ it("deletes a conversation into a visible recoverable trash and restores it", as
   expect(screen.getByRole("status")).toHaveTextContent("已移入 Aimail 回收站");
   expect(within(nav).getByRole("link", { name: /回收站/ })).toHaveTextContent("1");
   fireEvent.click(within(nav).getByRole("link", { name: /回收站/ }));
-  const row = await screen.findByRole("link", { name: new RegExp(oldOther.company) });
+  const row = await screen.findByRole("link", { name: new RegExp(oldOther.contact) });
   fireEvent.click(row);
   fireEvent.click(await screen.findByRole("button", { name: "恢复" }));
   await waitFor(() => expect(within(nav).getByRole("link", { name: /回收站/ })).toHaveTextContent("0"));
