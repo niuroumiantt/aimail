@@ -154,6 +154,9 @@ Linux 主机用 `docker compose up -d --build`(`.env` 同样内容,`PORT` 决定
 
 ## 决定记录
 
+全站 UI 最终方案：自有组件 + Radix + Tailwind，图标统一 Lucide，Ant Design 逐页迁出。
+现行规则、迁移顺序与完成门槛见 [ADR 0013](docs/adr/0013-unified-owned-ui-components.md)。
+
 生产入口可达性、重复实现与收口状态见
 [Production convergence audit](docs/production-convergence-audit.md)。
 

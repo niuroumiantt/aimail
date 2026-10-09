@@ -1,41 +1,36 @@
 # 设计令牌
 
-唯一来源:`web/src/tokens/theme.css`。这里只是给人看的对照表;改令牌只改那个文件。
+现行规范见 [ADR 0013](../adr/0013-unified-owned-ui-components.md)。颜色、字体与亮暗模式的唯一来源是
+`web/src/tokens/theme.css`；应用字号、间距和控件尺度由 `web/src/tokens/design-system.css` 提供。
+本文只作语义对照，修改数值时改中央文件，不在页面另建色板。
 
-## 颜色:sage 中性 + teal 品牌
+## 颜色：slate 中性 + indigo 强调
 
-数值来自 Radix Colors 3.0.0(MIT,已登记 THIRD_PARTY.md),12 级色阶的用法照 Radix:
-1–2 底色 · 3–5 组件底(静止/悬停/按下) · 6–8 边框 · 9–10 实色 · 11 低对比字 · 12 高对比字。
+沿用当前生产收件箱的冷白表面和单一操作强调。颜色方法借鉴 Radix Colors 的分级语义，
+最终数值以令牌文件为准，不套用早期 sage/teal 表或组件库默认主题。
 
-| 令牌 | 亮 | 暗 | 用在哪 |
-| --- | --- | --- | --- |
-| canvas | sage-2 | sage-1 | 页面底 |
-| surface | 白 | sage-2 | 卡片、列表面板 |
-| surface-2 | sage-3 | sage-3 | 悬停 |
-| surface-3 | sage-4 | sage-4 | 选中、按下、中性标签底 |
-| line / line-2 | sage-6 / 7 | sage-6 / 7 | 边框 / 强边框 |
-| ink / ink-2 / ink-3 | sage-12 / 11 / 9 | sage-12 / 11 / 9 | 正文 / 次要 / 图标与装饰 |
-| brand / brand-2 | teal-9 / 10 | teal-9 / 10 | 实色按钮 / 悬停 |
-| brand-wash / brand-wash-2 | teal-3 / 4 | teal-3 / 4 | 淡底 / 淡底悬停(选中行) |
-| brand-line / brand-text / brand-deep | teal-7 / 11 / 12 | teal-7 / 11 / 12 | 边框 / 链接文字 / 淡底上的深字 |
-| ok / warn / danger 各四个 | grass / amber / tomato 的 3、7、9、11 | 同 | 状态,不是品牌 |
+| 令牌 | 用途 |
+| --- | --- |
+| canvas / surface | 页面底、内容表面 |
+| surface-2 / surface-3 | 次级表面、中性悬停和按下状态 |
+| line / line-2 | 分隔线、控件边框 |
+| ink / ink-2 / ink-3 | 正文、次要文字、辅助信息 |
+| brand / brand-2 | 主操作、悬停 |
+| brand-wash / brand-wash-2 | 选中和淡色强调背景 |
+| brand-line / brand-text / brand-deep | 强调边框、链接和强调文字 |
+| ok / warn / danger 各四个 | 成功、警告、失败；仅表达真实状态 |
 
-为什么是 sage 不是 slate:slate 偏蓝,和 teal 打架;sage 偏绿,和 teal 同族,整个界面一个方向。
-为什么是 teal 不是蓝:蓝是全网默认。发起人的原话:不要一个全网一样的配色。
+## 字与尺度
 
-## 字
+- 自托管 Inter / Noto Sans SC，来自 `web/src/fonts/`；型号、数量、价格和时间沿用等宽与数字对齐规则。
+- 辅助 12px、正文 14px、邮件原文 15px、栏标题 16px、页面标题 20px。
+- 间距采用 4/8px 节奏，控件 36px、小控件 32px；控件圆角 8px、面板圆角 12px。
+- Lucide 常用 16/18px、线宽 1.75；图标和文字共同对齐。
 
-- 正文 Inter(拉丁与数字)+ Noto Sans SC(汉字),自托管、按字频切片,来自 infra 字体包(`web/src/fonts/`,ADR-0007 取代 0004 的字体一节)
-- 型号、数量、价格、时间用等宽栈 `--font-mono`,`tabular-nums`
-- 字阶:2xs 11 · xs 12 · sm 14(正文)· base 16 · 2xl 24;标题 `text-balance`
+## 三条硬规则
 
-## 圆角、阴影
+1. 字面色值只许出现在中央令牌文件，既有主题适配在迁移时收口。
+2. 禁 Tailwind 任意值 `[…]`；网格模板等在令牌文件定义共享 utility。
+3. `pages/` 只组合布局与共享组件；视觉状态定义放在 `components/`。
 
-- sm 6(标签、小控件)· md 8(按钮、输入)· lg 12(卡片)· xl 16(对话框)
-- 阴影带 sage 色相不带纯黑;三档 sm / md / lg,暗色下加深
-
-## 三条硬规则(守卫 `tools/guard_tokens.py` 强制)
-
-1. 字面色值只许出现在 `tokens/theme.css`
-2. 禁 Tailwind 任意值 `[…]`;网格模板等用 `@utility` 在令牌文件里起名
-3. `pages/` 只许布局类;颜色、圆角、阴影、边框一律在 `components/`
+Ant Design 是暂存的迁移依赖，不是最终的第二套设计系统；迁出前复用中央语义值。
