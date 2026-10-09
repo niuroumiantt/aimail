@@ -2,6 +2,7 @@ import { RefreshCw, Sparkles, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { CustomerContext, Thread } from "@/data/types";
 import { fullTime } from "@/lib/text";
+import { ContactRegistration } from "./contact-registration";
 import { Avatar } from "./avatar";
 import "@/tokens/customer-workspace.css";
 
@@ -78,6 +79,7 @@ export function CustomerWorkspace({ thread, mailbox, revision, load, refresh }: 
         {!company && domain && <div><dt>邮箱域名</dt><dd>{domain}</dd></div>}
       </dl>
     </section>
+    <ContactRegistration key={`${mailbox}:${thread.id}`} threadId={thread.id} />
     <section className="customer-business-overview" aria-label="当前话题的生意概况">
       <header><div className="customer-section-label"><Sparkles size={16} aria-hidden /><h3>生意概况</h3></div><button
         type="button" className="mail-icon-button" title="更新当前话题；内容未变化时复用已有概况"

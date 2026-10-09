@@ -300,3 +300,22 @@ BEFORE DELETE ON mailbox_assistant_event
 BEGIN
   SELECT RAISE(ABORT, '审计不可变:mailbox_assistant_event 不允许 DELETE');
 END;
+
+-- derived
+CREATE TABLE IF NOT EXISTS crm_suggestion (
+ thread_id INTEGER PRIMARY KEY REFERENCES thread(id), source_id INTEGER NOT NULL REFERENCES message(id),
+ model TEXT NOT NULL, task_version TEXT NOT NULL, produced_at TEXT NOT NULL,
+ generation TEXT NOT NULL, status TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}',
+ input_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS crm_registration (
+ id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL UNIQUE REFERENCES thread(id),
+ mailbox_id INTEGER NOT NULL REFERENCES mailbox(id), payload TEXT NOT NULL,
+ fingerprint TEXT NOT NULL, confirmed_by TEXT NOT NULL, confirmed_at TEXT NOT NULL,
+ receipt TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TRIGGER IF NOT EXISTS crm_registration_facts_immutable BEFORE UPDATE OF
+ thread_id,mailbox_id,payload,fingerprint,confirmed_by,confirmed_at ON crm_registration
+ BEGIN SELECT RAISE(ABORT, 'confirmed registration is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS crm_registration_no_delete BEFORE DELETE ON crm_registration
+ BEGIN SELECT RAISE(ABORT, 'confirmed registration is immutable'); END;

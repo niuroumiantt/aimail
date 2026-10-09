@@ -5,6 +5,8 @@ import type {
   AttachmentText,
   AssistantState,
   CustomerContext,
+  ContactRegistrationFields,
+  ContactRegistrationState,
   Lead,
   MailboxInfo,
   ModelProvider,
@@ -58,6 +60,9 @@ type State = {
   assistant: () => Promise<AssistantState>;
   askAssistant: (question: string) => Promise<AssistantState>;
   clearAssistant: () => Promise<AssistantState>;
+  contactRegistration: (id: string) => Promise<ContactRegistrationState>;
+  extractContact: (id: string) => Promise<ContactRegistrationState>;
+  saveContact: (id: string, fields: ContactRegistrationFields) => Promise<ContactRegistrationState>;
   customerContext: (id: string) => Promise<CustomerContext>;
   refreshCustomerContext: (id: string, retry?: boolean) => Promise<{ queued: number }>;
   modelSelection: () => Promise<ModelSelection>;
@@ -242,6 +247,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!source) throw new Error("还没加载完");
     return source.translateMessage(id);
   }, [source]);
+  const contactRegistration = useCallback(async (id: string) => {
+    if (!source) throw new Error("还没加载完");
+    return source.contactRegistration(id);
+  }, [source]);
+  const extractContact = useCallback(async (id: string) => {
+    if (!source) throw new Error("还没加载完");
+    return source.extractContact(id, user);
+  }, [source, user]);
+  const saveContact = useCallback(async (id: string, fields: ContactRegistrationFields) => {
+    if (!source) throw new Error("还没加载完");
+    return source.saveContact(id, fields, user);
+  }, [source, user]);
   const customerContext = useCallback(async (id: string) => {
     if (!source) throw new Error("还没加载完");
     return source.customerContext(id);
@@ -341,6 +358,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!source) throw new Error("还没加载完");
         return source.clearAssistant(user);
       },
+      contactRegistration, extractContact, saveContact,
       customerContext,
       getMessageTranslation,
       translateMessage,
@@ -348,7 +366,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       modelSelection,
       setModelSelection,
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
+    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, contactRegistration, extractContact, saveContact, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

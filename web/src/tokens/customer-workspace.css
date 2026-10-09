@@ -65,3 +65,12 @@
 .customer-overview-footer > p { overflow-wrap: anywhere; }
 .customer-workspace-v2 .customer-overview-footer .customer-overview-stale { margin-top: 0; margin-bottom: var(--ui-space-2); }
 @media (max-width: 767px) { .customer-workspace-v2 { padding: var(--ui-space-4); } }
+.crm-action { display: inline-flex; align-items: center; justify-content: center; gap: var(--ui-space-1); color: var(--color-brand-text); background: var(--color-brand-wash); border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: var(--ui-space-2) var(--ui-space-3); font-size: var(--ui-font-meta); cursor: pointer; }
+.crm-action:disabled { opacity: .5; cursor: default; }
+.crm-form { display: grid; gap: var(--ui-space-3); margin-top: var(--ui-space-4); }
+.crm-form label { display: grid; gap: var(--ui-space-1); font-size: var(--ui-font-meta); color: var(--color-ink-2); min-width: 0; }
+.crm-form input, .crm-form textarea, .crm-form select { width: 100%; min-width: 0; border: 1px solid var(--color-line); background: var(--color-surface); color: var(--color-ink); padding: var(--ui-space-2); border-radius: var(--radius-md); font: inherit; }
+.crm-form textarea { min-height: 90px; resize: vertical; }
+.crm-form blockquote { white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--ui-space-2) 0; padding-left: var(--ui-space-2); border-left: 1px dashed var(--color-line); }
+.crm-saved, .crm-link { display: flex; align-items: center; gap: var(--ui-space-2); margin-top: var(--ui-space-3); color: var(--color-brand-text); font-size: var(--ui-font-meta); overflow-wrap: anywhere; }
+.crm-primary { font-weight: 600; }

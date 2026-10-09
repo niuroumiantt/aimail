@@ -1019,6 +1019,12 @@ def create_app(
         row = conn.execute("SELECT * FROM lead WHERE id = ?", (lead_id,)).fetchone()
         return _lead_out(row)
 
+    from aimail.api.crm import install as install_crm
+
+    install_crm(
+        app, conn, _person, _mailbox_row, token=outreach_import_token, lock=api_connection_lock
+    )
+
     from aimail.api.outreach import install as install_outreach
 
     install_outreach(
