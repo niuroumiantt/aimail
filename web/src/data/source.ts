@@ -6,6 +6,8 @@ import type {
   AttachmentText,
   AssistantState,
   CustomerContext,
+  ContactRegistrationFields,
+  ContactRegistrationState,
   Lead,
   MailboxInfo,
   MailboxAccess,
@@ -55,6 +57,9 @@ export interface DataSource {
   assistant(): Promise<AssistantState>;
   askAssistant(question: string, user: string): Promise<AssistantState>;
   clearAssistant(user: string): Promise<AssistantState>;
+  contactRegistration: (id: string) => Promise<ContactRegistrationState>;
+  extractContact: (id: string, user: string) => Promise<ContactRegistrationState>;
+  saveContact: (id: string, fields: ContactRegistrationFields, user: string) => Promise<ContactRegistrationState>;
   customerContext(threadId: string): Promise<CustomerContext>;
   refreshCustomerContext(threadId: string, retry?: boolean): Promise<{ queued: number }>;
   modelSelection(): Promise<ModelSelection>;
@@ -245,6 +250,9 @@ export async function fixtureSource(): Promise<DataSource> {
     assistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
     askAssistant: async () => { throw new Error("设计样本不调用真实模型"); },
     clearAssistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
+    contactRegistration: async () => { throw new Error("设计样本不连接客户档案"); },
+    extractContact: async () => { throw new Error("设计样本不调用真实模型"); },
+    saveContact: async () => { throw new Error("设计样本不保存客户档案"); },
     customerContext: async id => ({ email: threads.find(t => t.id === id)?.email ?? "", configured: false, reason: "设计样本不调用真实模型", projects: [] }),
     refreshCustomerContext: async () => ({ queued: 0 }),
     modelSelection: async () => ({ selected: "local", model: "", options: [
@@ -350,6 +358,9 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
     assistant: () => api<AssistantState>("/api/assistant"),
     askAssistant: (question, user) => api<AssistantState>("/api/assistant", asPerson(user, { question }, "POST")),
     clearAssistant: (user) => api<AssistantState>("/api/assistant/clear", asPerson(user)),
+    contactRegistration: id => api<ContactRegistrationState>(`/api/threads/${id}/registration`),
+    extractContact: (id, user) => api<ContactRegistrationState>(`/api/threads/${id}/registration/extract`, asPerson(user)),
+    saveContact: (id, fields, user) => api<ContactRegistrationState>(`/api/threads/${id}/registration`, asPerson(user, fields, "POST")),
     customerContext: id => api<CustomerContext>(`/api/threads/${id}/customer`),
     refreshCustomerContext: (id, retry = false) => api<{ queued: number }>(`/api/threads/${id}/customer?retry=${retry}`, { method: "POST" }),
     modelSelection: () => api<ModelSelection>("/api/model-selection"),

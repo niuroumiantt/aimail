@@ -7,6 +7,8 @@ import { CustomerWorkspace } from "./customer-workspace";
 import { ThreadList } from "./thread-list";
 import { TipProvider } from "./tip";
 
+vi.mock("./contact-registration", () => ({ ContactRegistration: () => null }));
+
 const thread = threads[0];
 const context: CustomerContext = { email: thread.email, configured: true, reason: "", projects: [{ id: thread.id, subject: "GPU 采购", updated_at: "2026-10-04", state: "ok", stale: false, error: "", scope: { total: 3, included: 3, truncated: 0, unread_attachments: 0 }, summary: { model: "测试模型", task_version: "ask_mailbox@1", produced_at: "2026-10-04T01:00:00Z", findings: [{ text: "当前需求为 2 台 H200", quote: "2 H200", source_id: 12, thread_id: Number(thread.id), subject: "GPU", unverified: [] }], scope: { total: 3, included: 3, truncated: 0, unread_attachments: 0 } }, messages: [{ id: "10", sent_at: "2026-10-01T01:00:00Z", direction: "in", from_email: thread.email, subject: "最初 4 台" }, { id: "12", sent_at: "2026-10-04T01:00:00Z", direction: "in", from_email: thread.email, subject: "最新 2 台" }] }] };
 const wrap = (node: React.ReactNode) => <MemoryRouter><TipProvider>{node}</TipProvider></MemoryRouter>;

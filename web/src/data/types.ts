@@ -247,3 +247,21 @@ export type Lead = {
   confirmed_at: string;
   next_step: string;
 };
+
+export type ContactRegistrationFields = {
+  company: string; contact: string; email: string; website: string; region: string;
+  phone: string; title: string; products: string; wants: string; quantity: string; terms: string;
+  business_role: "buyer" | "supplier" | "both" | "unknown";
+  source_type: "inbound_purchase" | "inbound_supply" | "outbound" | "manual";
+  intent: "purchase" | "supply" | "contact";
+  next_step: string; due_at: string; link_registration_id: number | null;
+};
+export type ContactRegistrationState = {
+  defaults: ContactRegistrationFields;
+  candidates: {id: number; company: string}[];
+  registration: {id: number; fields: ContactRegistrationFields; confirmed_at: string;
+    receipt: {account_id?: string; company_id?: string}} | null;
+  suggestion: (Attribution & {status: "running" | "ok" | "failed"; error?: string; stale?: boolean; source_id: number;
+    fields?: Partial<ContactRegistrationFields>; warnings?: string[];
+    citations?: Record<string, {source_id: number; quote: string}>}) | null;
+};
