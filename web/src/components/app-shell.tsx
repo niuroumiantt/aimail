@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
-import { CircleUserRound, Inbox, Maximize2, Menu, Minimize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, X } from "lucide-react";
+import { CircleUserRound, Inbox, Maximize2, Menu, Minimize2, PanelLeftClose, PanelLeftOpen, List, PanelRightClose, PanelRightOpen, X } from "lucide-react";
 import { PaneResize } from "./pane-resize";
 import "@/tokens/mail-layout.css";
 import { cn } from "@/lib/cn";
@@ -22,14 +22,13 @@ function loadCustomerLayout(initiallyCollapsed = false): { width: number; collap
     };
   } catch { return { width: DEFAULT_CUSTOMER_WIDTH, collapsed: initiallyCollapsed }; }
 }
-function loadLayout(): { width: number; autoHide: boolean } {
+function loadLayout(): { width: number } {
   try {
     const value = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}");
     return {
       width: Number.isFinite(value.width) ? Math.max(260, Math.min(600, value.width)) : DEFAULT_WIDTH,
-      autoHide: value.autoHide === true,
     };
-  } catch { return { width: DEFAULT_WIDTH, autoHide: false }; }
+  } catch { return { width: DEFAULT_WIDTH }; }
 }
 
 /** Shared brand, location and account bar on every application page. */
@@ -57,7 +56,6 @@ export function AppShell({
   assistantOpen = false,
   onFullscreen,
   showDetail = false,
-  readerKey = "",
   customer,
   title,
   modelControl,
@@ -85,7 +83,6 @@ export function AppShell({
 }) {
   const [layout, setLayout] = useState(loadLayout);
   const [hidden, setHidden] = useState(false);
-  const [expandedFor, setExpandedFor] = useState<string>();
   const [navigation, setNavigation] = useState(() => {
     try { const saved = JSON.parse(localStorage.getItem("aimail-navigation-layout") ?? "{}"); return { width: Number.isFinite(saved.width) ? Math.max(180, Math.min(280, saved.width)) : DEFAULT_NAV_WIDTH, collapsed: saved.collapsed === true }; }
     catch { return { width: DEFAULT_NAV_WIDTH, collapsed: false }; }
@@ -96,16 +93,16 @@ export function AppShell({
   const [navigationOverlay, setNavigationOverlay] = useState(false);
   const [viewport, setViewport] = useState(window.innerWidth);
   const readerFocused = focused && showDetail && !assistantOpen;
-  const compactNavigation = viewport < 768 || showDetail && viewport < 1300;
-  const customerInline = viewport >= 1100;
+  const compactNavigation = viewport < 768;
+  const customerInline = viewport >= 1300;
   const navigationVisible = compactNavigation ? navigationOverlay : !navigation.collapsed;
-  const collapsed = showDetail && (hidden || (layout.autoHide && expandedFor !== readerKey));
+  const collapsed = showDetail && hidden;
   // Auxiliary panes share a fixed viewport budget; the reader owns the remaining width.
   const customerGutter = customer && !readerFocused && customerInline && !customerLayout.collapsed ? 12 : 0;
   const paneGutters = rail ? viewport >= 768 ? 60 + customerGutter : 16 : 26;
   const availableWidth = Math.max(0, viewport - paneGutters - (rail && viewport >= 768 ? 52 : 0));
-  const navigationSpace = readerFocused ? 0 : compactNavigation || navigation.collapsed ? 44 : navigation.width;
-  const listSpace = readerFocused ? 0 : collapsed ? 40 : 260;
+  const navigationSpace = readerFocused ? 0 : compactNavigation || navigation.collapsed ? 0 : navigation.width;
+  const listSpace = readerFocused ? 0 : collapsed ? 0 : 260;
   const customerMax = Math.max(280, Math.min(520, availableWidth - navigationSpace - listSpace - MIN_READER_WIDTH));
   const customerWidth = Math.min(customerLayout.width, customerMax);
   const customerVisible = Boolean(customer) && !readerFocused && (customerInline ? !customerLayout.collapsed : customerOpen);
@@ -132,17 +129,26 @@ export function AppShell({
     window.addEventListener("resize", resized);
     return () => window.removeEventListener("resize", resized);
   }, []);
-  const expand = () => { setHidden(false); setExpandedFor(readerKey); };
+  useEffect(() => {
+    if (!navigationOverlay) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setNavigationOverlay(false); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [navigationOverlay]);
+  const expand = () => setHidden(false);
   const layoutControls = showDetail && <div className="mail-reader-layout-controls" aria-label="阅读布局">
+    {!readerFocused && !navigationVisible && <button type="button" aria-label="展开左侧导航" aria-expanded={false} onClick={() => { if (compactNavigation) setNavigationOverlay(true); else setNavigation(value => ({ ...value, collapsed: false })); }}><PanelLeftOpen size={16} /><span>邮箱导航</span></button>}
+    {!readerFocused && collapsed && <button type="button" aria-label="展开邮件列表" aria-expanded={false} onClick={expand}><List size={16} /><span>邮件列表</span></button>}
     <button type="button" aria-label={readerFocused ? "退出邮件全屏" : "邮件全屏"} aria-pressed={readerFocused} onClick={() => { if (!readerFocused) onFullscreen?.(); setFocused(!readerFocused); }} title={readerFocused ? "恢复之前的阅读布局" : "隐藏两侧面板，展开正文"}>{readerFocused ? <Minimize2 size={16} /> : <Maximize2 size={16} />}<span>{readerFocused ? "退出邮件全屏" : "邮件全屏"}</span></button>
     {customer && <button className="mail-customer-toggle" type="button" onClick={toggleCustomer} aria-label={customerVisible ? "隐藏客户工作区" : "展开客户工作区"} aria-expanded={customerVisible} aria-controls="mail-customer-workspace">{customerVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>客户工作区</span><small>{customerVisible ? "已展开" : "已收起"}</small></button>}
   </div>;
   return (
     <div className={cn("mail-app-shell flex h-full min-h-0 w-full flex-col bg-canvas", Boolean(rail) && "mail-outlook-workspace", Boolean(customer) && "mail-customer-workspace", assistantOpen && "mail-assistant-open", readerFocused && "mail-reader-focused")}>
-      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => { setFocused(false); setNavigationOverlay(value => !value); }} modelControl={modelControl} searchControl={searchControl} />
+      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => { setFocused(false); if (compactNavigation) setNavigationOverlay(value => !value); else setNavigation(value => ({ ...value, collapsed: !value.collapsed })); }} modelControl={modelControl} searchControl={searchControl} />
       <div className="mail-app-panes flex min-h-0 flex-1">
         {rail && !readerFocused && rail}
-        <div className="mail-navigation" hidden={readerFocused} data-compact={compactNavigation} data-collapsed={navigation.collapsed} data-overlay={navigationOverlay} style={{ "--mail-nav-width": `${navigation.width}px` } as CSSProperties}>
+        {compactNavigation && navigationOverlay && !readerFocused && <button type="button" className="mail-navigation-backdrop" aria-label="关闭导航抽屉" onClick={() => setNavigationOverlay(false)} /> }
+        <div className="mail-navigation" hidden={readerFocused || !navigationVisible} data-compact={compactNavigation} data-collapsed={navigation.collapsed} data-overlay={navigationOverlay} style={{ "--mail-nav-width": `${navigation.width}px` } as CSSProperties}>
           <button className="mail-navigation-toggle" type="button" aria-label={navigationVisible ? "隐藏左侧导航" : "展开左侧导航"} onClick={() => { if (compactNavigation) setNavigationOverlay(value => !value); else setNavigation(value => ({ ...value, collapsed: !value.collapsed })); }}>{navigationVisible ? <PanelLeftClose size={17} strokeWidth={1.75} /> : <PanelLeftOpen size={17} strokeWidth={1.75} />}</button>
           <div className="mail-navigation-content" onClick={event => { if ((event.target as HTMLElement).closest("a")) setNavigationOverlay(false); }}>{sidebar}</div>
           {!navigation.collapsed && !compactNavigation && <PaneResize label="调整左侧导航宽度" value={navigation.width} min={180} max={280} onChange={width => setNavigation(value => ({ ...value, width }))} onReset={() => setNavigation(value => ({ ...value, width: DEFAULT_NAV_WIDTH }))} />}
@@ -151,12 +157,6 @@ export function AppShell({
           <main className="min-w-0 flex-1 overflow-y-auto">{main}</main>
         ) : (
           <>
-            {collapsed && !readerFocused && <aside className="mail-list-rail" aria-label="已收起的邮件列表">
-              <button type="button" aria-label="展开邮件列表" title="展开邮件列表" onClick={expand}>
-                <PanelLeftOpen size={18} />
-              </button>
-              <span>邮件</span>
-            </aside>}
             <section
               aria-label="列表"
               hidden={readerFocused}
@@ -170,13 +170,6 @@ export function AppShell({
               <div className="mail-list-content">
                 <div className="mail-list-controls">
                   <span>收件箱</span>
-                  <label title="打开邮件时自动收起列表，展开按钮始终保留">
-                    <input type="checkbox" checked={layout.autoHide} onChange={event => {
-                      setLayout(value => ({ ...value, autoHide: event.target.checked }));
-                      setHidden(false); setExpandedFor(undefined);
-                    }} />
-                    阅读时隐藏
-                  </label>
                   <button type="button" aria-label="收起邮件列表" title="收起邮件列表" disabled={!showDetail} onClick={() => setHidden(true)}>
                     <PanelLeftClose size={17} />
                   </button>

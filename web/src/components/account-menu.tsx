@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronDown, CircleUserRound } from "lucide-react";
 
 type Session = { identity: string; username: string };
 
@@ -11,7 +12,7 @@ export function AccountMenu() {
     let active = true;
     fetch("/api/session", { headers: { Accept: "application/json" }, cache: "no-store" })
       .then(response => response.ok ? response.json() as Promise<Session> : undefined)
-      .then(value => { if (active && value) setSession(value); })
+      .then(value => { if (active && value && typeof value.identity === "string") setSession({ identity: value.identity, username: typeof value.username === "string" ? value.username : "" }); })
       .catch(() => {});
     return () => { active = false; };
   }, []);
@@ -20,11 +21,9 @@ export function AccountMenu() {
     <header className="flex h-10 shrink-0 items-center justify-end border-b border-line bg-surface px-4 text-xs">
       <details className="group relative">
         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-ink-2 hover:bg-surface-2">
-          <span className="grid size-6 place-items-center rounded-full bg-brand-wash font-semibold text-brand-text">
-            {(session?.username || session?.identity || "?").slice(0, 1).toUpperCase()}
-          </span>
-          <span className="max-w-56 truncate">{session?.identity ?? "正在读取账号…"}</span>
-          <span aria-hidden>⌄</span>
+          <span className="mail-account-icon" aria-hidden><CircleUserRound size={18} strokeWidth={1.75} /></span>
+          <span className="mail-account-name max-w-56 truncate">{session ? session.username.trim() || session.identity.split("@")[0] : "正在读取账号…"}</span>
+          <ChevronDown size={13} aria-hidden />
         </summary>
         <div className="absolute right-0 z-50 mt-1 grid min-w-52 gap-1 rounded-lg border border-line bg-surface p-2 shadow-lg">
           <p className="break-all px-2 py-1 text-2xs text-ink-3">当前登录：{session?.identity ?? "未知"}</p>

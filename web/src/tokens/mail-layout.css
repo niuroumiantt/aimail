@@ -100,10 +100,10 @@
   .mail-navigation[data-compact="true"][data-overlay="true"] { position: absolute; width: var(--mail-nav-width, 200px); height: 100%; z-index: 35; background: var(--color-surface-2); box-shadow: var(--shadow-md); }
   .mail-navigation[data-compact="true"][data-overlay="true"] .mail-navigation-content { display: block; }
 }
-@media (min-width: 1100px) {
+@media (min-width: 1300px) {
   .mail-customer-pane, .mail-customer-pane[data-open="true"] { display: flex; flex-direction: column; position: relative; inset: auto; width: var(--mail-customer-width, 320px); min-height: 0; flex-shrink: 0; border-left: 1px solid var(--color-line); background: var(--color-surface-2); }
 }
-@media (min-width: 768px) and (max-width: 1099px) {
+@media (min-width: 768px) and (max-width: 1299px) {
   .mail-customer-pane[data-open="true"] { inset-block: 0; left: auto; right: 0; width: min(var(--mail-customer-width, 320px), 80%); border-left: 1px solid var(--color-line); box-shadow: var(--shadow-lg); }
 }
 .mail-reader-focused .mail-app-panes > aside[aria-label="AI 阅读"] { display: none; }

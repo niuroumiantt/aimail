@@ -222,3 +222,32 @@ def test_cached_reads_do_not_wait_for_translation_and_parallel_posts_share_cache
         assert first.result(timeout=3).json() == second.result(timeout=3).json()
     assert len(calls) == 1
     conn.close()
+
+
+def test_all_quoted_new_body_remains_translatable_without_mutating_mail(conn, mailbox, monkeypatch):
+    pk = seed(conn, mailbox, body="> Need 1250 units.\n> Please quote.")
+    before = dict(conn.execute("SELECT * FROM message WHERE id=?", (pk,)).fetchone())
+    assert before["body_new"] == ""
+    monkeypatch.setattr(backends, "ready", lambda: (True, "configured"))
+    calls = []
+
+    def complete(_system, source, _schema, **_kwargs):
+        calls.append(source)
+        return Translation(text_zh="需要 1250 units。请报价。")
+
+    monkeypatch.setattr(backends, "complete", complete)
+    client = TestClient(create_app(conn, mailbox))
+    displayed = client.get(f"/api/threads/{before['thread_id']}").json()["messages"][0]
+    assert displayed["body"] == before["body_quoted"]
+    assert displayed["quoted"] is None
+    assert client.post(f"/api/messages/{pk}/translation").json()["status"] == "ok"
+    assert calls == [before["body_quoted"]]
+    assert dict(conn.execute("SELECT * FROM message WHERE id=?", (pk,)).fetchone()) == before
+
+
+def test_history_only_body_is_not_recovered_as_new_text(conn, mailbox, monkeypatch):
+    pk = seed(conn, mailbox, body="On Friday, Buyer wrote:\n> Old 1250 unit quote.")
+    monkeypatch.setattr(backends, "ready", lambda: (_ for _ in ()).throw(AssertionError()))
+    client = TestClient(create_app(conn, mailbox))
+    assert client.get(f"/api/messages/{pk}/translation").json() is None
+    assert client.post(f"/api/messages/{pk}/translation").status_code == 422

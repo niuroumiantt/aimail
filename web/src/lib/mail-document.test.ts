@@ -89,3 +89,21 @@ it("does not turn presentation tables into specification grids or drop preformat
   expect(doc.querySelector('img')?.getAttribute('width')).toBe('180');
   expect(doc.querySelector('img')?.hasAttribute('height')).toBe(false);
 });
+
+it("separates explicit quoted history without losing any original text or multiplying nested controls", () => {
+  const html = '<p>New price: USD 25.</p><div class="J-reply ntes-mailmaster-quote"><p>From: Buyer</p><div class="ntes-mailmaster-quote"><p>Earlier quote: USD 20.</p></div></div>';
+  const doc = body(html);
+  const history = doc.querySelector('details[data-mail-history]');
+  expect(history?.hasAttribute('open')).toBe(false);
+  expect(doc.querySelectorAll('details')).toHaveLength(1);
+  expect(doc.querySelector('[data-mail-quote-depth="2"]')?.textContent).toBe('Earlier quote: USD 20.');
+  doc.querySelectorAll('[data-mail-generated]').forEach(node => node.remove());
+  expect(doc.body.textContent).toBe(new DOMParser().parseFromString(html, 'text/html').body.textContent);
+});
+
+it("does not mistake customer quotations or sender-supplied markers for mail history", () => {
+  const doc = body('<blockquote>Required: 10 units.</blockquote><div data-mail-quote="true">Important condition.</div>');
+  expect(doc.querySelector('details')).toBeNull();
+  expect(doc.querySelector('[data-mail-quote]')).toBeNull();
+  expect(doc.querySelector('blockquote')?.textContent).toBe('Required: 10 units.');
+});

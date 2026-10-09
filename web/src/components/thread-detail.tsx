@@ -12,6 +12,8 @@ import { ReadingCard } from "./reading-card";
 import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
 import { Tip } from "./tip";
 import { MailLabel } from "./mail-label";
+import { fullTime } from "@/lib/text";
+import "@/tokens/conversation-timeline.css";
 
 /** 线程页。有 reply(接上了数据源)才能回信;页面按线程 id 加 key,切线程时回信框状态归零。 */
 export function ThreadDetail({
@@ -137,11 +139,26 @@ export function ThreadDetail({
           {organizeError && <p role="alert" className="text-sm text-danger-text">{organizeError}</p>}
           {!externalContext && thread.history && thread.history.length > 0 && <CustomerHistory items={thread.history} />}
           {!externalContext && <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />}
-          {thread.messages.map((m) => (
-            <MessageView key={m.id} message={m} onAttachment={onAttachment} onAttachmentFile={onAttachmentFile}
-              mailboxAddress={mailboxAddress}
-              onGetTranslation={onGetTranslation} onTranslate={onTranslate} />
-          ))}
+          <section className="mail-conversation" aria-label="邮件时间线" data-single={thread.messages.length === 1}>
+            {thread.messages.length > 1 ? <details className="mail-conversation-index" open={thread.messages.length <= 6}>
+              <summary className="mail-conversation-heading"><strong>往来时间线 <span>{thread.messages.length}</span></strong><span>从早到晚 · 点击定位邮件</span></summary>
+              <nav aria-label="往来邮件时间导航"><ol>{thread.messages.map(m => <li key={m.id}>
+                <a href={`#mail-${m.id}`} aria-current={hash === `#mail-${m.id}` ? "location" : undefined}>
+                  <time dateTime={m.sent_at}>{fullTime(m.sent_at)}</time><span title={m.from_name}>{m.from_name}</span><small>{m.direction === "out" ? "我方回复" : "来信"}</small>
+                </a>
+              </li>)}</ol></nav>
+            </details> : null}
+            <ol className="mail-conversation-timeline">
+              {thread.messages.map((m, index) => (
+                <li key={m.id} className="mail-conversation-entry" data-direction={m.direction} data-tone={index % 2 ? "alternate" : "default"}>
+                  <div className="mail-conversation-caption"><span className="mail-conversation-dot" aria-hidden>{index + 1}</span><span>{m.direction === "out" ? "我方回复" : "来信"}</span>{index === thread.messages.length - 1 && <span className="mail-conversation-latest">最新往来</span>}</div>
+                  <MessageView message={m} onAttachment={onAttachment} onAttachmentFile={onAttachmentFile}
+                    mailboxAddress={mailboxAddress}
+                    onGetTranslation={onGetTranslation} onTranslate={onTranslate} />
+                </li>
+              ))}
+            </ol>
+          </section>
           {replying && reply && (
             <div ref={replyPanel}><ReplyComposer thread={thread} reply={reply} cacheKey={draftScope} onClose={() => setReplying(false)} /></div>
           )}

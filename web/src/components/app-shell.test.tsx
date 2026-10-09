@@ -28,20 +28,21 @@ it("resizes by keyboard, clamps, persists and resets without changing the reader
   expect(screen.getByText("Reading")).toBeInTheDocument();
 });
 
-it("auto hides when reading, can always reopen, and reopens when leaving the reader", () => {
-  const view = render(<AppShell {...props} />);
-  fireEvent.click(screen.getByRole("checkbox", { name: "阅读时隐藏" }));
+it("ignores legacy auto-hide settings and keeps navigation and list open when switching mail", () => {
+  localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 420, autoHide: true }));
+  Object.defineProperty(window, "innerWidth", { value: 1100, configurable: true });
+  const view = render(<AppShell {...props} showDetail={false} />);
+  view.rerender(<AppShell {...props} readerKey="sales:2" />);
+  expect(screen.getByRole("region", { name: "列表" })).not.toHaveClass("mail-list-collapsed");
+  expect(view.container.querySelector(".mail-navigation")).not.toHaveAttribute("hidden");
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("data-compact", "false");
+  expect(screen.queryByRole("checkbox", { name: "阅读时隐藏" })).toBeNull();
+  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!)).toEqual({ width: 420 });
+  fireEvent.click(screen.getByRole("button", { name: "收起邮件列表" }));
+  view.rerender(<AppShell {...props} readerKey="sales:3" />);
   expect(screen.getByRole("region", { name: "列表" })).toHaveClass("mail-list-collapsed");
   fireEvent.click(screen.getByRole("button", { name: "展开邮件列表" }));
   expect(screen.getByRole("region", { name: "列表" })).not.toHaveClass("mail-list-collapsed");
-  view.rerender(<AppShell {...props} readerKey="sales:2" />);
-  expect(screen.getByRole("button", { name: "展开邮件列表" })).toBeInTheDocument();
-  view.rerender(<AppShell {...props} readerKey="larry:" showDetail={false} />);
-  expect(screen.getByRole("region", { name: "列表" })).not.toHaveClass("mail-list-collapsed");
-  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).autoHide).toBe(true);
-  view.unmount();
-  render(<AppShell {...props} />);
-  expect(screen.getByRole("button", { name: "展开邮件列表" })).toBeInTheDocument();
 });
 
 it("supports manual collapse and survives malformed stored settings", () => {
@@ -90,14 +91,13 @@ it("resizes and remembers the customer pane, then restores it after hiding", () 
 it("temporarily devotes the workspace to the reader and restores each pane without changing saved preferences", () => {
   localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 420, autoHide: true }));
   const view = render(<AppShell {...props} customer={<div>Business</div>} />);
-  fireEvent.click(screen.getByRole("button", { name: "展开邮件列表" }));
   fireEvent.click(screen.getByRole("button", { name: "邮件全屏" }));
   expect(view.container.querySelector(".mail-app-shell")).toHaveClass("mail-reader-focused");
   expect(screen.queryByRole("region", { name: "列表" })).not.toBeInTheDocument();
   expect(screen.queryByRole("complementary", { name: "客户需求栏" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "展开邮件列表" })).not.toBeInTheDocument();
   expect(screen.getByText("Reading")).toBeInTheDocument();
-  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!)).toEqual({ width: 420, autoHide: true });
+  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!)).toEqual({ width: 420 });
   fireEvent.click(screen.getByRole("button", { name: "退出邮件全屏" }));
   expect(screen.getByRole("region", { name: "列表" })).not.toHaveClass("mail-list-collapsed");
   expect(screen.getByRole("complementary", { name: "客户需求栏" })).toBeInTheDocument();
@@ -105,14 +105,14 @@ it("temporarily devotes the workspace to the reader and restores each pane witho
 });
 
 it("retains usable reader space with large stored pane widths on a smaller desktop", () => {
-  Object.defineProperty(window, "innerWidth", { value: 1100, configurable: true });
+  Object.defineProperty(window, "innerWidth", { value: 1300, configurable: true });
   localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 600 }));
   localStorage.setItem("aimail-customer-layout", JSON.stringify({ width: 520 }));
   const view = render(<AppShell {...props} customer={<div>Business</div>} />);
   const listWidth = Number(screen.getByRole("separator", { name: "调整邮件列表宽度" }).getAttribute("aria-valuenow"));
   const customerWidth = Number(screen.getByRole("separator", { name: "调整正文与客户工作区宽度" }).getAttribute("aria-valuenow"));
-  expect(1100 - 26 - 44 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
-  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("data-compact", "true");
+  expect(1300 - 26 - 220 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("data-compact", "false");
   expect(JSON.parse(localStorage.getItem("aimail-customer-layout")!).width).toBe(520);
   fireEvent.click(screen.getByRole("button", { name: "隐藏客户工作区" }));
   expect(Number(screen.getByRole("separator", { name: "调整邮件列表宽度" }).getAttribute("aria-valuenow"))).toBeGreaterThan(listWidth);
@@ -131,13 +131,13 @@ it("opens the customer overlay on mobile without replacing the saved desktop lay
 });
 
 it("budgets the application rail and card gutters when the customer pane is open", () => {
-  Object.defineProperty(window, "innerWidth", { value: 1100, configurable: true });
+  Object.defineProperty(window, "innerWidth", { value: 1300, configurable: true });
   localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 600 }));
   localStorage.setItem("aimail-customer-layout", JSON.stringify({ width: 520, collapsed: false }));
   render(<AppShell {...props} toolbar={<div>Commands</div>} rail={<nav>Apps</nav>} customer={<div>Business</div>} />);
   const listWidth = Number(screen.getByRole("separator", { name: "调整邮件列表宽度" }).getAttribute("aria-valuenow"));
   const customerWidth = Number(screen.getByRole("separator", { name: "调整正文与客户工作区宽度" }).getAttribute("aria-valuenow"));
-  expect(1100 - 72 - 52 - 44 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
+  expect(1300 - 72 - 52 - 220 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
 });
 
 
@@ -179,4 +179,21 @@ it("keeps AI reading reachable after entering mail fullscreen", () => {
   expect(view.container.querySelector(".mail-app-shell")).toHaveClass("mail-reader-focused");
   view.rerender(<AppShell {...props} assistantOpen />);
   expect(view.container.querySelector(".mail-app-shell")).not.toHaveClass("mail-reader-focused");
+});
+
+
+it("replaces collapsed empty rails with named controls and clearly closes narrow navigation", () => {
+  Object.defineProperty(window, "innerWidth", { value: 390, configurable: true });
+  const view = render(<AppShell {...props} />);
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("hidden");
+  fireEvent.click(screen.getByRole("button", { name: "收起邮件列表" }));
+  expect(view.container.querySelector(".mail-list-rail")).toBeNull();
+  expect(screen.getByRole("button", { name: "展开邮件列表" })).toHaveTextContent("邮件列表");
+  fireEvent.click(screen.getByRole("button", { name: "展开左侧导航" }));
+  expect(view.container.querySelector(".mail-navigation")).not.toHaveAttribute("hidden");
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("hidden");
+  fireEvent.click(screen.getByRole("button", { name: "展开左侧导航" }));
+  fireEvent.click(screen.getByRole("button", { name: "关闭导航抽屉" }));
+  expect(view.container.querySelector(".mail-navigation")).toHaveAttribute("hidden");
 });

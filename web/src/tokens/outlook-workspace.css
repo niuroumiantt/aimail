@@ -94,7 +94,7 @@
   .mail-outlook-workspace .mail-topbar { flex-wrap: wrap; padding-block: var(--ui-space-2); gap: var(--ui-space-2); }
   .mail-global-search { order: 5; flex-basis: 100%; max-width: none; }
   .mail-outlook-workspace .mail-topbar > header { margin-left: auto; }
-  .mail-outlook-workspace .mail-topbar > header summary > span:nth-child(2) { display: none; }
+  .mail-outlook-workspace .mail-topbar .mail-account-name { display: inline; max-width: 96px; }
   .mail-outlook-workspace .mail-app-panes { margin: var(--ui-space-2); }
   .mail-command-actions { flex-wrap: wrap; }
   .mail-command-actions > button, .mail-command-actions > a { min-height: 32px; padding-inline: var(--ui-space-2); }
@@ -138,3 +138,11 @@
   .mail-outlook-workspace .mail-message-header > time { margin-left: 56px; }
   .mail-outlook-workspace .mail-translation-tools { margin-left: auto; }
 }
+
+.mail-outlook-workspace .mail-account-icon { border-color: color-mix(in srgb, var(--color-on-brand) 45%, transparent); }
+
+/* Collapsed panes use named toolbar buttons rather than empty, full-height rails. */
+.mail-outlook-workspace .mail-navigation-backdrop { position: absolute; inset: 0; z-index: 34; background: var(--color-overlay); cursor: pointer; }
+.mail-outlook-workspace .mail-navigation[data-compact="true"][data-overlay="true"] { left: 0; width: min(280px, 90%); box-shadow: var(--shadow-lg); }
+.mail-outlook-workspace .mail-topbar .mail-topbar-menu { display: grid; }
+.mail-reader-layout-controls > button:has(> span):is([aria-label="展开左侧导航"], [aria-label="展开邮件列表"]) { background: var(--color-surface-2); border: 1px solid var(--color-line); }

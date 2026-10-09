@@ -35,3 +35,19 @@ def split(text: str) -> tuple[str, str]:
     if quoted_line and quoted_line.start() < cut:
         cut = quoted_line.start()
     return text[:cut].rstrip(), text[cut:].strip()
+
+
+def readable_body(body_new: str, body_quoted: str) -> str:
+    """Recover an all-quoted display body without rewriting immutable mail rows.
+
+    Some senders wrap their entire new message in a blockquote, producing leading
+    > lines. Only recover when no recognized historical-message header exists.
+    """
+    if body_new.strip():
+        return body_new
+    unquoted = re.sub(r"(?m)^[ \t]*(?:>[ \t]*)+", "", body_quoted)
+    if re.match(r"^\s*>", body_quoted) and not any(
+        marker.search(unquoted) for marker in SEPARATORS
+    ):
+        return body_quoted
+    return body_new
