@@ -90,6 +90,8 @@
   .mail-commandbar .mail-reader-layout-controls > button { padding-inline: var(--ui-space-1); font-size: 11px; }
   .mail-commandbar .mail-model-selector { max-width: 140px; }
   .mail-application-rail { display: none; }
+  .mail-outlook-workspace .mail-app-panes:has(.mail-navigation[data-overlay="true"]) > .mail-application-rail { display: flex; position: absolute; z-index: 36; bottom: var(--ui-space-3); left: calc(min(280px, 90%) - 44px); width: 36px; padding: 0; border: 0; }
+  .mail-outlook-workspace .mail-application-rail > div { display: none; }
   .mail-folder-sidebar > .mail-sidebar-nav { display: grid; }
   .mail-outlook-workspace .mail-navigation[data-overlay="true"] { background: var(--color-surface-3); }
   .mail-outlook-workspace .mail-list-pane { margin: 0; }
