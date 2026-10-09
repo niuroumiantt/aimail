@@ -28,6 +28,8 @@
   /* Sender HTML keeps a light document, independent of the application theme. */
   --color-mail-paper: #ffffff;
   --color-mail-ink: #1c2024;
+  --color-mail-line: #e5e6eb;
+  --color-mail-wash: #f8f9fc;
   --color-line: #e5e6eb;
   --color-line-2: #d9d9e0;
   --color-ink: #1c2024;
