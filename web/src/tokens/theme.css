@@ -21,6 +21,10 @@
   --color-surface: #ffffff;
   --color-surface-2: #f9f9fb;
   --color-surface-3: #f0f0f3;
+  /* 工作区面板：导航、列表和客户上下文以轻微底色区分，原文沿用 surface。 */
+  --color-panel-navigation: #f8f9fc;
+  --color-panel-list: #fbfcff;
+  --color-panel-context: #f2f5fc;
   --color-line: #e5e6eb;
   --color-line-2: #d9d9e0;
   --color-ink: #1c2024;
@@ -114,6 +118,9 @@
       --color-surface: #18191b;
       --color-surface-2: #212225;
       --color-surface-3: #272a2d;
+      --color-panel-navigation: #1d2027;
+      --color-panel-list: #1b1e26;
+      --color-panel-context: #1d2433;
       --color-line: #363a3f;
       --color-line-2: #43484e;
       --color-ink: #edeef0;
@@ -154,6 +161,9 @@
     --color-surface: #18191b;
     --color-surface-2: #212225;
     --color-surface-3: #272a2d;
+    --color-panel-navigation: #1d2027;
+    --color-panel-list: #1b1e26;
+    --color-panel-context: #1d2433;
     --color-line: #363a3f;
     --color-line-2: #43484e;
     --color-ink: #edeef0;
