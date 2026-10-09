@@ -213,3 +213,39 @@ it("explains a disconnected selected model without exposing arbitrary upstream e
   expect(await screen.findByRole("alert")).toHaveTextContent("当前翻译模型未连接，请点击顶栏的模型图标检查连接状态");
   expect(screen.getByLabelText("邮件原文")).toBeVisible();
 });
+
+it("previews a scanned PDF as the original file and releases its download URL on close", async () => {
+  const create = vi.fn(() => "blob:original-pdf");
+  const revoke = vi.fn();
+  vi.stubGlobal("URL", class extends URL {
+    static createObjectURL = create;
+    static revokeObjectURL = revoke;
+  });
+  const blob = new Blob(["%PDF-1.7 scanned original"], { type: "application/pdf" });
+  const load = vi.fn(async () => blob);
+  const text = vi.fn(readsFine);
+  const view = render(<TipProvider><MessageView message={message} onAttachment={text} onAttachmentFile={load} /></TipProvider>);
+  fireEvent.click(screen.getAllByTestId("attachment")[1]);
+  expect(await screen.findByTitle("PDF 原件预览")).toHaveAttribute("src", "blob:original-pdf#view=FitH");
+  expect(load).toHaveBeenCalledExactlyOnceWith("a2");
+  expect(create).toHaveBeenCalledExactlyOnceWith(blob);
+  expect(text).not.toHaveBeenCalled();
+  expect(screen.getByRole("link", { name: "下载原件" })).toHaveAttribute("download", "scan.pdf");
+  fireEvent.click(screen.getByRole("button", { name: "关闭附件预览" }));
+  await waitFor(() => expect(revoke).toHaveBeenCalledWith("blob:original-pdf"));
+  view.unmount();vi.unstubAllGlobals();
+});
+
+it("does not reopen an attachment or retain bytes if it finishes after closing", async () => {
+  let finish!: (file: Blob) => void;
+  const load = vi.fn(() => new Promise<Blob>(resolve => { finish = resolve; }));
+  const create = vi.fn();
+  vi.stubGlobal("URL", class extends URL { static createObjectURL = create; static revokeObjectURL = vi.fn(); });
+  const view = render(<TipProvider><MessageView message={message} onAttachmentFile={load} /></TipProvider>);
+  fireEvent.click(screen.getAllByTestId("attachment")[0]);
+  fireEvent.click(screen.getByRole("button", { name: "关闭附件预览" }));
+  finish(new Blob(["%PDF-1.7"], { type: "application/pdf" }));
+  await waitFor(() => expect(screen.queryByTitle("PDF 原件预览")).toBeNull());
+  expect(create).not.toHaveBeenCalled();
+  view.unmount();vi.unstubAllGlobals();
+});

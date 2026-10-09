@@ -33,7 +33,7 @@ export default function InboxPage() {
   const [commandError, setCommandError] = useState<{ scope: string; message: string }>();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
-  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, attachmentFile, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
     useData();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
@@ -97,6 +97,7 @@ export default function InboxPage() {
             backSearch={search}
             reply={selected.deleted_at ? undefined : reply}
             onAttachment={attachmentText}
+            onAttachmentFile={attachmentFile}
             onGetTranslation={getMessageTranslation}
             onTranslate={translateMessage}
             assistantOpen={assistantOpen}

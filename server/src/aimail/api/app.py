@@ -751,6 +751,34 @@ def create_app(
             raise HTTPException(502, "分析失败或引用未通过核对，请重试。") from exc
         return _assistant_status(selected)
 
+    @app.get("/api/attachments/{attachment_id}/file")
+    def attachment_file(attachment_id: int, request: Request) -> Response:
+        from urllib.parse import quote
+
+        selected = _mailbox_row(request)
+        row = conn.execute(
+            "SELECT a.filename, a.content FROM attachment a "
+            "JOIN message m ON m.id = a.message_id WHERE a.id = ? AND m.mailbox_id = ?",
+            (attachment_id, int(selected["id"])),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "没有这个附件")
+        content = bytes(row["content"])
+        # Only actual PDFs are embedded. Other original bytes remain downloadable.
+        pdf = content.lstrip().startswith(b"%PDF-")
+        filename = str(row["filename"]).replace("\\", "/").rsplit("/", 1)[-1] or "attachment"
+        disposition = "inline" if pdf else "attachment"
+        encoded_name = quote(filename, safe="")
+        return Response(
+            content,
+            media_type="application/pdf" if pdf else "application/octet-stream",
+            headers={
+                "Content-Disposition": f"{disposition}; filename*=UTF-8''{encoded_name}",
+                "Cache-Control": "private, no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     @app.get("/api/attachments/{attachment_id}/text")
     def attachment_text(attachment_id: int, request: Request) -> dict:
         selected = _mailbox_row(request)

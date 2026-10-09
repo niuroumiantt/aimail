@@ -143,3 +143,16 @@ it("does not cancel or repeat an uncertain send after the token was issued", asy
   sendResponse.resolve(Response.json({}));
   await request;
 });
+
+it("loads original attachment bytes in the mailbox where the click started", async () => {
+  const blob = new Blob(["%PDF-1.7 original bytes"], { type: "application/pdf" });
+  const response = { ok: true, blob: vi.fn(async () => blob) };
+  const fetcher = vi.fn().mockResolvedValue(response);
+  vi.stubGlobal("fetch", fetcher);
+  const sales = apiSource("sales@example.test");
+  const request = sales.attachmentFile("42");
+  sales.selectMailbox("other@example.test");
+  await expect(request).resolves.toBe(blob);
+  expect(fetcher.mock.calls[0][0]).toBe("/api/attachments/42/file");
+  expect(new Headers((fetcher.mock.calls[0][1] as RequestInit).headers).get("X-Mailbox-Address")).toBe("sales@example.test");
+});

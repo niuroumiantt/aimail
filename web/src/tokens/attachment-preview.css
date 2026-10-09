@@ -1,0 +1,14 @@
+.mail-attachment-preview { position: fixed; inset: 5vh 4vw; z-index: 50; display: flex; flex-direction: column; min-width: 0; background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-line); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); overflow: hidden; }
+.mail-attachment-preview header { display: flex; align-items: center; gap: var(--ui-space-3); padding: var(--ui-space-3) var(--ui-space-4); border-bottom: 1px solid var(--color-line); }
+.mail-attachment-preview header > div { flex: 1; min-width: 0; }
+.mail-attachment-preview h2 { font-size: var(--ui-font-body); font-weight: 600; overflow-wrap: anywhere; }
+.mail-attachment-preview header p, .mail-attachment-preview footer { color: var(--color-ink-2); font-size: var(--ui-font-meta); }
+.mail-attachment-preview a, .mail-attachment-preview button { cursor: pointer; }
+.mail-attachment-preview header a { display: inline-flex; align-items: center; gap: var(--ui-space-1); flex-shrink: 0; color: var(--color-brand-text); font-size: var(--ui-font-meta); }
+.mail-attachment-preview-body { flex: 1; min-height: 0; background: var(--color-surface-2); }
+.mail-attachment-preview-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+.mail-attachment-preview-body > p, .mail-attachment-preview-body > div { padding: var(--ui-space-5); font-size: var(--ui-font-body); }
+.mail-attachment-preview footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ui-space-2); padding: var(--ui-space-2) var(--ui-space-4); border-top: 1px solid var(--color-line); }
+.mail-attachment-preview footer button, .mail-attachment-preview-body button { color: var(--color-brand-text); }
+.mail-attachment-preview :is(button, a):focus-visible { outline: 2px solid var(--color-brand-line); outline-offset: 2px; }
+@media (max-width: 767px) { .mail-attachment-preview { inset: var(--ui-space-2); } .mail-attachment-preview header { flex-wrap: wrap; } }

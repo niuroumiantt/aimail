@@ -50,6 +50,7 @@ type State = {
   send: (threadId: string, request: SendRequest) => Promise<string>;
   /** 附件里读出来的文字,点开才取 */
   attachmentText: (attachmentId: string) => Promise<AttachmentText>;
+  attachmentFile: (attachmentId: string) => Promise<Blob>;
   getMessageTranslation: (messageId: string) => Promise<MessageTranslation | null>;
   translateMessage: (messageId: string) => Promise<MessageTranslation>;
   analyzeThread: (threadId: string) => Promise<string>;
@@ -292,6 +293,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return source.makeDraft(id, user);
       },
       send,
+      attachmentFile: async id => {
+        if (!source) throw new Error("还没加载完");
+        return source.attachmentFile(id);
+      },
       attachmentText: async (id) => {
         if (!source) throw new Error("还没加载完");
         return source.attachmentText(id);

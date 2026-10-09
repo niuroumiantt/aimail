@@ -287,3 +287,52 @@ def test_original_html_is_not_exposed_through_another_mailbox(conn, mailbox):
     response = client.get(f"/api/threads/{tid}")
     assert response.status_code == 404
     assert "Private original" not in response.text
+
+
+def test_original_attachment_bytes_preview_and_mailbox_boundary(conn, mailbox):
+    payload = b"%PDF-1.7\noriginal unmodified bytes\x00\xff\n%%EOF"
+    name = '公司资料 "English".pdf'
+    store_raw(
+        conn,
+        mailbox,
+        make_raw(
+            message_id="<pdf@x>",
+            attachments=[
+                (name, payload, "application/pdf"),
+                ("disguised.pdf", b"<script>private</script>", "text/html"),
+            ],
+        ),
+        "in",
+        NOW,
+    )
+    aid, disguised = [r[0] for r in conn.execute("SELECT id FROM attachment ORDER BY id")]
+    other = repo.ensure_mailbox(conn, "other@example.test", "Other")
+    client = TestClient(
+        create_app(
+            conn,
+            mailbox,
+            require_oa_auth=True,
+            mailbox_access={
+                "owner@example.test": ("sales@example.test", "other@example.test"),
+            },
+        )
+    )
+    owner = {"X-OA-Email": "owner@example.test", "X-Mailbox-Address": "sales@example.test"}
+    path = f"/api/attachments/{aid}/file"
+    assert client.get(path).status_code == 401
+    response = client.get(path, headers=owner)
+    assert response.status_code == 200 and response.content == payload
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["content-disposition"].startswith("inline; filename*=UTF-8''%")
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert (
+        client.get(path, headers={**owner, "X-Mailbox-Address": "other@example.test"}).status_code
+        == 404
+    )
+    assert client.get("/api/attachments/99999/file", headers=owner).status_code == 404
+    response = client.get(f"/api/attachments/{disguised}/file", headers=owner)
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert response.headers["content-disposition"].startswith("attachment;")
+    assert response.content == b"<script>private</script>"
+    assert other != mailbox
