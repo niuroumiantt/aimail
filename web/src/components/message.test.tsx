@@ -177,3 +177,31 @@ it("shows failed translations clearly and renders translation content as plain t
   expect(container.querySelector("img")).toBeNull();
   await waitFor(() => expect(translate).toHaveBeenCalledTimes(2));
 });
+
+it("shows original HTML in an isolated frame without duplicating quoted history", () => {
+  render(<TipProvider><MessageView message={{ ...message, body_html: '<p>Exact sender HTML</p><blockquote>Original quote</blockquote>', quoted: 'Original quote' }} /></TipProvider>);
+  const frame = screen.getByTitle("客户原始邮件");
+  expect(frame).toHaveAttribute("sandbox", "allow-same-origin allow-popups allow-popups-to-escape-sandbox");
+  expect(frame.getAttribute("srcdoc")).toContain("Exact sender HTML");
+  expect(frame.getAttribute("srcdoc")).toContain("<blockquote>Original quote</blockquote>");
+  expect(screen.queryByRole("button", { name: /展开引用历史/ })).toBeNull();
+  expect(screen.queryByText(message.body)).toBeNull();
+});
+
+it("keeps original plain-text line breaks when HTML is unavailable", () => {
+  const text = 'Part K4-123\n10 units\n\nUSD 25';
+  render(<TipProvider><MessageView message={{ ...message, body: text, body_html: null, original_notice: 'HTML 正文过大，当前显示纯文本。' }} /></TipProvider>);
+  expect(screen.queryByTitle("客户原始邮件")).toBeNull();
+  expect(screen.getByLabelText("邮件原文").textContent).toContain(text);
+  expect(screen.getByText('HTML 正文过大，当前显示纯文本。')).toBeVisible();
+});
+
+it("external image opt-in is limited to the selected original message", () => {
+  const html = '<p>Hello</p><img src="https://example.test/logo">';
+  const { rerender } = render(<TipProvider><MessageView message={{ ...message, body_html: html }} /></TipProvider>);
+  fireEvent.click(screen.getByRole('button', { name: '加载本封外部图片' }));
+  expect(screen.getByTitle('客户原始邮件').getAttribute('srcdoc')).toContain('src="https://example.test/logo"');
+  rerender(<TipProvider><MessageView message={{ ...message, id: 'another', body_html: html }} /></TipProvider>);
+  expect(screen.getByRole('button', { name: '加载本封外部图片' })).toBeVisible();
+  expect(screen.getByTitle('客户原始邮件').getAttribute('srcdoc')).not.toContain('src="https://example.test/logo"');
+});

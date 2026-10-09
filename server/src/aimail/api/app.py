@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from aimail import backends, translation_store
 from aimail import send as send_mod
 from aimail.config import DEFAULT_TASKS
-from aimail.ingest import attachments
+from aimail.ingest import attachments, original
 from aimail.send.accounts import SendingAccount
 from aimail.store import (
     assistant,
@@ -213,7 +213,7 @@ def _attachments_out(conn: sqlite3.Connection, message_pk: int) -> list[dict] | 
 def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool) -> dict:
     # List rows need counts and the latest incoming reading, never message bodies.
     messages = (
-        repo.thread_messages(conn, int(row["id"]))
+        repo.thread_messages(conn, int(row["id"]), include_raw=True)
         if with_messages
         else conn.execute(
             "SELECT id, direction FROM message WHERE thread_id = ? ORDER BY sent_at, id",
@@ -273,6 +273,7 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
                 "from_email": m["from_email"],
                 "sent_at": m["sent_at"],
                 "body": m["body_new"],
+                **original.display_parts(m["raw"]),
                 "quoted": m["body_quoted"] or None,
                 "attachments": _attachments_out(conn, int(m["id"])),
             }

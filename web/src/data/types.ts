@@ -123,6 +123,10 @@ export type Message = {
   sent_at: string;
   /** 本封新增的正文 */
   body: string;
+  /** Original HTML MIME part, displayed in an isolated reader; never model rewritten. */
+  body_html?: string | null;
+  inline_images?: Record<string, string>;
+  original_notice?: string;
   /** 引用的历史,默认折叠 */
   quoted?: string;
   attachments?: AttachmentRef[];

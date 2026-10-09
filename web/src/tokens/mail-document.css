@@ -1,0 +1,11 @@
+/* Default typography only; sender paragraphs, lists, tables and inline styling remain intact. */
+:root { color-scheme: light; }
+html { margin: 0; padding: 0; }
+body { margin: 0; padding: 0; background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading, 15px); line-height: 1.5; overflow-wrap: anywhere; }
+p { margin: 0 0 1em; }
+ul, ol { margin-block: 0 1em; padding-inline-start: 1.6em; }
+li { margin-block: .2em; }
+img { max-width: 100%; height: auto; }
+table { max-width: 100%; }
+pre { white-space: pre-wrap; }
+a { color: var(--mail-document-link); }

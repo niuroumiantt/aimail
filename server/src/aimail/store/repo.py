@@ -182,10 +182,13 @@ def get_thread(
     ).fetchone()
 
 
-def thread_messages(conn: sqlite3.Connection, thread_id: int) -> list[sqlite3.Row]:
+def thread_messages(
+    conn: sqlite3.Connection, thread_id: int, *, include_raw: bool = False
+) -> list[sqlite3.Row]:
+    source_column = ", raw" if include_raw else ""
     return conn.execute(
         "SELECT id, direction, from_name, from_email, to_emails, subject, sent_at, body_new, "
-        "body_quoted FROM message WHERE thread_id = ? ORDER BY sent_at, id",
+        f"body_quoted{source_column} FROM message WHERE thread_id = ? ORDER BY sent_at, id",
         (thread_id,),
     ).fetchall()
 

@@ -16,15 +16,15 @@ it("resizes by keyboard, clamps, persists and resets without changing the reader
   const view = render(<AppShell {...props} />);
   const handle = screen.getByRole("separator", { name: "调整邮件列表宽度" });
   fireEvent.keyDown(handle, { key: "ArrowRight" });
-  expect(handle).toHaveAttribute("aria-valuenow", "432");
-  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).width).toBe(432);
+  expect(handle).toHaveAttribute("aria-valuenow", "372");
+  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).width).toBe(372);
   for (let i = 0; i < 30; i++) fireEvent.keyDown(handle, { key: "ArrowRight" });
   expect(handle).toHaveAttribute("aria-valuenow", "600");
   view.unmount();
   render(<AppShell {...props} />);
   expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "600");
   fireEvent.doubleClick(screen.getByRole("separator", { name: "调整邮件列表宽度" }));
-  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "420");
+  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "360");
   expect(screen.getByText("Reading")).toBeInTheDocument();
 });
 
@@ -64,7 +64,7 @@ it("keeps navigation reachable on a narrow screen and persists desktop navigatio
   Object.defineProperty(window, "innerWidth", { value: 1440, configurable: true });
   fireEvent(window, new Event("resize"));
   fireEvent.keyDown(screen.getByRole("separator", { name: "调整左侧导航宽度" }), { key: "ArrowRight" });
-  expect(JSON.parse(localStorage.getItem("aimail-navigation-layout")!).width).toBe(212);
+  expect(JSON.parse(localStorage.getItem("aimail-navigation-layout")!).width).toBe(232);
   Object.defineProperty(window, "innerWidth", { value: width, configurable: true });
 });
 

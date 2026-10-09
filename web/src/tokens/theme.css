@@ -25,6 +25,9 @@
   --color-panel-navigation: #f8f9fc;
   --color-panel-list: #fbfcff;
   --color-panel-context: #f2f5fc;
+  /* Sender HTML keeps a light document, independent of the application theme. */
+  --color-mail-paper: #ffffff;
+  --color-mail-ink: #1c2024;
   --color-line: #e5e6eb;
   --color-line-2: #d9d9e0;
   --color-ink: #1c2024;
