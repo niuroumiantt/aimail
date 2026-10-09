@@ -27,6 +27,9 @@ export function ThreadDetail({
   onOrganize,
   externalContext = false,
   draftScope,
+  toolbarActions = false,
+  replyControl,
+  mailboxAddress,
 }: TranslationHandlers & {
   thread: Thread;
   backSearch: string;
@@ -39,8 +42,13 @@ export function ThreadDetail({
   onOrganize?: (action: "trash" | "restore") => Promise<string>;
   externalContext?: boolean;
   draftScope?: string;
+  toolbarActions?: boolean;
+  replyControl?: { open: boolean; onChange: (open: boolean) => void };
+  mailboxAddress?: string;
 }) {
-  const [replying, setReplying] = useState(false);
+  const [localReplying, setLocalReplying] = useState(false);
+  const replying = replyControl?.open ?? localReplying;
+  const setReplying = (open: boolean) => replyControl ? replyControl.onChange(open) : setLocalReplying(open);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [organizing, setOrganizing] = useState(false);
@@ -71,7 +79,7 @@ export function ThreadDetail({
         </Link>
           <h2>{thread.subject}</h2>
         </div>
-        <div className="mail-detail-meta">
+        {(!toolbarActions || thread.messages.length === 0) && <div className="mail-detail-meta">
           <Avatar name={thread.contact} size="sm" muted />
           <p>
             <span className="font-medium text-ink">{thread.contact}</span>
@@ -82,13 +90,15 @@ export function ThreadDetail({
             <span>{thread.email}</span>
             {thread.history?.length === 0 && <span>第一次来信</span>}
           </p>
-        </div>
+        </div>}
         <div className="mail-detail-actions">
           <MailLabel thread={thread} />
+          {toolbarActions && thread.history?.length === 0 && <span className="mail-muted">第一次来信</span>}
           {["quote", "replied"].includes(thread.folder) && <Pill tone="neutral" dot>
             {FOLDER_LABEL[thread.folder]}
           </Pill>}
           <span className="mail-detail-action-spacer" />
+          {!toolbarActions && <>
           {!thread.deleted_at && import.meta.env.VITE_DATA_SOURCE === "api" && <Link className="mail-detail-assignment" to={`/followups/${thread.id}`}>分配</Link>}
           {onAssistant && <Button size="sm" variant={assistantOpen ? "soft" : "outline"} aria-pressed={assistantOpen} icon={<Sparkles size={14} />} onClick={onAssistant}>AI 阅读</Button>}
           <Tip label={reply ? "回复这封信" : "回复(要接上服务端)"}>
@@ -98,7 +108,7 @@ export function ThreadDetail({
               icon={<Reply size={14} strokeWidth={2} />}
               disabled={!reply}
               aria-pressed={replying}
-              onClick={() => setReplying((v) => !v)}
+              onClick={() => setReplying(!replying)}
             >
               回复
             </Button>
@@ -109,6 +119,7 @@ export function ThreadDetail({
               {organizing ? "处理中…" : thread.deleted_at ? "恢复" : "删除"}
             </Button>
           </Tip>}
+          </>}
         </div>
       </header>
 
@@ -122,6 +133,7 @@ export function ThreadDetail({
           {!externalContext && <ReadingCard reading={thread.reading} analyzing={analyzing} error={analysisError} onAnalyze={onAnalyze && !thread.deleted_at ? async () => { setAnalyzing(true); setAnalysisError(""); const message = await onAnalyze(); setAnalysisError(message); setAnalyzing(false); } : undefined} />}
           {thread.messages.map((m) => (
             <MessageView key={m.id} message={m} onAttachment={onAttachment}
+              mailboxAddress={mailboxAddress}
               onGetTranslation={onGetTranslation} onTranslate={onTranslate} />
           ))}
           {replying && reply && (

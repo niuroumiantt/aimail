@@ -121,10 +121,12 @@ export function MessageView({
   onAttachment,
   onGetTranslation,
   onTranslate,
+  mailboxAddress,
 }: TranslationHandlers & {
   message: Message;
   /** 取一份附件的文字;没有就只列名字 */
   onAttachment?: (attachmentId: string) => Promise<AttachmentText>;
+  mailboxAddress?: string;
 }) {
   const [showQuoted, setShowQuoted] = useState(false);
   const [opened, setOpened] = useState<AttachmentRef | null>(null);
@@ -184,11 +186,14 @@ export function MessageView({
 
   return (
     <article id={`mail-${message.id}`} className="mail-original-message grid gap-2">
-      <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Avatar name={message.from_name} size="sm" muted />
+      <header className="mail-message-header flex flex-wrap items-center gap-x-2 gap-y-1">
+        <Avatar name={message.from_name} className="mail-contact-avatar mail-message-avatar" />
+        <div className="mail-message-sender">
         <span className="text-sm font-medium text-ink">{message.from_name}</span>
         {out && <Pill tone="brand">我方</Pill>}
         <span className="truncate text-xs text-ink-2">{message.from_email}</span>
+        {mailboxAddress && <small className="mail-message-recipient">当前邮箱：{mailboxAddress}</small>}
+        </div>
         <time className="ml-auto text-xs tabular-nums text-ink-2" dateTime={message.sent_at}>
           {fullTime(message.sent_at)}
         </time>

@@ -25,3 +25,33 @@ it("opens AI reading as a hidden right panel from the production inbox", async (
   expect(await screen.findByRole("complementary", { name: "AI 阅读" })).toBeInTheDocument();
   expect(screen.getByText("AI 接口尚未配置")).toBeInTheDocument();
 });
+
+it("opens and closes the same reply composer from the command bar", async () => {
+  localStorage.clear();
+  window.history.pushState({}, "", "/t/t-aurora");
+  render(<App />);
+  await screen.findByText(/We are expanding our Helsinki data center/);
+  const reply = screen.getByRole("button", { name: "回复" });
+  expect(reply).toHaveAttribute("aria-pressed", "false");
+  fireEvent.click(reply);
+  expect(reply).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("textbox", { name: "正文" })).toBeInTheDocument();
+  fireEvent.click(reply);
+  expect(screen.queryByRole("textbox", { name: "正文" })).not.toBeInTheDocument();
+  expect(screen.getByText(/We are expanding our Helsinki data center/)).toBeInTheDocument();
+});
+
+it("focuses the global search with slash but leaves editable input alone", async () => {
+  window.history.pushState({}, "", "/");
+  render(<App />);
+  await screen.findByText("Mikko Laine");
+  const search = screen.getByRole("searchbox");
+  fireEvent.keyDown(document.body, { key: "/" });
+  expect(search).toHaveFocus();
+  fireEvent.change(search, { target: { value: "Helsinki" } });
+  expect(screen.getByRole("link", { name: /RFQ – 48/ })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /DDR5 RDIMM/ })).not.toBeInTheDocument();
+  const key = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+  search.dispatchEvent(key);
+  expect(key.defaultPrevented).toBe(false);
+});

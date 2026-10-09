@@ -16,15 +16,15 @@ it("resizes by keyboard, clamps, persists and resets without changing the reader
   const view = render(<AppShell {...props} />);
   const handle = screen.getByRole("separator", { name: "调整邮件列表宽度" });
   fireEvent.keyDown(handle, { key: "ArrowRight" });
-  expect(handle).toHaveAttribute("aria-valuenow", "332");
-  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).width).toBe(332);
+  expect(handle).toHaveAttribute("aria-valuenow", "432");
+  expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!).width).toBe(432);
   for (let i = 0; i < 30; i++) fireEvent.keyDown(handle, { key: "ArrowRight" });
   expect(handle).toHaveAttribute("aria-valuenow", "600");
   view.unmount();
   render(<AppShell {...props} />);
   expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "600");
   fireEvent.doubleClick(screen.getByRole("separator", { name: "调整邮件列表宽度" }));
-  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "320");
+  expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "420");
   expect(screen.getByText("Reading")).toBeInTheDocument();
 });
 

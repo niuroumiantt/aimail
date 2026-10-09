@@ -1,7 +1,18 @@
 import { Search } from "lucide-react";
 import { Kbd } from "./kbd";
+import { useEffect, useRef } from "react";
 
 export function SearchBox({ placeholder = "搜索公司、型号、主题", value, onChange }: { placeholder?: string; value?: string; onChange?: (value: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const focus = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey || target?.closest("input, textarea, select, [contenteditable], [role='textbox']")) return;
+      event.preventDefault(); input.current?.focus();
+    };
+    window.addEventListener("keydown", focus);
+    return () => window.removeEventListener("keydown", focus);
+  }, []);
   return (
     <label className="relative block">
       <Search
@@ -11,6 +22,8 @@ export function SearchBox({ placeholder = "搜索公司、型号、主题", valu
       />
       <input
         id="search"
+        ref={input}
+        aria-label={placeholder}
         type="search"
         placeholder={placeholder}
         value={value}
