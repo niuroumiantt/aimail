@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 /** Badge accepts CSS colors directly; Ant's palette algorithm needs resolved colors. */
 export const FOLLOWUP_PRIMARY = "var(--color-brand)";
 
-function readTheme(): ThemeConfig {
+export function readAppTheme(): ThemeConfig {
   const css = typeof document === "undefined" ? undefined : getComputedStyle(document.documentElement);
   const value = (name: string) => css?.getPropertyValue(name).trim() || undefined;
   const number = (name: string) => {
@@ -51,9 +51,9 @@ function readTheme(): ThemeConfig {
 
 /** Follow-up controls share the inbox source, including explicit and system dark mode. */
 export function useFollowupTheme() {
-  const [theme, setTheme] = useState(readTheme);
+  const [theme, setTheme] = useState(readAppTheme);
   useEffect(() => {
-    const update = () => setTheme(readTheme());
+    const update = () => setTheme(readAppTheme());
     const observer = new MutationObserver(update);
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     const preference = window.matchMedia("(prefers-color-scheme: dark)");

@@ -538,18 +538,22 @@ def create_app(
         return translation_store.get_current(_inbox_conn(request), message_id)
 
     @app.post("/api/messages/{message_id}/translation")
-    def translate_message(message_id: int, request: Request) -> dict:
+    def translate_message(message_id: int, request: Request, force: bool = False) -> dict:
         row = _translation_message(request, message_id)
         if not quote.readable_body(row["body_new"], row["body_quoted"]).strip():
             raise HTTPException(422, "本封新增正文为空，无法翻译")
         cached = translation_store.get_current(conn, message_id)
-        if cached and cached["status"] == "ok":
+        if cached and cached["status"] == "ok" and not force:
             return cached
         with model_selection.use(conn, int(row["mailbox_id"])):
             ready, _ = backends.ready()
             if not ready:
                 raise HTTPException(503, "所选模型暂不可用，仍可阅读原文与已保存的译文。")
-            result = translation_store.translate_cached(conn, message_id)
+            if force:
+                translation_store.translate(conn, message_id)
+                result = translation_store.get(conn, message_id)
+            else:
+                result = translation_store.translate_cached(conn, message_id)
         assert result is not None
         return result
 
@@ -1023,6 +1027,12 @@ def create_app(
 
     install_crm(
         app, conn, _person, _mailbox_row, token=outreach_import_token, lock=api_connection_lock
+    )
+
+    from aimail.api.local_mail import install as install_local_mail
+
+    install_local_mail(
+        app, conn, _person, lambda owner: (mailbox_access or {}).get(owner, (owner,))
     )
 
     from aimail.api.outreach import install as install_outreach

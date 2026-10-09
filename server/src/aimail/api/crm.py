@@ -23,6 +23,19 @@ class Receipt(BaseModel):
     company_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,150}$")
 
 
+class CompanyIdentity(BaseModel):
+    company_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,150}$")
+    company: str = Field(max_length=200)
+    names: list[str] = Field(max_length=200)
+    domains: list[str] = Field(max_length=200)
+    emails: list[str] = Field(max_length=2000)
+
+
+class Directory(BaseModel):
+    version: str = Field(pattern=r"^company-directory@1$")
+    items: list[CompanyIdentity] = Field(max_length=50000)
+
+
 def install(app, conn, person, mailbox, *, token="", lock=None):
     path = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
 
@@ -62,6 +75,25 @@ def install(app, conn, person, mailbox, *, token="", lock=None):
             return crm.save(conn, tid, mid, payload, actor)
         except ValueError as e:
             raise HTTPException(409, str(e)) from e
+
+    @app.post("/api/threads/{tid}/registration/check")
+    def check(tid: int, payload: crm.Registration, request: Request):
+        thread(tid, request)
+        human(request)
+        return {**crm.state(conn, tid), "identity": crm.identity_check(conn, payload.model_dump())}
+
+    @app.post("/v1/company-directory")
+    def directory(body: Directory, request: Request):
+        machine(request)
+        items = [v.model_dump() for v in body.items]
+        if len({v["company_id"] for v in items}) != len(items):
+            raise HTTPException(422, "公司目录存在重复身份")
+        conn.execute(
+            "INSERT INTO crm_company_directory VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET "
+            "payload=excluded.payload,received_at=excluded.received_at",
+            (json.dumps(items, ensure_ascii=False), datetime.now(UTC).isoformat()),
+        )
+        return {"version": body.version, "count": len(items)}
 
     @app.post("/api/threads/{tid}/registration/extract")
     def extract(tid: int, request: Request):

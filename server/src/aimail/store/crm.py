@@ -10,10 +10,13 @@ from urllib.parse import urlsplit
 from pydantic import Field, field_validator
 
 from aimail.store import repo
+from aimail.store.company_identity import domain, matches
 from aimail.tasks.register_contact import Fields
 
 
 class Registration(Fields):
+    company_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_-]{1,150}$")
+    new_company_reason: str = Field(default="", max_length=500)
     email: str = Field(min_length=3, max_length=254)
     next_step: str = Field(default="", max_length=500)
     due_at: str = Field(default="", max_length=10)
@@ -83,8 +86,8 @@ def state(conn, tid):
     suggestion = conn.execute("SELECT * FROM crm_suggestion WHERE thread_id=?", (tid,)).fetchone()
     first = conn.execute(
         "SELECT from_name FROM message WHERE thread_id=? AND "
-        "direction='in' ORDER BY sent_at DESC,id DESC LIMIT 1",
-        (tid,),
+        "lower(from_email)=lower(?) ORDER BY sent_at DESC,id DESC LIMIT 1",
+        (tid, thread["contact_email"]),
     ).fetchone()
     candidates = []
     for item in conn.execute(
@@ -111,6 +114,13 @@ def state(conn, tid):
             > 600
         ):
             draft = {**draft, "status": "failed", "error": "提取已超时，可以重试或手动填写"}
+        if draft.get("fields"):
+            draft["fields"]["contact"] = first[0] if first else ""
+            draft["fields"]["email"] = thread["contact_email"]
+            draft["citations"] = {
+                k: v for k, v in draft.get("citations", {}).items() if k not in {"contact", "email"}
+            }
+    host = domain(thread["contact_email"])
     return {
         "registration": {
             "id": row["id"],
@@ -125,11 +135,33 @@ def state(conn, tid):
             **Fields().model_dump(),
             "contact": first[0] if first else "",
             "email": thread["contact_email"],
+            "website": "https://" + host if host else "",
+            "company_id": None,
+            "new_company_reason": "",
             "next_step": "",
             "due_at": "",
             "link_registration_id": None,
         },
         "candidates": candidates,
+        "website_inferred": bool(host),
+    }
+
+
+def identity_check(conn, fields):
+    row = conn.execute("SELECT * FROM crm_company_directory WHERE id=1").fetchone()
+    current = (
+        bool(row)
+        and (datetime.now(UTC) - datetime.fromisoformat(row["received_at"])).total_seconds() < 300
+    )
+    items = json.loads(row["payload"]) if row else []
+    candidates = matches(items, fields)
+    strong = {v["company_id"] for v in candidates if v["strong"]}
+    selected = fields.get("company_id")
+    return {
+        "current": current,
+        "matches": candidates,
+        "conflict": len(strong) > 1 or bool(selected and strong and selected not in strong),
+        "received_at": row["received_at"] if row else None,
     }
 
 
@@ -147,9 +179,31 @@ def save(conn, tid, mid, payload: Registration, actor):
     digest = fingerprint(data)
     current = conn.execute("SELECT * FROM crm_registration WHERE thread_id=?", (tid,)).fetchone()
     if current:
-        if current["fingerprint"] != digest:
+        stored = json.loads(current["payload"])
+        retry = {k: v for k, v in data.items() if k in stored}
+        if current["fingerprint"] != digest and not (
+            fingerprint(retry) == current["fingerprint"]
+            and all(v in (None, "") for k, v in data.items() if k not in stored)
+        ):
             raise ValueError("此话题已经建档，请在客户档案查看和维护")
         return state(conn, tid)
+    check = identity_check(conn, data)
+    if not check["current"]:
+        raise ValueError("公司查重目录尚未就绪或已过期，请稍后刷新")
+    if check["conflict"]:
+        raise ValueError("企业邮箱与官网匹配到不同公司，请核实后再建档")
+    strong = {v["company_id"] for v in check["matches"] if v["strong"]}
+    if strong and data["company_id"] not in strong:
+        raise ValueError("已找到同一企业，请先选择关联已有公司")
+    if (
+        check["matches"]
+        and not strong
+        and not data["company_id"]
+        and not data["new_company_reason"].strip()
+    ):
+        raise ValueError("存在相似公司，请选择已有档案或填写不同公司的核实说明")
+    if data["company_id"] and data["company_id"] not in {v["company_id"] for v in check["matches"]}:
+        raise ValueError("关联公司不在本次查重结果中，请刷新")
     at = repo.now_iso()
     conn.execute(
         "INSERT INTO "
@@ -173,7 +227,9 @@ def exported(conn, row):
         (row["thread_id"],),
     ).fetchone()
     return {
-        "version": "contact-registration@1",
+        "version": "contact-registration@2"
+        if "company_id" in json.loads(row["payload"])
+        else "contact-registration@1",
         "id": row["id"],
         "fingerprint": row["fingerprint"],
         "fields": json.loads(row["payload"]),

@@ -54,13 +54,13 @@ type State = {
   attachmentText: (attachmentId: string) => Promise<AttachmentText>;
   attachmentFile: (attachmentId: string) => Promise<Blob>;
   getMessageTranslation: (messageId: string) => Promise<MessageTranslation | null>;
-  translateMessage: (messageId: string) => Promise<MessageTranslation>;
+  translateMessage: (messageId: string, force?: boolean) => Promise<MessageTranslation>;
   analyzeThread: (threadId: string) => Promise<string>;
   organizeThread: (threadId: string, action: "trash" | "restore") => Promise<string>;
   assistant: () => Promise<AssistantState>;
   askAssistant: (question: string) => Promise<AssistantState>;
   clearAssistant: () => Promise<AssistantState>;
-  contactRegistration: (id: string) => Promise<ContactRegistrationState>;
+  contactRegistration: (id: string, fields?: ContactRegistrationFields) => Promise<ContactRegistrationState>;
   extractContact: (id: string) => Promise<ContactRegistrationState>;
   saveContact: (id: string, fields: ContactRegistrationFields) => Promise<ContactRegistrationState>;
   customerContext: (id: string) => Promise<CustomerContext>;
@@ -243,14 +243,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!source) throw new Error("还没加载完");
     return source.getMessageTranslation(id);
   }, [source]);
-  const translateMessage = useCallback(async (id: string) => {
+  const translateMessage = useCallback(async (id: string, force?: boolean) => {
     if (!source) throw new Error("还没加载完");
-    return source.translateMessage(id);
+    return source.translateMessage(id, force);
   }, [source]);
-  const contactRegistration = useCallback(async (id: string) => {
+  const contactRegistration = useCallback(async (id: string, fields?: ContactRegistrationFields) => {
     if (!source) throw new Error("还没加载完");
-    return source.contactRegistration(id);
-  }, [source]);
+    return source.contactRegistration(id, fields, user);
+  }, [source, user]);
   const extractContact = useCallback(async (id: string) => {
     if (!source) throw new Error("还没加载完");
     return source.extractContact(id, user);

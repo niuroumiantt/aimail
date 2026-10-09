@@ -8,6 +8,7 @@ from hashlib import sha256
 from aimail import backends
 from aimail.ingest.quote import readable_body
 from aimail.tasks import translate_mail as task
+from aimail.translation_layout import cache_source, from_raw
 
 FAILURE_REASON = "翻译未完成，请保留原文，稍后可重试。"
 
@@ -45,6 +46,10 @@ def _out(row):
     return {
         "status": row["status"],
         "text_zh": json.loads(row["payload"]).get("text_zh", ""),
+        "html_zh": json.loads(row["payload"]).get("html_zh"),
+        "layout_notice": "已保存旧版译文；重新翻译可保留表格排版。"
+        if row["task_version"] == "translate_mail@1"
+        else "",
         "model": row["model"],
         "task_version": row["task_version"],
         "produced_at": row["produced_at"],
@@ -83,10 +88,19 @@ def get_current(conn, source_id):
     unchanged successful translation always wins over a later failed attempt.
     """
     source = _source(conn, source_id)
+    cache_input = cache_source(source, _layout(conn, source_id, source))
     row = conn.execute(
-        "SELECT * FROM message_translation WHERE source_id=? AND source_hash=? "
-        "AND task_version=? ORDER BY (status='ok') DESC,produced_at DESC,id DESC LIMIT 1",
-        (source_id, sha256(source.encode()).hexdigest(), task.TASK_VERSION),
+        "SELECT * FROM message_translation WHERE source_id=? AND "
+        "((source_hash=? AND task_version=?) OR "
+        "(source_hash=? AND task_version='translate_mail@1')) "
+        "ORDER BY (status='ok') DESC,(task_version=?) DESC,produced_at DESC,id DESC LIMIT 1",
+        (
+            source_id,
+            sha256(cache_input.encode()).hexdigest(),
+            task.TASK_VERSION,
+            sha256(source.encode()).hexdigest(),
+            task.TASK_VERSION,
+        ),
     ).fetchone()
     return _out(row)
 
@@ -101,14 +115,17 @@ def translate_cached(conn, source_id):
 
 def translate(conn, source_id):
     source = _source(conn, source_id)
+    layout = _layout(conn, source_id, source)
     model = backends.describe(task.routed_model())
     try:
-        output = task.translate(source)
-        if not output.text_zh.strip():
+        payload = (
+            task.translate_layout(layout) if layout else {"text_zh": task.translate(source).text_zh}
+        )
+        if not payload["text_zh"].strip():
             raise backends.LLMError("翻译正文为空")
-        if task._numbers(source) != task._numbers(output.text_zh):
+        if task._numbers(source) != task._numbers(payload["text_zh"]):
             raise backends.LLMError("翻译没有完整保留原文中的型号、数字或日期")
-        status, payload, reason = "ok", {"text_zh": output.text_zh}, ""
+        status, reason = "ok", ""
     except Exception:
         status, payload, reason = "failed", {}, FAILURE_REASON
     conn.execute(
@@ -123,7 +140,22 @@ def translate(conn, source_id):
             status,
             json.dumps(payload, ensure_ascii=False),
             reason,
-            sha256(source.encode()).hexdigest(),
+            sha256(cache_source(source, layout).encode()).hexdigest(),
         ),
     )
     return status
+
+
+def _layout(conn, source_id, source):
+    if "raw" not in {r["name"] for r in conn.execute("PRAGMA table_info(message)")}:
+        return None
+    row = conn.execute(
+        "SELECT raw,body_new,body_quoted FROM message WHERE id=?", (source_id,)
+    ).fetchone()
+    from aimail.ingest.quote import readable_parts
+
+    return (
+        from_raw(row["raw"], source, readable_parts(row["body_new"], row["body_quoted"])[1])
+        if row
+        else None
+    )

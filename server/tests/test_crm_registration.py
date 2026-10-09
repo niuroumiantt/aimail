@@ -41,6 +41,14 @@ def test_confirm_receipt_scope_retry_and_immutable_original(conn, mailbox):
         email="ALEX@aurora.test", company="Aurora", quantity="12"
     ).model_dump()
     with TestClient(app) as client:
+        assert (
+            client.post(
+                "/v1/company-directory",
+                json={"version": "company-directory@1", "items": []},
+                headers=machine,
+            ).status_code
+            == 200
+        )
         url = f"/api/threads/{tid}/registration"
         assert client.post(url, json=fields).status_code == 401
         assert (
@@ -182,7 +190,7 @@ def test_explicit_model_extraction_attribution_staleness_and_no_automatic_facts(
             time.sleep(0.02)
         suggestion = state["suggestion"]
         assert suggestion["status"] == "ok" and suggestion["fields"]["company"] == "Aurora"
-        assert suggestion["source_id"] == 1 and suggestion["task_version"] == "register_contact@1"
+        assert suggestion["source_id"] == 1 and suggestion["task_version"] == "register_contact@2"
         assert suggestion["model"] and suggestion["produced_at"] and not suggestion["stale"]
         assert state["registration"] is None and len(calls) == 1
         store_raw(
@@ -195,3 +203,60 @@ def test_explicit_model_extraction_attribution_staleness_and_no_automatic_facts(
         )
         assert client.get(url).json()["suggestion"]["stale"]
     conn.close()
+
+
+def test_company_check_is_scoped_and_rechecked_before_confirm(conn, mailbox):
+    tid = seed(conn, mailbox)
+    app = create_app(conn, mailbox, outreach_import_token="test")
+    headers = {"X-User": "operator"}
+    facts = crm.Registration(email="alex@aurora.test", company="Aurora Ltd").model_dump()
+    url = f"/api/threads/{tid}/registration"
+    with TestClient(app) as client:
+        assert not client.post(url + "/check", json=facts, headers=headers).json()["identity"][
+            "current"
+        ]
+        assert client.post(url, json=facts, headers=headers).status_code == 409
+        item = {
+            "company_id": "company_1",
+            "company": "Aurora",
+            "domains": ["aurora.test"],
+            "emails": ["sales@aurora.test"],
+            "names": ["Aurora"],
+        }
+        directory = {"version": "company-directory@1", "items": [item]}
+        assert client.post("/v1/company-directory", json=directory).status_code == 401
+        assert (
+            client.post(
+                "/v1/company-directory", json=directory, headers={"Authorization": "Bearer test"}
+            ).status_code
+            == 200
+        )
+        check = client.post(url + "/check", json=facts, headers=headers).json()["identity"]
+        assert check["current"] and check["matches"][0]["strong"]
+        assert client.post(url, json=facts, headers=headers).status_code == 409
+        facts["company_id"] = "company_1"
+        conn.execute("UPDATE crm_company_directory SET received_at='2020-01-01T00:00:00+00:00'")
+        assert client.post(url, json=facts, headers=headers).status_code == 409
+        client.post(
+            "/v1/company-directory", json=directory, headers={"Authorization": "Bearer test"}
+        )
+        assert client.post(url, json=facts, headers=headers).status_code == 200
+
+
+def test_old_confirmed_payload_retry_does_not_change_fingerprint(conn, mailbox):
+    tid = seed(conn, mailbox)
+    payload = crm.Registration(email="alex@aurora.test")
+    old = payload.model_dump(exclude={"company_id", "new_company_reason"})
+    conn.execute(
+        "INSERT INTO crm_registration(thread_id,mailbox_id,payload,fingerprint,"
+        "confirmed_by,confirmed_at) VALUES(?,?,?,?,?,?)",
+        (
+            tid,
+            mailbox,
+            json.dumps(old),
+            crm.fingerprint(old),
+            "operator",
+            datetime.now(UTC).isoformat(),
+        ),
+    )
+    assert crm.save(conn, tid, mailbox, payload, "operator")["registration"]["fields"] == old

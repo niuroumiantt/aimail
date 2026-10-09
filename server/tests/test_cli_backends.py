@@ -96,7 +96,9 @@ else:
     monkeypatch.setenv("CLAUDE_CODE_CLI_COMMAND", str(executable))
     monkeypatch.setenv("CLAUDE_CODE_CLI_MODEL", "synthetic-model")
     monkeypatch.setenv("AIMAIL_TEST_CAPTURE", str(capture))
-    monkeypatch.setenv("LLM_CLI_TIMEOUT", "3")
+    # macOS may inspect each newly created executable before Python starts.
+    # Only the dedicated timeout cases should depend on a short deadline.
+    monkeypatch.setenv("LLM_CLI_TIMEOUT", "10")
     monkeypatch.setenv("LLM_CLI_MAX_OUTPUT_BYTES", "2097152")
     monkeypatch.delenv("AIMAIL_TEST_MODE", raising=False)
     return executable, capture
@@ -169,7 +171,7 @@ def test_cli_bounds_both_output_streams(fake_cli, monkeypatch, mode):
 def test_timeout_kills_the_entire_process_group(fake_cli, monkeypatch, tmp_path):
     child_file = tmp_path / "child.pid"
     monkeypatch.setenv("LLM_BACKEND", "codex_cli")
-    monkeypatch.setenv("LLM_CLI_TIMEOUT", "0.5")
+    monkeypatch.setenv("LLM_CLI_TIMEOUT", "2")
     monkeypatch.setenv("AIMAIL_TEST_MODE", "timeout")
     monkeypatch.setenv("AIMAIL_TEST_CHILD", str(child_file))
     with pytest.raises(backends.LLMError, match="超时"):
@@ -290,7 +292,7 @@ def test_local_process_diagnostics_expose_only_fixed_reason_and_numeric_exit(
     _, capture = fake_cli
     monkeypatch.setenv("AIMAIL_TEST_MODE", mode)
     monkeypatch.setenv("AIMAIL_TEST_CHILD", str(capture.with_suffix(".child")))
-    monkeypatch.setenv("LLM_CLI_TIMEOUT", "0.2")
+    monkeypatch.setenv("LLM_CLI_TIMEOUT", "2")
     monkeypatch.setenv("LLM_CLI_MAX_OUTPUT_BYTES", "1024")
     with pytest.raises(cli.CLIError) as error:
         cli.complete("codex_cli", "task", "SECRET_PRIVATE_MAIL", Answer.model_json_schema())
