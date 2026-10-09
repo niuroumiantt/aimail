@@ -99,8 +99,8 @@ export function AppShell({
   const navigationVisible = compactNavigation ? navigationOverlay : !navigation.collapsed;
   const collapsed = showDetail && (hidden || (layout.autoHide && expandedFor !== readerKey));
   // Auxiliary panes share a fixed viewport budget; the reader owns the remaining width.
-  const customerGutter = customer && !readerFocused && customerInline && !customerLayout.collapsed ? 8 : 0;
-  const paneGutters = toolbar ? 32 + customerGutter : 26;
+  const customerGutter = customer && !readerFocused && customerInline && !customerLayout.collapsed ? 12 : 0;
+  const paneGutters = toolbar ? viewport >= 768 ? 60 + customerGutter : 16 : 26;
   const availableWidth = Math.max(0, viewport - paneGutters - (rail && viewport >= 768 ? 52 : 0));
   const navigationSpace = readerFocused ? 0 : compactNavigation || navigation.collapsed ? 44 : navigation.width;
   const listSpace = readerFocused ? 0 : collapsed ? 40 : 260;

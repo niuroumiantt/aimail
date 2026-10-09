@@ -137,7 +137,7 @@ it("budgets the application rail and card gutters when the customer pane is open
   render(<AppShell {...props} toolbar={<div>Commands</div>} rail={<nav>Apps</nav>} customer={<div>Business</div>} />);
   const listWidth = Number(screen.getByRole("separator", { name: "调整邮件列表宽度" }).getAttribute("aria-valuenow"));
   const customerWidth = Number(screen.getByRole("separator", { name: "调整正文与客户工作区宽度" }).getAttribute("aria-valuenow"));
-  expect(1100 - 40 - 52 - 44 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
+  expect(1100 - 72 - 52 - 44 - listWidth - customerWidth).toBeGreaterThanOrEqual(360);
 });
 
 
