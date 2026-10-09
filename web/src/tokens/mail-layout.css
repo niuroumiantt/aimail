@@ -2,6 +2,8 @@
 .mail-list-controls, .mail-list-rail, .mail-list-pane > .ds-pane-resize, .mail-customer-pane > .ds-pane-resize { display: none; }
 .mail-navigation[hidden], .mail-list-pane[hidden], .mail-customer-pane[hidden] { display: none !important; }
 .mail-app-panes { position: relative; overflow: hidden; }
+.mail-list-content { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; overflow: hidden; border-radius: inherit; }
+:root[data-pane-resizing="true"], :root[data-pane-resizing="true"] * { cursor: col-resize !important; user-select: none !important; }
 .mail-navigation { display: none; }
 .mail-reader-pane { min-height: 0; overflow: hidden; background: var(--color-surface); }
 .mail-customer-pane { display: none; }

@@ -7,8 +7,8 @@ import { AccountMenu } from "./account-menu";
 import "@/tokens/outlook-workspace.css";
 
 const LAYOUT_KEY = "aimail-inbox-layout";
-const DEFAULT_WIDTH = 420;
-const DEFAULT_NAV_WIDTH = 200;
+const DEFAULT_WIDTH = 360;
+const DEFAULT_NAV_WIDTH = 220;
 const CUSTOMER_LAYOUT_KEY = "aimail-customer-layout";
 const DEFAULT_CUSTOMER_WIDTH = 320;
 const MIN_READER_WIDTH = 360;
@@ -160,20 +160,22 @@ export function AppShell({
                 showDetail ? "hidden" : "flex",
               )}
             >
-              <div className="mail-list-controls">
-                <span>收件箱</span>
-                <label title="打开邮件时自动收起列表，展开按钮始终保留">
-                  <input type="checkbox" checked={layout.autoHide} onChange={event => {
-                    setLayout(value => ({ ...value, autoHide: event.target.checked }));
-                    setHidden(false); setExpandedFor(undefined);
-                  }} />
-                  阅读时隐藏
-                </label>
-                <button type="button" aria-label="收起邮件列表" title="收起邮件列表" disabled={!showDetail} onClick={() => setHidden(true)}>
-                  <PanelLeftClose size={17} />
-                </button>
+              <div className="mail-list-content">
+                <div className="mail-list-controls">
+                  <span>收件箱</span>
+                  <label title="打开邮件时自动收起列表，展开按钮始终保留">
+                    <input type="checkbox" checked={layout.autoHide} onChange={event => {
+                      setLayout(value => ({ ...value, autoHide: event.target.checked }));
+                      setHidden(false); setExpandedFor(undefined);
+                    }} />
+                    阅读时隐藏
+                  </label>
+                  <button type="button" aria-label="收起邮件列表" title="收起邮件列表" disabled={!showDetail} onClick={() => setHidden(true)}>
+                    <PanelLeftClose size={17} />
+                  </button>
+                </div>
+                {list}
               </div>
-              {list}
               <PaneResize label="调整邮件列表宽度" value={listWidth} min={260} max={listMax}
                 onChange={width => setLayout(value => ({ ...value, width }))}
                 onReset={() => setLayout(value => ({ ...value, width: DEFAULT_WIDTH }))} />

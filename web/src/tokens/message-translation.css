@@ -12,6 +12,11 @@
 .mail-message-text[hidden] { display: none; }
 .mail-message-text h3 { margin-bottom: var(--ui-space-2); font-size: var(--ui-font-meta); font-weight: 500; color: var(--color-ink-2); }
 .mail-message-text > div { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-message-text > .mail-original-html { white-space: normal; }
+.mail-original-html { min-width: 0; padding: var(--ui-space-2); border-radius: var(--radius-sm); background: var(--color-mail-paper); }
+.mail-original-html-frame { display: block; width: 100%; height: var(--mail-document-height, 80px); border: 0; background: var(--color-mail-paper); }
+.mail-original-notice { margin-top: var(--ui-space-2); font-size: var(--ui-font-meta); color: var(--color-ink-3); }
+.mail-original-notice button { color: var(--color-brand-text); text-decoration: underline; text-underline-offset: 2px; }
 .mail-message-texts[data-mode="compare"] .mail-message-translated { padding-top: var(--ui-space-4); border-top: 1px solid var(--color-line); }
 .mail-translation-note { display: flex; flex-wrap: wrap; gap: var(--ui-space-1) var(--ui-space-3); margin-top: var(--ui-space-4); font-size: var(--ui-font-meta); color: var(--color-ink-3); line-height: 1.7; }
 .mail-translation-error { margin-top: var(--ui-space-3); font-size: var(--ui-font-meta); color: var(--color-danger-text); line-height: 1.7; }

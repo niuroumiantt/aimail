@@ -251,3 +251,39 @@ def test_sync_failure_never_exposes_provider_exception(conn, mailbox, caplog):
         assert secret not in response.text
         assert secret not in caplog.text
     assert "邮箱同步失败" in caplog.text
+
+
+def test_thread_detail_returns_original_html_without_changing_stored_text_or_raw(conn, mailbox):
+    raw = make_raw(
+        message_id="<original-html@x>",
+        subject="Original HTML",
+        body="Original plain\ntext remains.",
+        html="<p>Original plain text remains.</p><ul><li>10 units</li></ul>",
+    )
+    store_raw(conn, mailbox, raw, "in", NOW)
+    client = TestClient(create_app(conn, mailbox))
+    tid = client.get("/api/threads").json()[0]["id"]
+    before = dict(conn.execute("SELECT raw, body_new FROM message").fetchone())
+    detail = client.get(f"/api/threads/{tid}").json()["messages"][0]
+    assert detail["body"] == before["body_new"]
+    assert "<ul><li>10 units</li></ul>" in detail["body_html"]
+    assert detail["inline_images"] == {}
+    after = dict(conn.execute("SELECT raw, body_new FROM message").fetchone())
+    assert before == after
+    assert after["raw"] == raw
+
+
+def test_original_html_is_not_exposed_through_another_mailbox(conn, mailbox):
+    other = repo.ensure_mailbox(conn, "private@example.test")
+    store_raw(
+        conn,
+        other,
+        make_raw(message_id="<private-html@x>", html="<p>Private original</p>"),
+        "in",
+        NOW,
+    )
+    tid = conn.execute("SELECT id FROM thread WHERE mailbox_id=?", (other,)).fetchone()[0]
+    client = TestClient(create_app(conn, mailbox))
+    response = client.get(f"/api/threads/{tid}")
+    assert response.status_code == 404
+    assert "Private original" not in response.text

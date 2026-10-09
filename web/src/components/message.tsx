@@ -8,6 +8,7 @@ import { Avatar } from "./avatar";
 import { Button } from "./button";
 import { Pill } from "./pill";
 import { Tip } from "./tip";
+import { OriginalMail } from "./original-mail";
 import "@/tokens/message-translation.css";
 
 type TranslationMode = "original" | "zh" | "compare";
@@ -230,7 +231,8 @@ export function MessageView({
         <div className="mail-message-texts" data-mode={translation ? mode : "original"}>
           <section className="mail-message-text" aria-label="邮件原文" hidden={translation !== null && mode === "zh"}>
             {translation && mode === "compare" && <h3>原文</h3>}
-            <div>{message.body}</div>
+            {message.body_html ? <OriginalMail message={message} /> : <div>{message.body}</div>}
+            {message.original_notice && <p className="mail-original-notice">{message.original_notice}</p>}
           </section>
           {translation?.status === "ok" && <section className="mail-message-text mail-message-translated" aria-label="中文译文" hidden={mode === "original"}>
             {mode === "compare" && <h3>中文译文</h3>}
@@ -256,7 +258,7 @@ export function MessageView({
             ))}
           </div>
         )}
-        {message.quoted && (
+        {message.quoted && !message.body_html && (
           <div className="mt-3 border-t border-line pt-2">
             <button
               type="button"
