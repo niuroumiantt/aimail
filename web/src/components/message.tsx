@@ -17,7 +17,7 @@ type TranslationMode = "original" | "zh" | "compare";
 
 export type TranslationHandlers = {
   onGetTranslation?: (messageId: string) => Promise<MessageTranslation | null>;
-  onTranslate?: (messageId: string) => Promise<MessageTranslation>;
+  onTranslate?: (messageId: string, force?: boolean) => Promise<MessageTranslation>;
 };
 
 function sizeLabel(bytes: number): string {
@@ -187,17 +187,28 @@ export function MessageView({
   const out = message.direction === "out";
   const quotedLines = message.quoted ? message.quoted.split("\n").length : 0;
 
-  const translate = async () => {
+  useEffect(() => {
+    if (!onGetTranslation) return;
+    let cancelled = false;
+    const requests = activeRequest;
+    const generation = requests.current;
+    void onGetTranslation(message.id).then(result => {
+      if (!cancelled && generation === requests.current && result?.status === "ok") setTranslated({source, value: result});
+    }).catch(() => {});
+    return () => {cancelled = true; requests.current++;};
+  }, [source, message.id, onGetTranslation]);
+
+  const translate = async (force = false) => {
     if (!onTranslate || translationPending) return;
     const request = ++activeRequest.current;
     setTranslationError(null);
     setPendingTranslation({ source, phase: "cache" });
     try {
-      let result = onGetTranslation ? await onGetTranslation(message.id) : null;
+      let result = !force && onGetTranslation ? await onGetTranslation(message.id) : null;
       if (request !== activeRequest.current) return;
       if (result?.status !== "ok") {
         setPendingTranslation({ source, phase: "model" });
-        result = await onTranslate(message.id);
+        result = force ? await onTranslate(message.id, true) : await onTranslate(message.id);
       }
       if (request !== activeRequest.current) return;
       if (result.status === "ok") {
@@ -265,6 +276,7 @@ export function MessageView({
             )}
           </div>
         )}
+        {onTranslate && translation?.status === "ok" && <button type="button" className="mail-translation-button" disabled={translationPending} onClick={()=>void translate(true)}><Languages size={14}/>{translationPending ? "正在翻译…" : "重新翻译"}</button>}
       </header>
 
       <div
@@ -281,7 +293,8 @@ export function MessageView({
           </section>
           {translation?.status === "ok" && <section className="mail-message-text mail-message-translated" aria-label="中文译文" hidden={mode === "original"}>
             {mode === "compare" && <h3>中文译文</h3>}
-            <div>{translation.text_zh}</div>
+            {translation.html_zh ? <OriginalMail translated message={{...message, body_html: translation.html_zh}} /> : <PlainMail text={translation.text_zh} />}
+            {translation.layout_notice && <p className="mail-translation-note">{translation.layout_notice}</p>}
           </section>}
         </div>
         {translationPending && <p role="status" className="mail-translation-note">翻译期间可继续阅读原文。</p>}

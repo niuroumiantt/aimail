@@ -319,3 +319,6 @@ CREATE TRIGGER IF NOT EXISTS crm_registration_facts_immutable BEFORE UPDATE OF
  BEGIN SELECT RAISE(ABORT, 'confirmed registration is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS crm_registration_no_delete BEFORE DELETE ON crm_registration
  BEGIN SELECT RAISE(ABORT, 'confirmed registration is immutable'); END;
+CREATE TABLE IF NOT EXISTS crm_company_directory (
+ id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL, received_at TEXT NOT NULL
+);

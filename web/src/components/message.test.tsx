@@ -79,14 +79,14 @@ it("translates only on an explicit click and changes views without more model ca
   const translate = vi.fn(async () => translated);
   const withQuoted = { ...message, quoted: "Earlier price USD 500." };
   render(<TipProvider><MessageView message={withQuoted} onGetTranslation={get} onTranslate={translate} /></TipProvider>);
-  expect(get).not.toHaveBeenCalled();
+  expect(get).toHaveBeenCalledExactlyOnceWith("m1");
   expect(translate).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByText(translated.text_zh)).toBeVisible();
   expect(screen.getByLabelText("邮件原文")).not.toBeVisible();
   expect(screen.getByRole("button", { name: "中文" })).toHaveAttribute("aria-pressed", "true");
-  expect(get).toHaveBeenCalledExactlyOnceWith("m1");
+  expect(get).toHaveBeenCalledTimes(2);
   expect(translate).toHaveBeenCalledExactlyOnceWith("m1");
   expect(screen.getByText(/Codex CLI · gpt-6.1-sol/)).toBeVisible();
   expect(screen.getByText("邮件 #m1")).toBeVisible();
@@ -100,14 +100,14 @@ it("translates only on an explicit click and changes views without more model ca
   expect(screen.getByText("Earlier price USD 500.")).toBeVisible();
   expect(screen.getAllByTestId("attachment")).toHaveLength(2);
   expect(translate).toHaveBeenCalledTimes(1);
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
 it("reuses a cached translation and keeps its attribution when the selected model changes", async () => {
   const get = vi.fn(async () => translated);
   const translate = vi.fn(async () => translated);
   const { rerender } = render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
+  fireEvent.click(await screen.findByRole("button", { name: "中文" }));
   expect(await screen.findByText(translated.text_zh)).toBeVisible();
   expect(translate).not.toHaveBeenCalled();
   const otherModel = vi.fn(async () => ({ ...translated, model: "Spark · fast" }));
@@ -119,8 +119,20 @@ it("reuses a cached translation and keeps its attribution when the selected mode
   expect(otherModel).not.toHaveBeenCalled();
 });
 
+it("only the explicit retranslate button bypasses a saved translation", async () => {
+  const get = vi.fn(async () => translated);
+  const translate = vi.fn(async () => ({ ...translated, text_zh: "更新译文" }));
+  render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
+  const button = await screen.findByRole("button", { name: "重新翻译" });
+  expect(translate).not.toHaveBeenCalled();
+  fireEvent.click(button);
+  expect(await screen.findByText("更新译文")).toBeVisible();
+  expect(translate).toHaveBeenCalledExactlyOnceWith("m1", true);
+});
+
 it("preserves the original and requires an explicit retry when a cache request fails", async () => {
   const get = vi.fn<() => Promise<MessageTranslation | null>>()
+    .mockRejectedValueOnce(new Error("sensitive upstream failure"))
     .mockRejectedValueOnce(new Error("sensitive upstream failure"))
     .mockResolvedValueOnce(null);
   const translate = vi.fn(async () => translated);
@@ -150,16 +162,16 @@ it("keeps the original readable while translating and rejects duplicate clicks",
 });
 
 it("does not show a translation from an earlier body after the message content changes", async () => {
-  const get = vi.fn(async () => translated);
+  const get = vi.fn<() => Promise<MessageTranslation | null>>().mockResolvedValueOnce(translated).mockResolvedValue(null);
   const translate = vi.fn(async () => translated);
   const { rerender } = render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
+  fireEvent.click(await screen.findByRole("button", { name: "中文" }));
   expect(await screen.findByText(translated.text_zh)).toBeVisible();
   rerender(<MessageView message={{ ...message, body: "Revised quantity: 2 L40S." }} onGetTranslation={get} onTranslate={translate} />);
   expect(screen.queryByText(translated.text_zh)).not.toBeInTheDocument();
   expect(screen.getByText("Revised quantity: 2 L40S.")).toBeVisible();
   expect(screen.getByRole("button", { name: "翻译" })).toBeEnabled();
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
   expect(translate).not.toHaveBeenCalled();
 });
 

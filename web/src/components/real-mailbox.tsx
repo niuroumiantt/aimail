@@ -110,7 +110,7 @@ export function RealMailbox() {
   const failed = job.status === "failed" || job.result?.status === "failed";
   const status = busy ? job.kind === "sync" ? "正在只读同步网易邮箱…" : job.kind === "translate" ? "正在翻译邮件正文…" : "正在通过本机 API 分析…" : failed ? "上次任务失败，请重试或检查服务" : job.status === "done" && job.kind === "sync" ? `同步完成 · 新增 ${job.result?.stored} / 已有 ${job.result?.duplicate} / 超限 ${job.result?.oversize}` : "本地已收取 · 网易企业邮箱";
   function choose(id: number) { citation.current = null; setSelected(id); setMobileDetail(true); }
-  const themeConfig = mailTheme(dark);
+  const themeConfig = mailTheme();
   if (!box && error) return <ConfigProvider locale={zhCN} theme={themeConfig}><div className="mail-workbench" data-mode={dark ? "dark" : "light"}><header className="mw-top"><strong>aimail · 真实邮箱</strong></header><div className="mw-padded"><Alert type="error" showIcon title={error} description="未加载任何演示邮件。请检查本机邮件服务后重试。" action={<Button onClick={() => { setError(""); setRefreshId(v => v + 1); }}>重新连接</Button>} /></div></div></ConfigProvider>;
   return <ConfigProvider locale={zhCN} theme={themeConfig} componentSize="small" button={{ autoInsertSpace: false }}>
     <div className="mail-workbench" data-mode={dark ? "dark" : "light"}>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { mailDocument } from "@/lib/mail-document";
 import type { Message } from "@/data/types";
 
-export function OriginalMail({ message }: { message: Message }) {
+export function OriginalMail({ message, translated = false }: { message: Message; translated?: boolean }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const cleanup = useRef<(() => void) | null>(null);
   const [loadedSource, setLoadedSource] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export function OriginalMail({ message }: { message: Message }) {
   }
 
   return <div className="mail-original-html">
-    <iframe ref={frame} className="mail-original-html-frame" title="客户原始邮件" srcDoc={document.srcDoc}
+    <iframe ref={frame} className="mail-original-html-frame" title={translated ? "中文译文（保留排版）" : "客户原始邮件"} srcDoc={document.srcDoc}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer"
       onLoad={loaded} />
     {document.blockedImages && <p className="mail-original-notice">部分图片未加载。{document.externalImages && <button type="button" onClick={() => setLoadedSource(source)}>加载本封外部图片</button>} 缺失的内嵌图片保留占位。</p>}

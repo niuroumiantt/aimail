@@ -251,3 +251,42 @@ def test_history_only_body_is_not_recovered_as_new_text(conn, mailbox, monkeypat
     client = TestClient(create_app(conn, mailbox))
     assert client.get(f"/api/messages/{pk}/translation").json() is None
     assert client.post(f"/api/messages/{pk}/translation").status_code == 422
+
+
+def test_valid_legacy_cache_is_read_without_model_and_force_is_explicit(conn, mailbox, monkeypatch):
+    import json
+    from hashlib import sha256
+
+    pk = seed(conn, mailbox)
+    client = TestClient(create_app(conn, mailbox))
+    conn.execute(
+        "INSERT INTO message_translation(source_id,model,task_version,produced_at,"
+        "status,payload,source_hash) "
+        "VALUES(?,?,'translate_mail@1',?,'ok',?,?)",
+        (
+            pk,
+            "Codex CLI · legacy",
+            NOW.isoformat(),
+            json.dumps({"text_zh": "旧译文 500 pcs SATA SSD"}),
+            sha256(b"Need 500 pcs SATA SSD.").hexdigest(),
+        ),
+    )
+    calls = []
+    monkeypatch.setattr(backends, "ready", lambda: (True, "configured"))
+    monkeypatch.setattr(
+        backends,
+        "complete",
+        lambda *_a, **_kw: calls.append(True) or Translation(text_zh="需要 500 pcs SATA SSD。"),
+    )
+    saved = client.get(f"/api/messages/{pk}/translation").json()
+    assert saved["task_version"] == "translate_mail@1" and saved["layout_notice"]
+    assert client.post(f"/api/messages/{pk}/translation").json() == saved
+    assert not calls
+    updated = client.post(f"/api/messages/{pk}/translation?force=true").json()
+    assert updated["task_version"] == "translate_mail@2" and len(calls) == 1
+    assert client.get(f"/api/messages/{pk}/translation").json() == updated
+    monkeypatch.setattr(
+        backends, "complete", lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError())
+    )
+    assert client.post(f"/api/messages/{pk}/translation?force=true").json()["status"] == "failed"
+    assert client.get(f"/api/messages/{pk}/translation").json() == updated

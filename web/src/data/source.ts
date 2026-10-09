@@ -44,7 +44,7 @@ export interface DataSource {
   attachmentText(attachmentId: string): Promise<AttachmentText>;
   attachmentFile(attachmentId: string): Promise<Blob>;
   getMessageTranslation(messageId: string): Promise<MessageTranslation | null>;
-  translateMessage(messageId: string): Promise<MessageTranslation>;
+  translateMessage(messageId: string, force?: boolean): Promise<MessageTranslation>;
   /** 推送给下游的状态 */
   outbox(): Promise<OutboxStatus>;
   /** 伺候的是哪个邮箱、开了哪些任务 */
@@ -57,7 +57,7 @@ export interface DataSource {
   assistant(): Promise<AssistantState>;
   askAssistant(question: string, user: string): Promise<AssistantState>;
   clearAssistant(user: string): Promise<AssistantState>;
-  contactRegistration: (id: string) => Promise<ContactRegistrationState>;
+  contactRegistration: (id: string, fields?: ContactRegistrationFields, user?: string) => Promise<ContactRegistrationState>;
   extractContact: (id: string, user: string) => Promise<ContactRegistrationState>;
   saveContact: (id: string, fields: ContactRegistrationFields, user: string) => Promise<ContactRegistrationState>;
   customerContext(threadId: string): Promise<CustomerContext>;
@@ -345,7 +345,7 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
     }, true),
     attachmentText: (id) => api<AttachmentText>(`/api/attachments/${id}/text`),
     getMessageTranslation: id => api<MessageTranslation | null>(`/api/messages/${id}/translation`),
-    translateMessage: id => api<MessageTranslation>(`/api/messages/${id}/translation`, { method: "POST" }),
+    translateMessage: (id, force) => api<MessageTranslation>(`/api/messages/${id}/translation${force ? "?force=true" : ""}`, { method: "POST" }),
     outbox: () => api<OutboxStatus>("/api/outbox"),
     mailbox: () => api<MailboxInfo>("/api/mailbox"),
     mailboxes: () => call<MailboxAccess>("/api/mailboxes"),
@@ -358,7 +358,7 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
     assistant: () => api<AssistantState>("/api/assistant"),
     askAssistant: (question, user) => api<AssistantState>("/api/assistant", asPerson(user, { question }, "POST")),
     clearAssistant: (user) => api<AssistantState>("/api/assistant/clear", asPerson(user)),
-    contactRegistration: id => api<ContactRegistrationState>(`/api/threads/${id}/registration`),
+    contactRegistration: (id, fields, user) => api<ContactRegistrationState>(`/api/threads/${id}/registration${fields ? "/check" : ""}`, fields ? asPerson(user ?? "", fields, "POST") : undefined),
     extractContact: (id, user) => api<ContactRegistrationState>(`/api/threads/${id}/registration/extract`, asPerson(user)),
     saveContact: (id, fields, user) => api<ContactRegistrationState>(`/api/threads/${id}/registration`, asPerson(user, fields, "POST")),
     customerContext: id => api<CustomerContext>(`/api/threads/${id}/customer`),

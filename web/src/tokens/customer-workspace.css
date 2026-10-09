@@ -74,3 +74,10 @@
 .crm-form blockquote { white-space: pre-wrap; overflow-wrap: anywhere; margin: var(--ui-space-2) 0; padding-left: var(--ui-space-2); border-left: 1px dashed var(--color-line); }
 .crm-saved, .crm-link { display: flex; align-items: center; gap: var(--ui-space-2); margin-top: var(--ui-space-3); color: var(--color-brand-text); font-size: var(--ui-font-meta); overflow-wrap: anywhere; }
 .crm-primary { font-weight: 600; }
+.customer-introduction-heading, .crm-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-3); }
+.crm-registration-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: var(--ui-space-2); border-radius: var(--radius-md); border: 1px solid var(--color-brand-line); background: var(--color-brand-wash); color: var(--color-brand-text); cursor: pointer; }
+.crm-registration-icon:disabled { opacity: .5; }
+.crm-registration-dialog { position: fixed; inset: var(--ui-space-6); margin: auto; z-index: 50; width: min(calc(100% - var(--ui-space-5)), 36rem); max-height: calc(100% - var(--ui-space-6)); height: fit-content; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg); gap: var(--ui-space-3); box-shadow: var(--shadow-lg); }
+.crm-dialog-heading h2 { font-size: var(--ui-font-heading); font-weight: 600; }
+.crm-action { white-space: nowrap; }
+.crm-identity-check { display: grid; gap: var(--ui-space-2); padding: var(--ui-space-3); border: 1px solid var(--color-brand-line); border-radius: var(--radius-md); background: var(--color-brand-wash); font-size: var(--ui-font-meta); color: var(--color-ink-2); }

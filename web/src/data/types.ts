@@ -136,6 +136,8 @@ export type Message = {
 export type MessageTranslation = Attribution & {
   status: "ok" | "failed";
   text_zh: string;
+  html_zh?: string | null;
+  layout_notice?: string;
   reason: string;
   coverage: string;
 };
@@ -249,6 +251,7 @@ export type Lead = {
 };
 
 export type ContactRegistrationFields = {
+  company_id?: string | null; new_company_reason?: string;
   company: string; contact: string; email: string; website: string; region: string;
   phone: string; title: string; products: string; wants: string; quantity: string; terms: string;
   business_role: "buyer" | "supplier" | "both" | "unknown";
@@ -257,6 +260,9 @@ export type ContactRegistrationFields = {
   next_step: string; due_at: string; link_registration_id: number | null;
 };
 export type ContactRegistrationState = {
+  website_inferred?: boolean;
+  identity?: {current: boolean; conflict: boolean; received_at: string | null;
+    matches: {company_id: string; company: string; strong: boolean; reasons: string[]}[]};
   defaults: ContactRegistrationFields;
   candidates: {id: number; company: string}[];
   registration: {id: number; fields: ContactRegistrationFields; confirmed_at: string;

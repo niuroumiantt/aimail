@@ -71,7 +71,7 @@ export function CustomerWorkspace({ thread, mailbox, revision, load, refresh }: 
 
   return <div className="customer-workspace-v2">
     <section className="customer-introduction" aria-label="客户介绍">
-      <div className="customer-section-label"><UserRound size={15} aria-hidden /><span>客户介绍</span></div>
+      <div className="customer-introduction-heading"><div className="customer-section-label"><UserRound size={15} aria-hidden /><span>客户介绍</span></div><ContactRegistration key={`${mailbox}:${thread.id}`} threadId={thread.id} /></div>
       <div className="customer-identity"><Avatar name={thread.contact} size="lg" muted /><div><h2>{thread.contact || thread.email}</h2>{company && <p>{company}</p>}</div></div>
       <dl className="customer-contact-facts">
         <div><dt>邮箱</dt><dd>{thread.email}</dd></div>
@@ -79,7 +79,6 @@ export function CustomerWorkspace({ thread, mailbox, revision, load, refresh }: 
         {!company && domain && <div><dt>邮箱域名</dt><dd>{domain}</dd></div>}
       </dl>
     </section>
-    <ContactRegistration key={`${mailbox}:${thread.id}`} threadId={thread.id} />
     <section className="customer-business-overview" aria-label="当前话题的生意概况">
       <header><div className="customer-section-label"><Sparkles size={16} aria-hidden /><h3>生意概况</h3></div><button
         type="button" className="mail-icon-button" title="更新当前话题；内容未变化时复用已有概况"
