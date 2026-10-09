@@ -91,14 +91,14 @@ it("temporarily devotes the workspace to the reader and restores each pane witho
   localStorage.setItem("aimail-inbox-layout", JSON.stringify({ width: 420, autoHide: true }));
   const view = render(<AppShell {...props} customer={<div>Business</div>} />);
   fireEvent.click(screen.getByRole("button", { name: "展开邮件列表" }));
-  fireEvent.click(screen.getByRole("button", { name: "专注正文" }));
+  fireEvent.click(screen.getByRole("button", { name: "邮件全屏" }));
   expect(view.container.querySelector(".mail-app-shell")).toHaveClass("mail-reader-focused");
   expect(screen.queryByRole("region", { name: "列表" })).not.toBeInTheDocument();
   expect(screen.queryByRole("complementary", { name: "客户需求栏" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "展开邮件列表" })).not.toBeInTheDocument();
   expect(screen.getByText("Reading")).toBeInTheDocument();
   expect(JSON.parse(localStorage.getItem("aimail-inbox-layout")!)).toEqual({ width: 420, autoHide: true });
-  fireEvent.click(screen.getByRole("button", { name: "退出专注正文" }));
+  fireEvent.click(screen.getByRole("button", { name: "退出邮件全屏" }));
   expect(screen.getByRole("region", { name: "列表" })).not.toHaveClass("mail-list-collapsed");
   expect(screen.getByRole("complementary", { name: "客户需求栏" })).toBeInTheDocument();
   expect(screen.getByRole("separator", { name: "调整邮件列表宽度" })).toHaveAttribute("aria-valuenow", "420");
@@ -150,10 +150,33 @@ it("does not mount customer analysis while the customer workspace is hidden", ()
   localStorage.setItem("aimail-customer-layout", JSON.stringify({ width: 320, collapsed: true }));
   render(<AppShell {...props} customer={<CustomerAnalysis />} />);
   expect(load).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "专注正文" }));
+  fireEvent.click(screen.getByRole("button", { name: "邮件全屏" }));
   expect(load).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "退出专注正文" }));
+  fireEvent.click(screen.getByRole("button", { name: "退出邮件全屏" }));
   expect(load).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "展开客户工作区" }));
   expect(load).toHaveBeenCalledOnce();
+});
+
+it("keeps message actions inside the reader and model settings in the application header", () => {
+  const view = render(<AppShell {...props} toolbar={<button>Reply to selected mail</button>} rail={<nav>Apps</nav>} modelControl={<button>Model settings</button>} customer={<div>Business</div>} customerInitiallyCollapsed />);
+  const reader = view.container.querySelector('.mail-reader-pane')!;
+  expect(reader).toContainElement(screen.getByRole('button', { name: 'Reply to selected mail' }));
+  expect(reader).toContainElement(screen.getByRole('button', { name: '邮件全屏' }));
+  expect(reader).not.toContainElement(screen.getByRole('button', { name: 'Model settings' }));
+  expect(screen.getByRole('button', { name: '展开客户工作区' })).toHaveTextContent('已收起');
+  fireEvent.click(screen.getByRole('button', { name: '邮件全屏' }));
+  fireEvent.click(screen.getByRole('button', { name: '展开客户工作区' }));
+  expect(view.container.querySelector('.mail-app-shell')).not.toHaveClass('mail-reader-focused');
+  expect(screen.getByRole('button', { name: '隐藏客户工作区' })).toHaveTextContent('已展开');
+  expect(screen.getByRole('complementary', { name: '客户需求栏' })).toBeInTheDocument();
+});
+
+
+it("keeps AI reading reachable after entering mail fullscreen", () => {
+  const view = render(<AppShell {...props} />);
+  fireEvent.click(screen.getByRole("button", { name: "邮件全屏" }));
+  expect(view.container.querySelector(".mail-app-shell")).toHaveClass("mail-reader-focused");
+  view.rerender(<AppShell {...props} assistantOpen />);
+  expect(view.container.querySelector(".mail-app-shell")).not.toHaveClass("mail-reader-focused");
 });

@@ -165,9 +165,10 @@ export function MessageView({
       } else {
         setTranslationError({ source, message: result.reason || "翻译暂不可用，请重试。原文仍可阅读。" });
       }
-    } catch {
+    } catch (reason) {
       if (request === activeRequest.current) {
-        setTranslationError({ source, message: "翻译暂不可用，请重试。原文仍可阅读。" });
+        const unavailable = reason instanceof Error && reason.message === "所选模型暂不可用，仍可阅读原文与已保存的译文。";
+        setTranslationError({ source, message: unavailable ? "当前翻译模型未连接，请点击顶栏的模型图标检查连接状态。原文仍可阅读。" : "翻译暂不可用，请重试。原文仍可阅读。" });
       }
     } finally {
       if (request === activeRequest.current) setPendingTranslation(null);

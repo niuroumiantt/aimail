@@ -15,18 +15,13 @@
 .mail-global-search input:focus-visible { outline-color: var(--color-on-brand); }
 .mail-outlook-workspace .mail-topbar-menu { color: var(--color-on-brand); }
 .mail-outlook-workspace .mail-topbar-menu:hover { background: var(--color-brand-2); }
-.mail-commandbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ui-space-2); min-height: 48px; margin: var(--ui-space-3); padding: var(--ui-space-1) var(--ui-space-4); border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-sm); flex-shrink: 0; }
 .mail-command-actions, .mail-commandbar-options { display: flex; align-items: center; gap: var(--ui-space-2); min-width: 0; }
-.mail-commandbar-options { margin-left: auto; }
 .mail-command-actions > button, .mail-command-actions > a { display: inline-flex; align-items: center; justify-content: center; gap: var(--ui-space-2); min-height: 36px; padding-inline: var(--ui-space-3); border-radius: var(--radius-md); font-size: var(--ui-font-body); color: var(--color-ink-2); white-space: nowrap; cursor: pointer; }
 .mail-command-actions > button:hover:not(:disabled), .mail-command-actions > a:hover { background: var(--color-surface-3); color: var(--color-ink); }
 .mail-command-actions > button:disabled { opacity: .45; cursor: default; }
 .mail-command-actions > button[aria-pressed="true"] { background: var(--color-brand-wash); color: var(--color-brand-text); }
-.mail-command-divider { height: 20px; border-left: 1px solid var(--color-line-2); }
-.mail-commandbar .mail-reader-layout-controls { min-height: 32px; padding: 0; border: 0; background: transparent; }
-.mail-commandbar .mail-model-trigger { background: transparent; border-color: transparent; font-size: var(--ui-font-meta); }
 .mail-command-error { order: 3; width: 100%; padding-inline: var(--ui-space-3); font-size: var(--ui-font-meta); color: var(--color-danger-text); overflow-wrap: anywhere; }
-.mail-outlook-workspace .mail-app-panes { margin: 0 var(--ui-space-3) var(--ui-space-3); border: 0; border-radius: 0; box-shadow: none; background: var(--color-surface-3); }
+.mail-outlook-workspace .mail-app-panes { margin: var(--ui-space-3); border: 0; border-radius: 0; box-shadow: none; background: var(--color-surface-3); }
 .mail-outlook-workspace { background: var(--color-surface-3); }
 .mail-application-rail { display: flex; flex-direction: column; justify-content: space-between; align-items: center; width: 52px; flex-shrink: 0; padding-block: var(--ui-space-3); border-right: 1px solid var(--color-line-2); }
 .mail-outlook-workspace .mail-application-rail { margin-right: var(--ui-space-3); border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-sm); }
@@ -100,13 +95,9 @@
   .mail-global-search { order: 5; flex-basis: 100%; max-width: none; }
   .mail-outlook-workspace .mail-topbar > header { margin-left: auto; }
   .mail-outlook-workspace .mail-topbar > header summary > span:nth-child(2) { display: none; }
-  .mail-commandbar { margin: var(--ui-space-2); padding-inline: var(--ui-space-2); gap: var(--ui-space-1); }
-  .mail-outlook-workspace .mail-app-panes { margin: 0 var(--ui-space-2) var(--ui-space-2); }
-  .mail-command-actions { width: 100%; overflow-x: auto; }
-  .mail-commandbar-options { width: 100%; margin: 0; justify-content: space-between; }
+  .mail-outlook-workspace .mail-app-panes { margin: var(--ui-space-2); }
+  .mail-command-actions { flex-wrap: wrap; }
   .mail-command-actions > button, .mail-command-actions > a { min-height: 32px; padding-inline: var(--ui-space-2); }
-  .mail-commandbar .mail-reader-layout-controls > button { padding-inline: var(--ui-space-1); font-size: 11px; }
-  .mail-commandbar .mail-model-selector { max-width: 140px; }
   .mail-application-rail { display: none; }
   .mail-outlook-workspace .mail-app-panes:has(.mail-navigation[data-overlay="true"]) > .mail-application-rail { display: flex; position: absolute; z-index: 36; bottom: var(--ui-space-3); left: calc(min(280px, 90%) - 44px); width: 36px; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
   .mail-outlook-workspace .mail-application-rail > div { display: none; }
@@ -118,4 +109,32 @@
   .mail-outlook-workspace .mail-message-header > time { width: auto; margin-left: 56px; }
   .mail-outlook-workspace .mail-message-sender { flex-basis: calc(100% - 56px); }
   .mail-outlook-workspace .mail-customer-pane { margin: 0; }
+}
+
+/* Actions stay inside the selected mail card, above its single scrolling body. */
+.mail-reader-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2); flex-shrink: 0; padding: var(--ui-space-2) var(--ui-space-3); border-bottom: 1px solid var(--color-line); }
+.mail-reader-toolbar .mail-command-actions { flex-wrap: wrap; gap: var(--ui-space-1); }
+.mail-reader-toolbar .mail-command-actions > button, .mail-reader-toolbar .mail-command-actions > a { min-height: 32px; padding-inline: var(--ui-space-2); font-size: var(--ui-font-meta); }
+.mail-reader-toolbar .mail-reader-layout-controls { margin-left: auto; min-height: 32px; padding: 0; border: 0; background: transparent; flex-wrap: wrap; }
+.mail-reader-layout-controls > .mail-customer-toggle { border: 1px solid var(--color-line-2); border-radius: var(--radius-md); background: var(--color-panel-context); }
+.mail-reader-layout-controls > .mail-customer-toggle[aria-expanded="true"] { border-color: var(--color-brand-line); color: var(--color-brand-text); background: var(--color-brand-wash); }
+.mail-customer-toggle small { font-size: inherit; opacity: .8; }
+.mail-list-title > .mail-list-sync { margin-left: auto; flex-shrink: 0; }
+.mail-sync-notice { padding: var(--ui-space-2) var(--ui-space-4); border-bottom: 1px solid var(--color-line); font-size: var(--ui-font-meta); color: var(--color-ink-2); overflow-wrap: anywhere; }
+.mail-outlook-workspace .mail-topbar .mail-model-selector { flex: 0 0 auto; }
+.mail-outlook-workspace .mail-topbar .mail-model-icon { color: var(--color-on-brand); border-color: transparent; background: transparent; }
+.mail-outlook-workspace .mail-topbar .mail-model-icon:is(:hover, [data-state="open"]) { background: var(--color-brand-2); border-color: var(--color-brand-line); }
+.mail-outlook-workspace :is(.mail-detail-scroll, .mail-customer-scroll, .mail-thread-list-scroll) { scrollbar-width: thin; scrollbar-color: var(--color-scroll-thumb) transparent; overscroll-behavior: contain; }
+.mail-outlook-workspace :is(.mail-detail-scroll, .mail-customer-scroll, .mail-thread-list-scroll):hover { scrollbar-color: var(--color-scroll-thumb-hover) transparent; }
+.mail-reader-toolbar :is(button, a):focus-visible { outline: 2px solid var(--color-brand-line); outline-offset: 2px; }
+@media (max-width: 767px) {
+  .mail-reader-toolbar { padding-inline: var(--ui-space-2); gap: var(--ui-space-1); }
+  .mail-reader-toolbar .mail-reader-layout-controls { margin-left: 0; width: 100%; justify-content: space-between; }
+  .mail-reader-toolbar .mail-command-actions > button, .mail-reader-toolbar .mail-command-actions > a { padding-inline: var(--ui-space-2); }
+}
+@container mail-message (max-width: 600px) {
+  .mail-outlook-workspace .mail-message-header { flex-wrap: wrap; }
+  .mail-outlook-workspace .mail-message-sender { flex-basis: calc(100% - 56px); }
+  .mail-outlook-workspace .mail-message-header > time { margin-left: 56px; }
+  .mail-outlook-workspace .mail-translation-tools { margin-left: auto; }
 }

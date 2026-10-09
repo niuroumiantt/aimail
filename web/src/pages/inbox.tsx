@@ -1,3 +1,4 @@
+import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AppShell } from "@/components/app-shell";
@@ -28,6 +29,7 @@ export default function InboxPage() {
   const [query, setQuery] = useState("");
   const [replyingFor, setReplyingFor] = useState("");
   const [organizing, setOrganizing] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<{ mailbox: string; message: string }>();
   const [commandError, setCommandError] = useState<{ scope: string; message: string }>();
   const folder = folderOf(params.get("f"));
   const search = folder === "all" ? "" : `?f=${folder}`;
@@ -58,16 +60,16 @@ export default function InboxPage() {
     finally { setOrganizing(false); }
   };
   const syncNow = async () => {
-    setCommandError(undefined);
-    try { setCommandError({ scope, message: await sync() }); }
-    catch (e) { setCommandError({ scope, message: e instanceof Error ? e.message : String(e) }); }
+    setSyncNotice(undefined);
+    try { setSyncNotice({ mailbox: mailbox.address, message: await sync() }); }
+    catch (e) { setSyncNotice({ mailbox: mailbox.address, message: e instanceof Error ? e.message : String(e) }); }
   };
 
   return (
     <AppShell
       rail={<ApplicationRail leads={mailbox.tasks.includes("leads")} />}
       searchControl={<SearchBox placeholder="搜索当前视图 · 公司、型号、主题" value={query} onChange={setQuery} />}
-      toolbar={<><InboxToolbar thread={selected} syncing={syncing} onSync={() => void syncNow()}
+      toolbar={selected && <><InboxToolbar thread={selected}
         replying={replying} onReply={() => setReplyingFor(replying ? "" : scope)}
         assistantOpen={assistantOpen} onAssistant={() => setAssistantOpen(value => !value)}
         busy={organizing} onOrganize={() => void organize()} />
@@ -81,7 +83,9 @@ export default function InboxPage() {
         setReplyingFor(""); setQuery(""); setCommandError(undefined);
         await selectMailbox(address);
       }} />}
-      list={<ThreadList threads={visible} folder={folder} search={search} query={query} loading={loading} error={error} />}
+      list={<ThreadList threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
+        headerControl={<button type="button" className="mail-list-sync mail-icon-button" aria-label={syncing ? "正在同步邮箱" : "同步邮箱"} title="同步当前邮箱" disabled={syncing} onClick={() => void syncNow()}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} /></button>}
+        notice={syncNotice?.mailbox === mailbox.address ? syncNotice.message : undefined} />}
       detail={
         selected ? (
           <ThreadDetail
@@ -108,6 +112,7 @@ export default function InboxPage() {
       }
       assistant={<AiReadingPanel open={assistantOpen} mailbox={mailbox.address} load={loadAssistant} ask={submitAssistant} clear={clearAssistantTurns} onClose={() => setAssistantOpen(false)} onCitation={(threadId) => { navigate(`/t/${threadId}`); void openThread(threadId); }} />}
       assistantOpen={assistantOpen}
+      onFullscreen={() => setAssistantOpen(false)}
       readerKey={`${mailbox.address}:${id ?? ""}`}
       showDetail={Boolean(selected)}
       customer={selected ? <CustomerWorkspace thread={selected} mailbox={mailbox.address} revision={`${selected.updated_at}:${selected.scale}:${selected.deleted_at ?? ""}`} load={customerContext} refresh={refreshCustomerContext} /> : undefined}

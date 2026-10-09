@@ -55,6 +55,7 @@ export function AppShell({
   main,
   assistant,
   assistantOpen = false,
+  onFullscreen,
   showDetail = false,
   readerKey = "",
   customer,
@@ -71,6 +72,7 @@ export function AppShell({
   main?: ReactNode;
   assistant?: ReactNode;
   assistantOpen?: boolean;
+  onFullscreen?: () => void;
   showDetail?: boolean;
   readerKey?: string;
   customer?: ReactNode;
@@ -93,14 +95,14 @@ export function AppShell({
   const [focused, setFocused] = useState(false);
   const [navigationOverlay, setNavigationOverlay] = useState(false);
   const [viewport, setViewport] = useState(window.innerWidth);
-  const readerFocused = focused && showDetail;
+  const readerFocused = focused && showDetail && !assistantOpen;
   const compactNavigation = viewport < 768 || showDetail && viewport < 1300;
   const customerInline = viewport >= 1100;
   const navigationVisible = compactNavigation ? navigationOverlay : !navigation.collapsed;
   const collapsed = showDetail && (hidden || (layout.autoHide && expandedFor !== readerKey));
   // Auxiliary panes share a fixed viewport budget; the reader owns the remaining width.
   const customerGutter = customer && !readerFocused && customerInline && !customerLayout.collapsed ? 12 : 0;
-  const paneGutters = toolbar ? viewport >= 768 ? 60 + customerGutter : 16 : 26;
+  const paneGutters = rail ? viewport >= 768 ? 60 + customerGutter : 16 : 26;
   const availableWidth = Math.max(0, viewport - paneGutters - (rail && viewport >= 768 ? 52 : 0));
   const navigationSpace = readerFocused ? 0 : compactNavigation || navigation.collapsed ? 44 : navigation.width;
   const listSpace = readerFocused ? 0 : collapsed ? 40 : 260;
@@ -111,6 +113,12 @@ export function AppShell({
   const listMax = Math.max(260, Math.min(600, availableWidth - navigationSpace - customerSpace - MIN_READER_WIDTH));
   const listWidth = Math.min(layout.width, listMax);
   const toggleCustomer = () => {
+    if (readerFocused) {
+      setFocused(false);
+      if (customerInline) setCustomerLayout(value => ({ ...value, collapsed: false }));
+      else setCustomerOpen(true);
+      return;
+    }
     if (customerInline) setCustomerLayout(value => ({ ...value, collapsed: !value.collapsed }));
     else setCustomerOpen(value => !value);
   };
@@ -126,13 +134,12 @@ export function AppShell({
   }, []);
   const expand = () => { setHidden(false); setExpandedFor(readerKey); };
   const layoutControls = showDetail && <div className="mail-reader-layout-controls" aria-label="阅读布局">
-    <button type="button" aria-label={readerFocused ? "退出专注正文" : "专注正文"} aria-pressed={readerFocused} onClick={() => setFocused(value => !value)} title={readerFocused ? "恢复之前的阅读布局" : "隐藏两侧面板，展开正文"}>{readerFocused ? <Minimize2 size={16} /> : <Maximize2 size={16} />}<span>{readerFocused ? "退出专注" : "专注正文"}</span></button>
-    {customer && !readerFocused && <button type="button" onClick={toggleCustomer} aria-label={customerVisible ? "隐藏客户工作区" : "展开客户工作区"} aria-expanded={customerVisible} aria-controls="mail-customer-workspace">{customerVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>客户工作区</span></button>}
+    <button type="button" aria-label={readerFocused ? "退出邮件全屏" : "邮件全屏"} aria-pressed={readerFocused} onClick={() => { if (!readerFocused) onFullscreen?.(); setFocused(!readerFocused); }} title={readerFocused ? "恢复之前的阅读布局" : "隐藏两侧面板，展开正文"}>{readerFocused ? <Minimize2 size={16} /> : <Maximize2 size={16} />}<span>{readerFocused ? "退出邮件全屏" : "邮件全屏"}</span></button>
+    {customer && <button className="mail-customer-toggle" type="button" onClick={toggleCustomer} aria-label={customerVisible ? "隐藏客户工作区" : "展开客户工作区"} aria-expanded={customerVisible} aria-controls="mail-customer-workspace">{customerVisible ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}<span>客户工作区</span><small>{customerVisible ? "已展开" : "已收起"}</small></button>}
   </div>;
   return (
-    <div className={cn("mail-app-shell flex h-full min-h-0 w-full flex-col bg-canvas", Boolean(toolbar) && "mail-outlook-workspace", Boolean(customer) && "mail-customer-workspace", assistantOpen && "mail-assistant-open", readerFocused && "mail-reader-focused")}>
-      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => { setFocused(false); setNavigationOverlay(value => !value); }} modelControl={!toolbar ? modelControl : undefined} searchControl={searchControl} />
-      {toolbar && <div className="mail-commandbar">{toolbar}<div className="mail-commandbar-options">{layoutControls}{modelControl}</div></div>}
+    <div className={cn("mail-app-shell flex h-full min-h-0 w-full flex-col bg-canvas", Boolean(rail) && "mail-outlook-workspace", Boolean(customer) && "mail-customer-workspace", assistantOpen && "mail-assistant-open", readerFocused && "mail-reader-focused")}>
+      <ApplicationHeader title={title ?? (main ? "工作台" : "邮箱")} onNavigation={() => { setFocused(false); setNavigationOverlay(value => !value); }} modelControl={modelControl} searchControl={searchControl} />
       <div className="mail-app-panes flex min-h-0 flex-1">
         {rail && !readerFocused && rail}
         <div className="mail-navigation" hidden={readerFocused} data-compact={compactNavigation} data-collapsed={navigation.collapsed} data-overlay={navigationOverlay} style={{ "--mail-nav-width": `${navigation.width}px` } as CSSProperties}>
@@ -181,7 +188,7 @@ export function AppShell({
                 onReset={() => setLayout(value => ({ ...value, width: DEFAULT_WIDTH }))} />
             </section>
             <main className={cn("mail-reader-pane min-w-0 flex-1 flex-col md:flex", showDetail ? "flex" : "hidden")}>
-              {!toolbar && layoutControls}
+              {showDetail && <div className="mail-reader-toolbar">{toolbar}{layoutControls}</div>}
               {detail}
             </main>
             {customer && <aside id="mail-customer-workspace" className="mail-customer-pane" hidden={!customerVisible} data-open={customerOpen} aria-label="客户需求栏" style={{ "--mail-customer-width": `${customerWidth}px` } as CSSProperties}>

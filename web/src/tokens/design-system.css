@@ -108,3 +108,8 @@ svg.lucide { stroke-width: 1.75; }
   .mail-app-panes { margin: 0; border: 0; border-radius: 0; box-shadow: none; }
   .mail-page-body { padding: var(--ui-space-5); }
 }
+
+.mail-model-trigger.mail-model-icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; flex: 0 0 auto; }
+.mail-model-trigger.mail-model-icon > svg { display: block; margin: 0; }
+.mail-model-trigger.mail-model-icon[data-error="true"] { box-shadow: inset 0 -2px var(--color-warn); }
+.mail-model-trigger.mail-model-icon[aria-busy="true"] { opacity: .6; }

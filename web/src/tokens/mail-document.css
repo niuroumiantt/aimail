@@ -1,6 +1,6 @@
 /* Uniform reading typography. Sender text and semantic structure are preserved. */
 :root { color-scheme: light; }
-html { margin: 0; padding: 0; }
+html { margin: 0; padding: 0; overflow: hidden; }
 body { margin: 0; padding: 0; background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading, 15px); line-height: 1.6; overflow-wrap: anywhere; }
 *, *::before, *::after { box-sizing: border-box; }
 p { margin: 0 0 .85em; }
