@@ -1,6 +1,6 @@
 import { Dialog as RadixDialog } from "radix-ui";
-import { ChevronDown, FileText, Languages, LoaderCircle, Paperclip, TriangleAlert, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { ChevronDown, Download, FileText, Languages, LoaderCircle, Paperclip, TriangleAlert, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { AttachmentRef, AttachmentText, Message, MessageTranslation } from "@/data/types";
 import { cn } from "@/lib/cn";
 import { fullTime } from "@/lib/text";
@@ -69,6 +69,41 @@ function AttachmentChip({
       </button>
     </Tip>
   );
+}
+
+/** Download exact stored bytes with the same mailbox scope as the preview. */
+function AttachmentDownload({ attachment, load }: { attachment: AttachmentRef; load: (id: string) => Promise<Blob> }) {
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const active = useRef(true);
+  const downloading = useRef(false);
+  const urls = useRef(new Set<string>());
+  useEffect(() => {
+    active.current = true;
+    const current = urls.current;
+    return () => { active.current = false; current.forEach(url => URL.revokeObjectURL(url)); current.clear(); };
+  }, []);
+  const download = async () => {
+    if (downloading.current) return;
+    downloading.current = true; setPending(true); setFailed(false);
+    try {
+      const blob = await load(attachment.id);
+      if (!active.current) return;
+      const url = URL.createObjectURL(blob);
+      urls.current.add(url);
+      const link = document.createElement("a");
+      link.href = url; link.download = attachment.name;
+      document.body.append(link); link.click(); link.remove();
+      window.setTimeout(() => { if (urls.current.delete(url)) URL.revokeObjectURL(url); }, 1000);
+    } catch { if (active.current) setFailed(true); }
+    finally { downloading.current = false; if (active.current) setPending(false); }
+  };
+  return <div className="mail-attachment-download">
+    <button type="button" onClick={() => void download()} disabled={pending} aria-label={`下载 ${attachment.name}`}>
+      {pending ? <LoaderCircle size={14} className="animate-spin" aria-hidden /> : <Download size={14} aria-hidden />}{pending ? "下载中…" : "下载原件"}
+    </button>
+    {failed && <small role="alert">下载失败，请重试</small>}
+  </div>;
 }
 
 /** 附件文字的抽屉。读出来的原样显示(等宽,保留换行);读不出的说原因。 */
@@ -144,7 +179,7 @@ export function MessageView({
   const [translationError, setTranslationError] = useState<{ source: string; message: string } | null>(null);
   const [pendingTranslation, setPendingTranslation] = useState<{ source: string; phase: "cache" | "model" } | null>(null);
   const activeRequest = useRef(0);
-  const source = `${message.id}\n${message.body}`;
+  const source = `${message.id}\n${message.body}\n${message.body_html ?? ""}`;
   const translation = translated?.source === source ? translated.value : null;
   const mode = display?.source === source ? display.mode : "original";
   const translationPending = pendingTranslation?.source === source;
@@ -225,7 +260,7 @@ export function MessageView({
               <button type="button" className="mail-translation-button" disabled={translationPending}
                 onClick={() => void translate()}>
                 {translationPending ? <LoaderCircle size={14} strokeWidth={1.75} className="mail-translation-spinner" /> : <Languages size={14} strokeWidth={1.75} />}
-                {translationPending ? pendingTranslation?.phase === "cache" ? "读取译文…" : "正在翻译…" : error ? "重试翻译" : "翻译为中文"}
+                {translationPending ? pendingTranslation?.phase === "cache" ? "读取译文…" : "正在翻译…" : error ? "重试翻译" : "翻译"}
               </button>
             )}
           </div>
@@ -262,11 +297,16 @@ export function MessageView({
           </footer>
         )}
         {message.attachments && message.attachments.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
+          <section className="mail-attachments" aria-label="邮件附件">
+            <h3><Paperclip size={14} aria-hidden />附件 <span>{message.attachments.length}</span></h3>
             {message.attachments.map((a) => (
-              <AttachmentChip key={a.id} attachment={a} original={Boolean(onAttachmentFile)} onOpen={open} />
+              <div className="mail-attachment-item" key={a.id}>
+                <AttachmentChip attachment={a} original={Boolean(onAttachmentFile)} onOpen={open} />
+                <small>{sizeLabel(a.size)}</small>
+                {onAttachmentFile && <AttachmentDownload attachment={a} load={onAttachmentFile} />}
+              </div>
             ))}
-          </div>
+          </section>
         )}
         {message.quoted && !message.body_html && (
           <div className="mt-3 border-t border-line pt-2">

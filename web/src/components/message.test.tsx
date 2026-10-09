@@ -82,7 +82,7 @@ it("translates only on an explicit click and changes views without more model ca
   expect(get).not.toHaveBeenCalled();
   expect(translate).not.toHaveBeenCalled();
 
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByText(translated.text_zh)).toBeVisible();
   expect(screen.getByLabelText("邮件原文")).not.toBeVisible();
   expect(screen.getByRole("button", { name: "中文" })).toHaveAttribute("aria-pressed", "true");
@@ -107,7 +107,7 @@ it("reuses a cached translation and keeps its attribution when the selected mode
   const get = vi.fn(async () => translated);
   const translate = vi.fn(async () => translated);
   const { rerender } = render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByText(translated.text_zh)).toBeVisible();
   expect(translate).not.toHaveBeenCalled();
   const otherModel = vi.fn(async () => ({ ...translated, model: "Spark · fast" }));
@@ -125,7 +125,7 @@ it("preserves the original and requires an explicit retry when a cache request f
     .mockResolvedValueOnce(null);
   const translate = vi.fn(async () => translated);
   render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("翻译暂不可用，请重试。原文仍可阅读。");
   expect(screen.queryByText(/sensitive upstream/)).not.toBeInTheDocument();
   expect(screen.getByLabelText("邮件原文")).toBeVisible();
@@ -139,7 +139,7 @@ it("keeps the original readable while translating and rejects duplicate clicks",
   let finish: (value: MessageTranslation) => void = () => undefined;
   const translate = vi.fn(() => new Promise<MessageTranslation>(resolve => { finish = resolve; }));
   render(<MessageView message={message} onGetTranslation={async () => null} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   const busy = await screen.findByRole("button", { name: "正在翻译…" });
   expect(busy).toBeDisabled();
   expect(screen.getByLabelText("邮件原文")).toBeVisible();
@@ -153,12 +153,12 @@ it("does not show a translation from an earlier body after the message content c
   const get = vi.fn(async () => translated);
   const translate = vi.fn(async () => translated);
   const { rerender } = render(<MessageView message={message} onGetTranslation={get} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByText(translated.text_zh)).toBeVisible();
   rerender(<MessageView message={{ ...message, body: "Revised quantity: 2 L40S." }} onGetTranslation={get} onTranslate={translate} />);
   expect(screen.queryByText(translated.text_zh)).not.toBeInTheDocument();
   expect(screen.getByText("Revised quantity: 2 L40S.")).toBeVisible();
-  expect(screen.getByRole("button", { name: "翻译为中文" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "翻译" })).toBeEnabled();
   expect(get).toHaveBeenCalledTimes(1);
   expect(translate).not.toHaveBeenCalled();
 });
@@ -169,7 +169,7 @@ it("shows failed translations clearly and renders translation content as plain t
     .mockResolvedValueOnce({ ...translated, status: "failed", text_zh: "", reason: "翻译未通过数字核对，请重试。" })
     .mockResolvedValueOnce({ ...translated, text_zh: unsafeLooking });
   const { container } = render(<MessageView message={message} onGetTranslation={async () => null} onTranslate={translate} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("翻译未通过数字核对，请重试。");
   expect(screen.getByLabelText("邮件原文")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "重试翻译" }));
@@ -209,7 +209,7 @@ it("external image opt-in is limited to the selected original message", () => {
 
 it("explains a disconnected selected model without exposing arbitrary upstream errors", async () => {
   render(<MessageView message={message} onTranslate={vi.fn().mockRejectedValue(new Error("所选模型暂不可用，仍可阅读原文与已保存的译文。"))} />, { wrapper: TipProvider });
-  fireEvent.click(screen.getByRole("button", { name: "翻译为中文" }));
+  fireEvent.click(screen.getByRole("button", { name: "翻译" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("当前翻译模型未连接，请点击顶栏的模型图标检查连接状态");
   expect(screen.getByLabelText("邮件原文")).toBeVisible();
 });
@@ -248,4 +248,25 @@ it("does not reopen an attachment or retain bytes if it finishes after closing",
   await waitFor(() => expect(screen.queryByTitle("PDF 原件预览")).toBeNull());
   expect(create).not.toHaveBeenCalled();
   view.unmount();vi.unstubAllGlobals();
+});
+
+it("downloads the unchanged attachment directly with its filename and allows retry after a failed fetch", async () => {
+  const blob = new Blob(["original presentation bytes"], { type: "application/octet-stream" });
+  const load = vi.fn().mockRejectedValueOnce(new Error("unavailable")).mockResolvedValueOnce(blob);
+  const create = vi.fn(() => "blob:attachment-download");
+  const revoke = vi.fn();
+  vi.stubGlobal("URL", class extends URL { static createObjectURL = create; static revokeObjectURL = revoke; });
+  const clicked: { href: string; name: string }[] = [];
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) { clicked.push({ href: this.href, name: this.download }); });
+  const view = render(<TipProvider><MessageView message={message} onAttachmentFile={load} /></TipProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "下载 spec.pdf" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("下载失败，请重试");
+  fireEvent.click(screen.getByRole("button", { name: "下载 spec.pdf" }));
+  await waitFor(() => expect(clicked).toEqual([{ href: "blob:attachment-download", name: "spec.pdf" }]));
+  expect(create).toHaveBeenCalledExactlyOnceWith(blob);
+  expect(load.mock.calls).toEqual([["a1"], ["a1"]]);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  view.unmount();
+  expect(revoke).toHaveBeenCalledWith("blob:attachment-download");
+  click.mockRestore(); vi.unstubAllGlobals();
 });

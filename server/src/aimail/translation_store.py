@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 
 from aimail import backends
+from aimail.ingest.quote import readable_body
 from aimail.tasks import translate_mail as task
 
 FAILURE_REASON = "翻译未完成，请保留原文，稍后可重试。"
@@ -64,10 +65,12 @@ def get(conn, source_id):
 
 
 def _source(conn, source_id):
-    message = conn.execute("SELECT body_new FROM message WHERE id=?", (source_id,)).fetchone()
+    message = conn.execute(
+        "SELECT body_new,body_quoted FROM message WHERE id=?", (source_id,)
+    ).fetchone()
     if not message:
         raise LookupError("邮件不存在")
-    source = message["body_new"].strip()
+    source = readable_body(message["body_new"], message["body_quoted"]).strip()
     if not source:
         raise ValueError("本封新增正文为空，无法翻译")
     return source

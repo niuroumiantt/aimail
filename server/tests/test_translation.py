@@ -57,8 +57,11 @@ def test_cache_checks_body_and_task_version_without_using_provider(monkeypatch):
     # immutable RFC822 tables or triggers in the application schema.
     conn = sqlite3.connect(":memory:", isolation_level=None)
     conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE message(id INTEGER PRIMARY KEY,body_new TEXT NOT NULL)")
-    conn.execute("INSERT INTO message VALUES(1,'Need 500 pcs SATA SSD.')")
+    conn.execute(
+        "CREATE TABLE message(id INTEGER PRIMARY KEY,body_new TEXT NOT NULL,"
+        "body_quoted TEXT NOT NULL DEFAULT '')"
+    )
+    conn.execute("INSERT INTO message(id,body_new) VALUES(1,'Need 500 pcs SATA SSD.')")
     translation_store.prepare(conn)
     calls = []
 

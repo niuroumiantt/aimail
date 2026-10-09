@@ -71,3 +71,11 @@ def test_earliest_marker_wins():
     text = "new\n\n> quoted first\n\nOn x wrote:\nlater"
     new, _ = split(text)
     assert new == "new"
+
+
+def test_readable_body_recovers_an_entire_quoted_new_message_but_not_historical_headers():
+    from aimail.ingest.quote import readable_body
+
+    assert readable_body("", "> Need 1250 units.") == "> Need 1250 units."
+    assert readable_body("", "> On Friday, Buyer wrote:\n> Old quote") == ""
+    assert readable_body("Current body", "> Old quote") == "Current body"

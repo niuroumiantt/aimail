@@ -73,11 +73,13 @@ it("deletes a conversation into a visible recoverable trash and restores it", as
   fireEvent.click(await screen.findByRole("button", { name: "删除" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "恢复" })).toBeEnabled());
   expect(screen.getByRole("status")).toHaveTextContent("已移入 Aimail 回收站");
+  if (nav.closest("[hidden]")) fireEvent.click(screen.getByRole("button", { name: "展开主导航" }));
   expect(within(nav).getByRole("link", { name: /回收站/ })).toHaveTextContent("1");
   fireEvent.click(within(nav).getByRole("link", { name: /回收站/ }));
   const row = await screen.findByRole("link", { name: new RegExp(oldOther.contact) });
   fireEvent.click(row);
   fireEvent.click(await screen.findByRole("button", { name: "恢复" }));
+  if (nav.closest("[hidden]")) fireEvent.click(screen.getByRole("button", { name: "展开主导航" }));
   await waitFor(() => expect(within(nav).getByRole("link", { name: /回收站/ })).toHaveTextContent("0"));
   expect(screen.queryByText(/已移入 Aimail 回收站/)).not.toBeInTheDocument();
 });

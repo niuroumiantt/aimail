@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from aimail import backends, translation_store
 from aimail import send as send_mod
 from aimail.config import DEFAULT_TASKS
-from aimail.ingest import attachments, original
+from aimail.ingest import attachments, original, quote
 from aimail.send.accounts import SendingAccount
 from aimail.store import (
     assistant,
@@ -272,9 +272,11 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
                 "from_name": m["from_name"] or m["from_email"],
                 "from_email": m["from_email"],
                 "sent_at": m["sent_at"],
-                "body": m["body_new"],
+                "body": quote.readable_body(m["body_new"], m["body_quoted"]),
                 **original.display_parts(m["raw"]),
-                "quoted": m["body_quoted"] or None,
+                "quoted": (m["body_quoted"] or None)
+                if m["body_new"].strip() or not quote.readable_body(m["body_new"], m["body_quoted"])
+                else None,
                 "attachments": _attachments_out(conn, int(m["id"])),
             }
             for m in messages
@@ -521,7 +523,7 @@ def create_app(
         db = _inbox_conn(request)
         selected = _mailbox_row(request)
         row = db.execute(
-            "SELECT m.id,m.body_new,m.mailbox_id FROM message m "
+            "SELECT m.id,m.body_new,m.body_quoted,m.mailbox_id FROM message m "
             "JOIN thread t ON t.id=m.thread_id "
             "WHERE m.id=? AND m.mailbox_id=? AND t.mailbox_id=?",
             (message_id, int(selected["id"]), int(selected["id"])),
@@ -533,14 +535,14 @@ def create_app(
     @app.get("/api/messages/{message_id}/translation")
     def get_message_translation(message_id: int, request: Request) -> dict | None:
         row = _translation_message(request, message_id)
-        if not row["body_new"].strip():
+        if not quote.readable_body(row["body_new"], row["body_quoted"]).strip():
             return None
         return translation_store.get_current(_inbox_conn(request), message_id)
 
     @app.post("/api/messages/{message_id}/translation")
     def translate_message(message_id: int, request: Request) -> dict:
         row = _translation_message(request, message_id)
-        if not row["body_new"].strip():
+        if not quote.readable_body(row["body_new"], row["body_quoted"]).strip():
             raise HTTPException(422, "本封新增正文为空，无法翻译")
         cached = translation_store.get_current(conn, message_id)
         if cached and cached["status"] == "ok":

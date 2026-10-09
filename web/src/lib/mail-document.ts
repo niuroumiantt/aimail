@@ -44,10 +44,19 @@ function readingStructure(fragment: DocumentFragment) {
 /** Sender HTML is never attached to the application document. CSP also blocks CSS requests. */
 export function mailDocument(html: string, inlineImages: Record<string, string> = {}, loadExternalImages = false) {
   const purifier = createDOMPurify(window);
+  const histories = new WeakSet<Element>();
+  purifier.addHook("beforeSanitizeAttributes", node => {
+    // Recognize only explicit mail-client quote containers, never guess from prose.
+    if (node.nodeType === 1 && (/^(?:DIV|BLOCKQUOTE)$/.test(node.tagName)) && (
+      /(?:^|\s)(?:gmail_quote|yahoo_quoted|protonmail_quote|ntes-mailmaster-quote)(?:\s|$)/.test(node.getAttribute("class") ?? "")
+      || node.tagName === "BLOCKQUOTE" && node.getAttribute("type") === "cite"
+    )) histories.add(node);
+  });
   let blockedImages = false;
   let externalImages = false;
   purifier.addHook("afterSanitizeAttributes", node => {
     readingStyle(node);
+    if (histories.has(node)) node.setAttribute("data-mail-quote", "true");
     if (node.tagName === "IMG") {
       const source = node.getAttribute("src") ?? "";
       let image = source;
@@ -78,6 +87,21 @@ export function mailDocument(html: string, inlineImages: Record<string, string> 
     FORBID_ATTR: ["class", "bgcolor", "background", "color", "face", "size", "border", "cellpadding", "cellspacing", "srcdoc", "srcset", "formaction", "action", "ping", "download", "autofocus", "nonce"],
   });
   readingStructure(fragment);
+  for (const quote of fragment.querySelectorAll<HTMLElement>("[data-mail-quote]")) {
+    let depth = 1;
+    for (let parent = quote.parentElement; parent; parent = parent.parentElement) {
+      if (parent.hasAttribute("data-mail-quote")) depth++;
+    }
+    quote.setAttribute("data-mail-quote-depth", String(Math.min(depth, 3)));
+    if (depth !== 1) continue;
+    const history = document.createElement("details");
+    history.setAttribute("data-mail-history", "true");
+    const summary = document.createElement("summary");
+    summary.setAttribute("data-mail-generated", "true");
+    summary.textContent = "引用历史（点击展开或收起）";
+    quote.before(history);
+    history.append(summary, quote);
+  }
   const container = document.createElement("div");
   container.append(fragment);
   const clean = container.innerHTML;

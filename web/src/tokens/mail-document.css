@@ -26,3 +26,9 @@ hr { margin-block: 1em; border: 0; border-top: 1px solid var(--color-mail-line);
 small, big, font { font-size: inherit; }
 center { text-align: start; }
 b, strong { font-weight: 600; }
+/* Recognized quoted mail stays complete, but separate from this message's new text. */
+[data-mail-history] { margin-block: 1em; border: 1px solid var(--color-mail-line); border-radius: 8px; background: var(--color-mail-wash); }
+[data-mail-history] > summary { padding: .6em .8em; cursor: pointer; font-size: .85em; }
+[data-mail-quote-depth="1"] { padding: .75em; border-top: 1px solid var(--color-mail-line); }
+[data-mail-quote-depth="2"] { margin-block: .75em; padding-inline-start: .75em; border-inline-start: 2px solid var(--color-mail-line); }
+[data-mail-quote-depth="3"] { margin: 0; padding: 0; border: 0; }
