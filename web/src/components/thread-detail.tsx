@@ -151,7 +151,7 @@ export function ThreadDetail({
             <ol className="mail-conversation-timeline">
               {thread.messages.map((m, index) => (
                 <li key={m.id} className="mail-conversation-entry" data-direction={m.direction} data-tone={index % 2 ? "alternate" : "default"}>
-                  <div className="mail-conversation-caption"><span className="mail-conversation-dot" aria-hidden>{index + 1}</span><span>{m.direction === "out" ? "我方回复" : "来信"}</span>{index === thread.messages.length - 1 && <span className="mail-conversation-latest">最新往来</span>}</div>
+                  <div className="mail-conversation-caption"><span className="mail-conversation-dot" aria-hidden>{index + 1}</span><span>{m.direction === "out" ? "我方回复" : "来信"}</span><time dateTime={m.sent_at}>{fullTime(m.sent_at)}</time>{index === thread.messages.length - 1 && <span className="mail-conversation-latest">最新往来</span>}</div>
                   <MessageView message={m} onAttachment={onAttachment} onAttachmentFile={onAttachmentFile}
                     mailboxAddress={mailboxAddress}
                     onGetTranslation={onGetTranslation} onTranslate={onTranslate} />

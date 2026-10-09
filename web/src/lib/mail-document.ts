@@ -12,16 +12,16 @@ function readingStyle(node: Element) {
   const weight = style.fontWeight;
   const italic = style.fontStyle;
   const decoration = style.textDecorationLine || style.textDecoration;
-  const alignment = style.textAlign || element.getAttribute("align");
-  const hidden = style.display === "none" || style.visibility === "hidden" || style.getPropertyValue("mso-hide") === "all";
   const imageWidth = element.tagName === "IMG" ? style.width || element.getAttribute("width") || "" : "";
+  const imageHeight = element.tagName === "IMG" ? style.height || element.getAttribute("height") || "" : "";
+  const pixel = /^(0|1)(px)?$/.test(imageWidth) && /^(0|1)(px)?$/.test(imageHeight);
+  const hidden = pixel || style.display === "none" || style.visibility === "hidden" || style.getPropertyValue("mso-hide") === "all";
   element.removeAttribute("style");
   for (const attribute of ["align", "width", "height"]) element.removeAttribute(attribute);
   if (/^(bold|bolder|[6-9]00)$/.test(weight)) style.fontWeight = "600";
   if (/^(italic|oblique)/.test(italic)) style.fontStyle = "italic";
   const lines = ["underline", "line-through"].filter(value => decoration.split(/\s+/).includes(value));
   if (lines.length) style.textDecorationLine = lines.join(" ");
-  if (/^(TD|TH)$/.test(element.tagName) && /^(left|right|center|start|end)$/.test(alignment ?? "")) style.textAlign = alignment!;
   if (hidden) element.hidden = true;
   // Keep modest signature/logo dimensions; fixed document and table widths are discarded.
   if (/^\d+(?:px)?$/.test(imageWidth)) element.setAttribute("width", String(Math.min(640, Math.max(1, parseInt(imageWidth)))));
@@ -35,6 +35,10 @@ function readingStructure(fragment: DocumentFragment) {
     }
   }
   for (const table of fragment.querySelectorAll("table")) {
+    // Mail-client reply headers already contain the original sender and date.
+    // Highlight those boundaries without inventing independently received mail.
+    const labels = Array.from(table.rows).map(row => row.cells[0]?.textContent?.trim() ?? "");
+    if (labels.some(label => /^(发件人|From)[:：]?$/i.test(label)) && labels.some(label => /^(发送日期|发送时间|日期|Sent|Date)[:：]?$/i.test(label))) table.setAttribute("data-mail-reply-header", "true");
     if (table.getAttribute("role") === "presentation" || table.querySelector("table")) continue;
     const rows = Array.from(table.rows);
     if (table.querySelector("th") || (rows.length > 1 && rows.some(row => row.cells.length > 1))) table.setAttribute("data-mail-table", "grid");
@@ -68,9 +72,11 @@ export function mailDocument(html: string, inlineImages: Record<string, string> 
       if (rasterImage.test(image) || (loadExternalImages && /^https?:\/\//i.test(image))) node.setAttribute("src", image);
       else {
         node.removeAttribute("src");
-        blockedImages = true;
-        if (/^https?:\/\//i.test(image)) externalImages = true;
-        if (!node.getAttribute("alt")) node.setAttribute("alt", "图片未加载");
+        if (!(node as HTMLElement).hidden) {
+          blockedImages = true;
+          if (/^https?:\/\//i.test(image)) externalImages = true;
+          if (!node.getAttribute("alt")) node.setAttribute("alt", "图片未加载");
+        }
       }
     }
     if (node.tagName === "A") {
@@ -88,17 +94,16 @@ export function mailDocument(html: string, inlineImages: Record<string, string> 
   });
   readingStructure(fragment);
   for (const quote of fragment.querySelectorAll<HTMLElement>("[data-mail-quote]")) {
-    let depth = 1;
-    for (let parent = quote.parentElement; parent; parent = parent.parentElement) {
-      if (parent.hasAttribute("data-mail-quote")) depth++;
-    }
-    quote.setAttribute("data-mail-quote-depth", String(Math.min(depth, 3)));
-    if (depth !== 1) continue;
+    // NetEase repeats its quote class on every copied paragraph, including empty
+    // ones. Those are not individual replies and must not acquire borders/padding.
+    if (quote.parentElement?.closest("[data-mail-quote]")) continue;
+    quote.setAttribute("data-mail-quote-depth", "1");
     const history = document.createElement("details");
     history.setAttribute("data-mail-history", "true");
+    history.open = true;
     const summary = document.createElement("summary");
     summary.setAttribute("data-mail-generated", "true");
-    summary.textContent = "引用历史（点击展开或收起）";
+    summary.textContent = "引用中的往来回复 · 来自本封原文（可收起）";
     quote.before(history);
     history.append(summary, quote);
   }

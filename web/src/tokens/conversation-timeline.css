@@ -8,7 +8,7 @@
 .mail-conversation-entry[data-direction="out"] { --mail-card-wash: var(--color-brand-wash); }
 .mail-conversation-entry::before { content: ""; position: absolute; left: 7px; top: 22px; bottom: -24px; width: 1px; background: var(--color-line); }
 .mail-conversation-entry:last-child::before { display: none; }
-.mail-conversation-caption { display: flex; align-items: center; gap: var(--ui-space-2); min-height: 20px; margin-bottom: var(--ui-space-2); color: var(--color-ink-2); font-size: var(--ui-font-meta); }
+.mail-conversation-caption { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2); min-height: 20px; margin-bottom: var(--ui-space-2); color: var(--color-ink-2); font-size: var(--ui-font-meta); }
 .mail-conversation-dot { position: absolute; left: 0; display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid var(--color-line-2); border-radius: 50%; background: var(--mail-card-wash); font-size: 10px; color: var(--color-ink-2); }
 .mail-conversation-latest { color: var(--color-brand-text); }
 .mail-conversation-entry > .mail-original-message { padding: var(--ui-space-4); border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--mail-card-wash); }

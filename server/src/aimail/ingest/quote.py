@@ -20,7 +20,10 @@ SEPARATORS = [
     # 中文 Outlook:发件人: …
     re.compile(r"^发件人[:：]", re.M),
     # 原始邮件 / Forwarded message
-    re.compile(r"^-{3,}\s*(?:原始邮件|Forwarded message)\s*-{3,}\s*$", re.M | re.I),
+    re.compile(
+        r"^-{3,}[ \t]*(?:原始邮件|回复的原邮件|Forwarded message)[ \t]*-{3,}[ \t]*$",
+        re.M | re.I,
+    ),
 ]
 
 
@@ -37,17 +40,32 @@ def split(text: str) -> tuple[str, str]:
     return text[:cut].rstrip(), text[cut:].strip()
 
 
-def readable_body(body_new: str, body_quoted: str) -> str:
-    """Recover an all-quoted display body without rewriting immutable mail rows.
+def readable_parts(body_new: str, body_quoted: str) -> tuple[str, str]:
+    """Read legacy body/history boundaries without rewriting immutable mail rows.
 
     Some senders wrap their entire new message in a blockquote, producing leading
     > lines. Only recover when no recognized historical-message header exists.
     """
     if body_new.strip():
-        return body_new
+        # Re-read legacy rows using newly recognized explicit history headers.
+        # Keep the stored original and quoted content untouched; source hashes
+        # naturally invalidate translations that included historical replies.
+        cut = min(
+            (match.start() for marker in SEPARATORS if (match := marker.search(body_new))),
+            default=len(body_new),
+        )
+        if cut > 0 and body_new[:cut].strip():
+            return body_new[:cut].rstrip(), "\n\n".join(
+                part for part in (body_new[cut:].strip(), body_quoted) if part
+            )
+        return body_new, body_quoted
     unquoted = re.sub(r"(?m)^[ \t]*(?:>[ \t]*)+", "", body_quoted)
     if re.match(r"^\s*>", body_quoted) and not any(
         marker.search(unquoted) for marker in SEPARATORS
     ):
-        return body_quoted
-    return body_new
+        return body_quoted, ""
+    return body_new, body_quoted
+
+
+def readable_body(body_new: str, body_quoted: str) -> str:
+    return readable_parts(body_new, body_quoted)[0]

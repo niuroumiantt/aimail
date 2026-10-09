@@ -1,7 +1,7 @@
 /* Uniform reading typography. Sender text and semantic structure are preserved. */
 :root { color-scheme: light; }
 html { margin: 0; padding: 0; overflow: hidden; }
-body { margin: 0; padding: 0; background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading, 15px); line-height: 1.6; overflow-wrap: anywhere; }
+body { display: flow-root; margin: 0; padding: 0; background: var(--color-mail-paper); color: var(--color-mail-ink); font-family: var(--font-sans); font-size: var(--ui-font-reading, 15px); line-height: 1.6; overflow-wrap: anywhere; }
 *, *::before, *::after { box-sizing: border-box; }
 p { margin: 0 0 .85em; }
 h1, h2 { margin: 1em 0 .6em; font-size: 1.15em; line-height: 1.4; font-weight: 600; }
@@ -10,6 +10,7 @@ ul, ol { margin-block: .4em .85em; padding-inline-start: 1.6em; }
 li { margin-block: .25em; }
 li p { margin-bottom: .25em; }
 img { display: inline-block; max-width: 100%; height: auto; vertical-align: middle; }
+img:not([src]) { width: auto; min-width: 6em; max-width: 100%; font-size: .8em; }
 table { width: 100%; max-width: 100%; border-collapse: collapse; margin-block: .85em; }
 table table { margin-block: 0; }
 td, th { vertical-align: top; }
@@ -27,8 +28,8 @@ small, big, font { font-size: inherit; }
 center { text-align: start; }
 b, strong { font-weight: 600; }
 /* Recognized quoted mail stays complete, but separate from this message's new text. */
-[data-mail-history] { margin-block: 1em; border: 1px solid var(--color-mail-line); border-radius: 8px; background: var(--color-mail-wash); }
+[data-mail-history] { margin: 1em 0 0 .6em; border-inline-start: 1px dashed var(--color-mail-line); background: var(--color-mail-wash); }
 [data-mail-history] > summary { padding: .6em .8em; cursor: pointer; font-size: .85em; }
+[data-mail-history]:not([open]) > :not(summary) { display: none !important; }
 [data-mail-quote-depth="1"] { padding: .75em; border-top: 1px solid var(--color-mail-line); }
-[data-mail-quote-depth="2"] { margin-block: .75em; padding-inline-start: .75em; border-inline-start: 2px solid var(--color-mail-line); }
-[data-mail-quote-depth="3"] { margin: 0; padding: 0; border: 0; }
+[data-mail-reply-header] { background: var(--color-mail-paper); border-top: 1px dashed var(--color-mail-line); font-size: .85em; }

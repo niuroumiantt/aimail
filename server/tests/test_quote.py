@@ -79,3 +79,17 @@ def test_readable_body_recovers_an_entire_quoted_new_message_but_not_historical_
     assert readable_body("", "> Need 1250 units.") == "> Need 1250 units."
     assert readable_body("", "> On Friday, Buyer wrote:\n> Old quote") == ""
     assert readable_body("Current body", "> Old quote") == "Current body"
+
+
+def test_netease_reply_marker_repartitions_legacy_rows_without_losing_history():
+    from aimail.ingest.quote import readable_parts
+
+    original = "Current: 12 units.\n\n---- 回复的原邮件 ----\nFrom Buyer\nOld: 10 units."
+    assert split(original)[0] == "Current: 12 units."
+    current, quoted = readable_parts(original, "Even earlier reply.")
+    assert current == "Current: 12 units."
+    assert quoted == "---- 回复的原邮件 ----\nFrom Buyer\nOld: 10 units.\n\nEven earlier reply."
+    assert readable_parts("Original message requirement: 12 units.", "") == (
+        "Original message requirement: 12 units.",
+        "",
+    )
