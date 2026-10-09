@@ -12,8 +12,10 @@ function readingStyle(node: Element) {
   const weight = style.fontWeight;
   const italic = style.fontStyle;
   const decoration = style.textDecorationLine || style.textDecoration;
-  const hidden = style.display === "none" || style.visibility === "hidden" || style.getPropertyValue("mso-hide") === "all";
   const imageWidth = element.tagName === "IMG" ? style.width || element.getAttribute("width") || "" : "";
+  const imageHeight = element.tagName === "IMG" ? style.height || element.getAttribute("height") || "" : "";
+  const pixel = /^(0|1)(px)?$/.test(imageWidth) && /^(0|1)(px)?$/.test(imageHeight);
+  const hidden = pixel || style.display === "none" || style.visibility === "hidden" || style.getPropertyValue("mso-hide") === "all";
   element.removeAttribute("style");
   for (const attribute of ["align", "width", "height"]) element.removeAttribute(attribute);
   if (/^(bold|bolder|[6-9]00)$/.test(weight)) style.fontWeight = "600";
@@ -70,9 +72,11 @@ export function mailDocument(html: string, inlineImages: Record<string, string> 
       if (rasterImage.test(image) || (loadExternalImages && /^https?:\/\//i.test(image))) node.setAttribute("src", image);
       else {
         node.removeAttribute("src");
-        blockedImages = true;
-        if (/^https?:\/\//i.test(image)) externalImages = true;
-        if (!node.getAttribute("alt")) node.setAttribute("alt", "图片未加载");
+        if (!(node as HTMLElement).hidden) {
+          blockedImages = true;
+          if (/^https?:\/\//i.test(image)) externalImages = true;
+          if (!node.getAttribute("alt")) node.setAttribute("alt", "图片未加载");
+        }
       }
     }
     if (node.tagName === "A") {

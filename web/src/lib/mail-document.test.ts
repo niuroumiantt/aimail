@@ -118,6 +118,17 @@ it("left-aligns marketing prose while retaining decimal values, table spans and 
   expect(doc.querySelector('p')?.textContent).toBe('USD 20.50.');
 });
 
+it("does not enlarge a sender's tracking pixel into a missing-image placeholder", () => {
+  const html = '<p>Exact sentence.</p><img src="https://example.test/pixel" style="width:1px;height:1px">';
+  const result = mailDocument(html);
+  const doc = body(html);
+  expect(doc.querySelector('img')?.hidden).toBe(true);
+  expect(doc.querySelector('img')?.hasAttribute('src')).toBe(false);
+  expect(result.blockedImages).toBe(false);
+  expect(result.externalImages).toBe(false);
+  expect(doc.body.textContent).toBe('Exact sentence.');
+});
+
 it("does not mistake customer quotations or sender-supplied markers for mail history", () => {
   const doc = body('<blockquote>Required: 10 units.</blockquote><div data-mail-quote="true">Important condition.</div>');
   expect(doc.querySelector('details')).toBeNull();
