@@ -7,8 +7,9 @@ import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
 import { Pill } from "./pill";
 import { Zap } from "lucide-react";
 import { Avatar } from "./avatar";
+import { startMailDrag } from "@/lib/mail-drag";
 
-export function ThreadRow({ thread, search, compact = false }: { thread: Thread; search: string; compact?: boolean }) {
+export function ThreadRow({ thread, search, compact = false, dragScope }: { thread: Thread; search: string; compact?: boolean; dragScope?: string }) {
   const lead = isLeadThread(thread);
   const reading = thread.reading;
   const attributed = Boolean(reading?.model && reading.task_version && reading.produced_at);
@@ -19,6 +20,11 @@ export function ThreadRow({ thread, search, compact = false }: { thread: Thread;
   return (
     <NavLink
       to={{ pathname: `/t/${thread.id}`, search }}
+      draggable={Boolean(dragScope && !thread.deleted_at)}
+      onDragStart={event => {
+        if (!dragScope || thread.deleted_at) { event.preventDefault(); return; }
+        startMailDrag(event.dataTransfer, dragScope, thread.id);
+      }}
       className={({ isActive }) =>
         cn(
           "mail-thread-row",
