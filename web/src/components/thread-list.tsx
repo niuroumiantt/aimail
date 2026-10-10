@@ -16,6 +16,7 @@ export function ThreadList({
   query: controlledQuery,
   headerControl,
   notice,
+  title,
 }: {
   threads: Thread[];
   folder: FolderKey;
@@ -25,6 +26,7 @@ export function ThreadList({
   query?: string;
   headerControl?: ReactNode;
   notice?: string;
+  title?: string;
 }) {
   const navigate = useNavigate();
   const [localQuery, setQuery] = useState("");
@@ -52,12 +54,13 @@ export function ThreadList({
     <>
       <header className="mail-list-header">
         <div className="mail-list-title">
-          <h2>{FOLDER_LABEL[folder]}</h2>
+          <h2 title={title}>{title ?? FOLDER_LABEL[folder]}</h2>
           <span>{threads.length}</span>
           {headerControl}
         </div>
-        <select aria-label="邮件分组" value={folder} className="h-8 min-w-0 rounded-md border border-line bg-surface px-2 text-sm text-ink md:hidden"
+        <select aria-label="邮件分组" value={title ? "custom" : folder} className="h-8 min-w-0 rounded-md border border-line bg-surface px-2 text-sm text-ink md:hidden"
           onChange={e => navigate(e.target.value === "all" ? "/" : `/?f=${e.target.value}`)}>
+          {title && <option value="custom">{title}</option>}
           {FOLDER_ORDER.map(key => <option key={key} value={key}>{FOLDER_LABEL[key]}</option>)}
         </select>
         {controlledQuery === undefined && <SearchBox value={query} onChange={setQuery} />}

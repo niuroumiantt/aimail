@@ -20,6 +20,7 @@ from email.utils import format_datetime
 from typing import Protocol
 
 from aimail.ingest.run import store_raw
+from aimail.send.forwarding import add_original
 
 TOKEN_TTL_SECONDS = 600
 
@@ -140,12 +141,27 @@ def send(
     transport: Transport,
     draft_id: int | None = None,
     now: datetime | None = None,
+    forward_message_id: int | None = None,
+    include_attachments: bool = True,
 ) -> int:
     """发一封。要求一个已经验过的 SendToken——没有令牌这个函数根本调不动。"""
     if not isinstance(token, SendToken) or token.thread_id != thread_id:
         raise PermissionError("没有有效的发信令牌")
-    if not to or not body.strip():
+    if not to or (not body.strip() and forward_message_id is None):
         raise ValueError("收件人和正文不能为空")
+    source = None
+    if forward_message_id is not None:
+        source = conn.execute(
+            "SELECT m.raw FROM message m JOIN thread t ON t.id=m.thread_id "
+            "LEFT JOIN thread_mail_state s ON s.thread_id=t.id "
+            "WHERE m.id=? AND m.thread_id=? AND m.mailbox_id=? "
+            "AND coalesce(s.deleted_at,'')=''",
+            (forward_message_id, thread_id, mailbox_id),
+        ).fetchone()
+        if source is None:
+            raise ValueError("转发的邮件不存在或不属于当前邮箱会话")
+        if draft_id is not None:
+            raise ValueError("转发不能使用回复草稿")
     now = now or datetime.now(UTC)
     last = conn.execute(
         "SELECT message_id, refs FROM message WHERE thread_id = ? AND direction = 'in' "
@@ -158,14 +174,17 @@ def send(
         to=to,
         subject=subject,
         body=body,
-        in_reply_to=last["message_id"] if last else "",
+        in_reply_to=last["message_id"] if last and source is None else "",
         references=last["refs"] if last else "",
         now=now,
     )
+    if source is not None:
+        add_original(msg, bytes(source["raw"]), body, include_attachments)
     raw = msg.as_bytes()
     if conn.in_transaction:
         raise ValueError("发信前必须先提交业务事务")
     try:
+        conn.execute("BEGIN IMMEDIATE")
         attempt = conn.execute(
             "INSERT INTO reply_attempt(thread_id,token_hash,sender,actor,raw,state,created_at) "
             "VALUES(?,?,?,?,?,'sending',?)",
@@ -178,8 +197,14 @@ def send(
                 now.isoformat(),
             ),
         ).lastrowid
+        if source is not None:
+            conn.execute(
+                "INSERT INTO forward_attempt(attempt_id,source_message_id) VALUES(?,?)",
+                (attempt, forward_message_id),
+            )
         conn.commit()
     except sqlite3.IntegrityError:
+        conn.rollback()
         raise ValueError("该会话有待核对的发送记录或令牌已用过，请勿重复发送") from None
     try:
         result = transport.deliver(sender, to, raw)
@@ -189,16 +214,26 @@ def send(
         conn.execute("UPDATE reply_attempt SET state='unknown' WHERE id=?", (attempt,))
         conn.commit()
         raise ValueError("发送结果待核对，请检查已发送邮件，禁止自动重试") from None
-    pk, _ = store_raw(conn, mailbox_id, raw, "out", now, target_thread_id=thread_id)
+    pk, _ = store_raw(
+        conn,
+        mailbox_id,
+        raw,
+        "out",
+        now,
+        target_thread_id=thread_id if source is None else None,
+        new_thread=source is not None,
+    )
     if pk is None:
         raise RuntimeError("发出去的信没能落库(重复的 Message-ID?)")
-    conn.execute("UPDATE thread SET folder = 'replied' WHERE id = ?", (thread_id,))
+    sent_thread = int(conn.execute("SELECT thread_id FROM message WHERE id=?", (pk,)).fetchone()[0])
+    if source is None:
+        conn.execute("UPDATE thread SET folder = 'replied' WHERE id = ?", (thread_id,))
     cur = conn.execute(
         "INSERT INTO outbound (mailbox_id, thread_id, message_pk, draft_id, sent_by, sent_at, "
         "transport_result) VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             mailbox_id,
-            thread_id,
+            sent_thread,
             pk,
             draft_id,
             token.user,

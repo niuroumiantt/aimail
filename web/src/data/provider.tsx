@@ -3,6 +3,8 @@ import { getUser, setUser as persistUser } from "@/lib/user";
 import { chooseSource, type DataSource } from "./source";
 import type {
   AttachmentText,
+  MailFolders,
+  FolderCommand,
   AssistantState,
   CustomerContext,
   ContactRegistrationFields,
@@ -21,6 +23,7 @@ import type {
 } from "./types";
 
 type State = {
+  mailFolders: (command?: FolderCommand) => Promise<MailFolders>;
   loading: boolean;
   syncing: boolean;
   error?: string;
@@ -277,8 +280,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return source.setModelSelection(selected, user);
   }, [source, user]);
 
+  const mailFolders = useCallback((command?: FolderCommand) => {
+    if (!source) return Promise.reject(new Error("还没加载完"));
+    return source.mailFolders(user, command);
+  }, [source, user]);
+
   const value = useMemo<State>(
     () => ({
+      mailFolders,
       loading,
       syncing,
       error,
@@ -366,7 +375,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       modelSelection,
       setModelSelection,
     }),
-    [loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, contactRegistration, extractContact, saveContact, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
+    [mailFolders, loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, contactRegistration, extractContact, saveContact, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

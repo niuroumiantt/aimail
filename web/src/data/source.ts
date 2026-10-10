@@ -4,6 +4,8 @@
 import { replySubject } from "@/lib/text";
 import type {
   AttachmentText,
+  MailFolders,
+  FolderCommand,
   AssistantState,
   CustomerContext,
   ContactRegistrationFields,
@@ -24,6 +26,7 @@ import type {
 } from "./types";
 
 export interface DataSource {
+  mailFolders(user: string, command?: FolderCommand): Promise<MailFolders>;
   /** 立即从邮箱同步，接口返回时本轮已结束。 */
   sync(): Promise<void>;
   threads(): Promise<Thread[]>;
@@ -143,6 +146,7 @@ export async function fixtureSource(): Promise<DataSource> {
   let suggestions = [...fx.suggestions];
   let leads = [...fx.leads];
   const drafts = new Map<string, ReplyDraft>();
+  const personalFolders = new Map<string, MailFolders>();
   const requirePerson = (user: string, doing: string) => {
     if (!user.trim()) throw new Error(`${doing}要先写上你的名字`);
   };
@@ -150,6 +154,22 @@ export async function fixtureSource(): Promise<DataSource> {
   // 列表和 API 一样不带信件与历史;详情才有。界面必须走 thread(id) 才看得到信
   const listEntry = (t: Thread): Thread => ({ ...t, messages: [], history: undefined });
   const source: DataSource = {
+    mailFolders: async (user, command) => {
+      requirePerson(user, "整理文件夹");
+      const folders = structuredClone(personalFolders.get(user) ?? { items: [], assignments: {} });
+      if (command?.action === "create") folders.items.push({ id: crypto.randomUUID(), name: command.name, parent_id: command.parent_id, count: 0 });
+      if (command?.action === "rename") folders.items = folders.items.map(f => f.id === command.id ? { ...f, name: command.name } : f);
+      if (command?.action === "delete") {
+        if (folders.items.some(f => f.parent_id === command.id) || Object.values(folders.assignments).includes(command.id)) throw new Error("请先移出邮件并删除子文件夹");
+        folders.items = folders.items.filter(f => f.id !== command.id);
+      }
+      if (command?.action === "move") {
+        if (command.folder_id) folders.assignments[command.thread_id] = command.folder_id;
+        else delete folders.assignments[command.thread_id];
+      }
+      folders.items = folders.items.map(f => ({ ...f, count: Object.values(folders.assignments).filter(id => id === f.id).length }));
+      personalFolders.set(user, folders); return folders;
+    },
     sync: async () => {},
     threads: async () => threads.map(listEntry),
     thread: async (id) => threads.find((t) => t.id === id),
@@ -209,6 +229,14 @@ export async function fixtureSource(): Promise<DataSource> {
         sent_at: now,
         body: request.body,
       };
+      if (request.forward_message_id) {
+        const original = t.messages.find(m => m.id === request.forward_message_id);
+        if (!original) throw new Error("没有这封原邮件");
+        threads = [{ ...t, id: out.id, email: request.to[0], contact: request.to[0], subject: request.subject,
+          messages: [{ ...out, body: request.body + "\n\n" + original.body,
+            body_html: original.body_html, attachments: request.include_attachments ? original.attachments : [] }], updated_at: now }, ...threads];
+        return;
+      }
       threads = threads.map((x) =>
         x.id === id ? { ...x, folder: "replied", updated_at: now, messages: [...x.messages, out] } : x,
       );
@@ -305,7 +333,7 @@ async function call<T>(path: string, init?: RequestInit, binary = false): Promis
 }
 
 /** 以人的身份发请求。没有 body 就是 POST;带 body 默认 PATCH,可指定 */
-const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH" | "PUT"): RequestInit => ({
+const asPerson = (user: string, body?: unknown, method?: "POST" | "PATCH" | "PUT" | "GET" | "DELETE"): RequestInit => ({
   method: method ?? (body === undefined ? "POST" : "PATCH"),
   headers: { "X-User": user, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
   body: body === undefined ? undefined : JSON.stringify(body),
@@ -318,6 +346,13 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
     return call<T>(path, { ...init, headers });
   };
   return {
+    mailFolders: (user, command) => {
+      if (!command) return api<MailFolders>("/api/folders", asPerson(user, undefined, "GET"));
+      if (command.action === "create") return api<MailFolders>("/api/folders", asPerson(user, command, "POST"));
+      if (command.action === "rename") return api<MailFolders>(`/api/folders/${command.id}`, asPerson(user, { name: command.name }, "PATCH"));
+      if (command.action === "delete") return api<MailFolders>(`/api/folders/${command.id}`, asPerson(user, undefined, "DELETE"));
+      return api<MailFolders>(`/api/threads/${command.thread_id}/folder`, asPerson(user, { folder_id: command.folder_id }, "PUT"));
+    },
     sync: () => api("/api/sync", { method: "POST" }),
     threads: () => api<Thread[]>("/api/threads?include_trash=true"),
     thread: (id) => api<Thread>(`/api/threads/${id}`),

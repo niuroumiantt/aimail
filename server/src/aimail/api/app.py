@@ -149,6 +149,8 @@ class SendBody(BaseModel):
     subject: str
     body: str
     draft_id: str | None = None
+    forward_message_id: int | None = None
+    include_attachments: bool = True
 
 
 class AssistantQuestion(BaseModel):
@@ -970,6 +972,8 @@ def create_app(
                 body=payload.body,
                 transport=account.transport,
                 draft_id=int(payload.draft_id) if payload.draft_id else None,
+                forward_message_id=payload.forward_message_id,
+                include_attachments=payload.include_attachments,
             )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
@@ -1022,6 +1026,10 @@ def create_app(
             raise HTTPException(422, str(exc)) from exc
         row = conn.execute("SELECT * FROM lead WHERE id = ?", (lead_id,)).fetchone()
         return _lead_out(row)
+
+    from aimail.api.folders import install as install_folders
+
+    install_folders(app, conn, _person, _mailbox_row, require_oa_auth)
 
     from aimail.api.crm import install as install_crm
 

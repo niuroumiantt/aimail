@@ -74,6 +74,11 @@ def resolve(
     if attempt["state"] == "sending" and now - created < SENDING_GRACE:
         raise ValueError("发送任务可能仍在运行；请等待 10 分钟后再核对")
 
+    is_forward = (
+        conn.execute("SELECT 1 FROM forward_attempt WHERE attempt_id=?", (attempt_id,)).fetchone()
+        is not None
+    )
+    sent_thread = thread_id
     message_pk = None
     if outcome == "sent":
         raw = bytes(attempt["raw"])
@@ -83,11 +88,11 @@ def resolve(
             raise ValueError("待核对原邮件无法解析，记录保持锁定") from exc
         if parsed.from_email.casefold() != attempt["sender"].strip().casefold():
             raise ValueError("待核对邮件发件身份与记录不匹配")
-        if attempt["contact_email"].casefold() not in {
+        if not is_forward and attempt["contact_email"].casefold() not in {
             address.casefold() for address in parsed.to_emails
         }:
             raise ValueError("待核对邮件收件人与当前会话不匹配")
-        if (
+        if not is_forward and (
             not parsed.in_reply_to
             or not conn.execute(
                 "SELECT 1 FROM message WHERE message_id=? AND thread_id=? AND direction='in'",
@@ -101,7 +106,9 @@ def resolve(
             "SELECT id,thread_id,direction FROM message WHERE raw_sha256=?", (digest,)
         ).fetchone()
         if existing_message:
-            if existing_message["thread_id"] != thread_id or existing_message["direction"] != "out":
+            if (not is_forward and existing_message["thread_id"] != thread_id) or existing_message[
+                "direction"
+            ] != "out":
                 raise ValueError("同一原文已关联到其他会话，记录保持锁定")
             message_pk = int(existing_message["id"])
         else:
@@ -111,7 +118,8 @@ def resolve(
                 raw,
                 "out",
                 now,
-                target_thread_id=thread_id,
+                target_thread_id=None if is_forward else thread_id,
+                new_thread=is_forward,
             )
             if message_pk is None:
                 existing_message = conn.execute(
@@ -119,11 +127,16 @@ def resolve(
                 ).fetchone()
                 if (
                     not existing_message
-                    or existing_message["thread_id"] != thread_id
+                    or (not is_forward and existing_message["thread_id"] != thread_id)
                     or existing_message["direction"] != "out"
                 ):
                     raise ValueError("待核对邮件已存在但关联不一致，记录保持锁定")
                 message_pk = int(existing_message["id"])
+
+    if message_pk is not None:
+        sent_thread = int(
+            conn.execute("SELECT thread_id FROM message WHERE id=?", (message_pk,)).fetchone()[0]
+        )
 
     conn.execute("BEGIN IMMEDIATE")
     try:
@@ -168,7 +181,8 @@ def resolve(
             ),
         )
         if outcome == "sent":
-            conn.execute("UPDATE thread SET folder='replied' WHERE id=?", (thread_id,))
+            if not is_forward:
+                conn.execute("UPDATE thread SET folder='replied' WHERE id=?", (thread_id,))
             if not conn.execute(
                 "SELECT 1 FROM outbound WHERE message_pk=?", (message_pk,)
             ).fetchone():
@@ -177,7 +191,7 @@ def resolve(
                     "transport_result) VALUES(?,?,?,?,?,?,?)",
                     (
                         attempt["mailbox_id"],
-                        thread_id,
+                        sent_thread,
                         message_pk,
                         None,
                         attempt["actor"],

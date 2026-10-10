@@ -1,4 +1,4 @@
-import { ArrowLeft, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Forward, Reply, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type { AttachmentText, Thread } from "@/data/types";
@@ -10,6 +10,7 @@ import { MessageView, type TranslationHandlers } from "./message";
 import { Pill } from "./pill";
 import { ReadingCard } from "./reading-card";
 import { ReplyComposer, type ReplyHandlers } from "./reply-composer";
+import { ForwardComposer } from "./forward-composer";
 import { Tip } from "./tip";
 import { MailLabel } from "./mail-label";
 import { fullTime } from "@/lib/text";
@@ -32,6 +33,7 @@ export function ThreadDetail({
   draftScope,
   toolbarActions = false,
   replyControl,
+  forwardControl,
   mailboxAddress,
 }: TranslationHandlers & {
   thread: Thread;
@@ -49,7 +51,11 @@ export function ThreadDetail({
   toolbarActions?: boolean;
   replyControl?: { open: boolean; onChange: (open: boolean) => void };
   mailboxAddress?: string;
+  forwardControl?: { open: boolean; onChange: (open: boolean) => void };
 }) {
+  const [localForwarding, setLocalForwarding] = useState(false);
+  const forwarding = forwardControl?.open ?? localForwarding;
+  const setForwarding = (open: boolean) => { if (open) setReplying(false); if (forwardControl) forwardControl.onChange(open); else setLocalForwarding(open); };
   const replyPanel = useRef<HTMLDivElement>(null);
   const [localReplying, setLocalReplying] = useState(false);
   const replying = replyControl?.open ?? localReplying;
@@ -116,11 +122,12 @@ export function ThreadDetail({
               icon={<Reply size={14} strokeWidth={2} />}
               disabled={!reply}
               aria-pressed={replying}
-              onClick={() => setReplying(!replying)}
+              onClick={() => { setForwarding(false); setReplying(!replying); }}
             >
               回复
             </Button>
           </Tip>
+          {reply && !thread.deleted_at && <Button size="sm" variant={forwarding ? "soft" : "outline"} icon={<Forward size={14} />} aria-pressed={forwarding} onClick={() => setForwarding(!forwarding)}>转发</Button>}
           {onOrganize && <Tip label={thread.deleted_at ? "恢复到收件列表" : "整条会话移入 Aimail 回收站，邮箱原件保留"}>
             <Button size="sm" variant="outline" disabled={organizing} onClick={() => void organize()}
               icon={thread.deleted_at ? <RotateCcw size={14} /> : <Trash2 size={14} />}>
@@ -159,6 +166,7 @@ export function ThreadDetail({
               ))}
             </ol>
           </section>
+          {forwarding && reply && <ForwardComposer thread={thread} reply={reply} cacheKey={draftScope ? `${draftScope}:forward` : undefined} onClose={() => setForwarding(false)} />}
           {replying && reply && (
             <div ref={replyPanel}><ReplyComposer thread={thread} reply={reply} cacheKey={draftScope} onClose={() => setReplying(false)} /></div>
           )}
