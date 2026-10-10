@@ -14,6 +14,8 @@ import { CustomerWorkspace } from "@/components/customer-workspace";
 import { ModelSelector } from "@/components/model-selector";
 import { ApplicationRail } from "@/components/application-rail";
 import { InboxToolbar } from "@/components/inbox-toolbar";
+import { useMailFolders } from "@/data/mail-folders";
+import { MailFolderTree, MoveToFolder } from "@/components/mail-folder-tree";
 import { SearchBox } from "@/components/search-box";
 
 function folderOf(value: string | null): FolderKey {
@@ -27,14 +29,17 @@ export default function InboxPage() {
   const navigate = useNavigate();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [forwardingFor, setForwardingFor] = useState("");
   const [replyingFor, setReplyingFor] = useState("");
   const [organizing, setOrganizing] = useState(false);
   const [syncNotice, setSyncNotice] = useState<{ mailbox: string; message: string }>();
   const [commandError, setCommandError] = useState<{ scope: string; message: string }>();
   const folder = folderOf(params.get("f"));
-  const search = folder === "all" ? "" : `?f=${folder}`;
+  const customFolder = params.get("cf");
+  const search = customFolder ? `?cf=${encodeURIComponent(customFolder)}` : folder === "all" ? "" : `?f=${folder}`;
   const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, attachmentFile, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
     useData();
+  const folders = useMailFolders();
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
   const clearAssistantTurns = useCallback(() => clearAssistant(), [clearAssistant]);
@@ -48,10 +53,11 @@ export default function InboxPage() {
     [user, setUser, canDraft, latestDraft, makeDraft, send],
   );
 
-  const visible = threads.filter(t => inFolder(t, folder));
+  const visible = threads.filter(t => customFolder ? !t.deleted_at && folders.data.assignments[t.id] === customFolder : inFolder(t, folder));
   const selected = id ? (details[id] ?? threads.find((t) => t.id === id)) : undefined;
   const scope = `${mailbox.address}:${id ?? ""}`;
   const replying = replyingFor === scope;
+  const forwarding = forwardingFor === scope;
   const organize = async () => {
     if (!selected || organizing) return;
     setOrganizing(true); setCommandError(undefined);
@@ -70,20 +76,22 @@ export default function InboxPage() {
       rail={<ApplicationRail leads={mailbox.tasks.includes("leads")} />}
       searchControl={<SearchBox placeholder="搜索当前视图 · 公司、型号、主题" value={query} onChange={setQuery} />}
       toolbar={selected && <><InboxToolbar thread={selected}
-        replying={replying} onReply={() => setReplyingFor(replying ? "" : scope)}
+        replying={replying} onReply={() => { setForwardingFor(""); setReplyingFor(replying ? "" : scope); }}
+        forwarding={forwarding} onForward={() => { setReplyingFor(""); setForwardingFor(forwarding ? "" : scope); }}
+        folderControl={<MoveToFolder key={scope} controller={folders} threadId={selected.id} />}
         assistantOpen={assistantOpen} onAssistant={() => setAssistantOpen(value => !value)}
         busy={organizing} onOrganize={() => void organize()} />
         {commandError?.scope === scope && commandError.message && <p role="alert" className="mail-command-error">{commandError.message}</p>}</>}
       customerInitiallyCollapsed
       modelControl={mailbox.address && <ModelSelector mailbox={mailbox.address} load={modelSelection} save={setModelSelection} />}
-      sidebar={<Sidebar foldersOnly counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
+      sidebar={<Sidebar personalFolders={<MailFolderTree key={`${mailbox.address}:${user}`} controller={folders} />} customFolderActive={Boolean(customFolder)} foldersOnly counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
         if (address === mailbox.address) return;
-        navigate(`/${search}`);
+        navigate("/");
         setAssistantOpen(false);
-        setReplyingFor(""); setQuery(""); setCommandError(undefined);
+        setForwardingFor(""); setReplyingFor(""); setQuery(""); setCommandError(undefined);
         await selectMailbox(address);
       }} />}
-      list={<ThreadList threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
+      list={<ThreadList title={customFolder ? folders.data.items.find(f => f.id === customFolder)?.name || "自建文件夹" : undefined} threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
         headerControl={<button type="button" className="mail-list-sync mail-icon-button" aria-label={syncing ? "正在同步邮箱" : "同步邮箱"} title="同步当前邮箱" disabled={syncing} onClick={() => void syncNow()}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} /></button>}
         notice={syncNotice?.mailbox === mailbox.address ? syncNotice.message : undefined} />}
       detail={
@@ -93,6 +101,7 @@ export default function InboxPage() {
             thread={selected}
             toolbarActions
             mailboxAddress={mailbox.address}
+            forwardControl={{ open: forwarding, onChange: open => { if (open) setReplyingFor(""); setForwardingFor(open ? scope : ""); } }}
             replyControl={{ open: replying, onChange: open => setReplyingFor(open ? scope : "") }}
             backSearch={search}
             reply={selected.deleted_at ? undefined : reply}

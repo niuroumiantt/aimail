@@ -1,5 +1,5 @@
 import { Archive, CheckCheck, Clock3, FileText, Inbox, ListTodo, Mail, Palette, RefreshCw, Tag, Trash2, Users, Zap } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import type { MailboxInfo } from "@/data/types";
 import { cn } from "@/lib/cn";
@@ -21,6 +21,8 @@ export function Sidebar({
   onSync,
   syncing = false,
   foldersOnly = false,
+  personalFolders,
+  customFolderActive = false,
 }: {
   counts: Record<FolderKey, number>;
   activeFolder: FolderKey;
@@ -32,6 +34,8 @@ export function Sidebar({
   onSync?: () => Promise<string>;
   syncing?: boolean;
   foldersOnly?: boolean;
+  personalFolders?: ReactNode;
+  customFolderActive?: boolean;
 }) {
   const { pathname } = useLocation();
   const [syncError, setSyncError] = useState("");
@@ -100,7 +104,7 @@ export function Sidebar({
             <li key={key}>
               <Link
                 to={key === "all" ? "/" : `/?f=${key}`}
-                aria-current={inInbox && activeFolder === key ? "true" : undefined}
+                aria-current={inInbox && !customFolderActive && activeFolder === key ? "true" : undefined}
                 className={cn(NAV_ITEM)}
               >
                 <Icon size={17} />
@@ -112,6 +116,7 @@ export function Sidebar({
         </ul>
       </div>
 
+      {personalFolders}
       <div className="mail-sidebar-footer">
         <span>原文保留 · AI 待核对</span>
         {!foldersOnly && <ThemeToggle />}

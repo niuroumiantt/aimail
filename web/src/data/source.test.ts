@@ -156,3 +156,14 @@ it("loads original attachment bytes in the mailbox where the click started", asy
   expect(fetcher.mock.calls[0][0]).toBe("/api/attachments/42/file");
   expect(new Headers((fetcher.mock.calls[0][1] as RequestInit).headers).get("X-Mailbox-Address")).toBe("sales@example.test");
 });
+
+it("keeps folder requests and forwarding in the mailbox where the action began", async () => {
+  const fetcher = vi.fn().mockImplementation(async (url: string) => url.endsWith("send-token") ? Response.json({ token: "one-use" }) : Response.json({ items: [], assignments: {} }));
+  vi.stubGlobal("fetch", fetcher);
+  const source = apiSource("sales@example.test");
+  await source.mailFolders("Larry", { action: "create", name: "客户", parent_id: null });
+  await source.mailFolders("Larry", { action: "move", thread_id: "10", folder_id: "3" });
+  await source.send("10", { to: ["buyer@example.test"], subject: "Fwd: RFQ", body: "", forward_message_id: "11", include_attachments: true }, "Larry");
+  for (const [, init] of fetcher.mock.calls) expect(new Headers(init.headers).get("X-Mailbox-Address")).toBe("sales@example.test");
+  expect(JSON.parse(fetcher.mock.calls.at(-1)![1].body)).toMatchObject({ token: "one-use", forward_message_id: "11", include_attachments: true });
+});

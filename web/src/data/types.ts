@@ -232,6 +232,8 @@ export type SendRequest = {
   body: string;
   /** 从哪份草稿改出来的;纯手写就没有 */
   draft_id?: string;
+  forward_message_id?: string;
+  include_attachments?: boolean;
 };
 
 export type LeadStatus = "quote" | "quoted" | "following" | "won" | "lost";
@@ -271,3 +273,11 @@ export type ContactRegistrationState = {
     fields?: Partial<ContactRegistrationFields>; warnings?: string[];
     citations?: Record<string, {source_id: number; quote: string}>}) | null;
 };
+
+export type MailFolder = { id: string; name: string; parent_id: string | null; count: number };
+export type MailFolders = { items: MailFolder[]; assignments: Record<string, string> };
+export type FolderCommand =
+  | { action: "create"; name: string; parent_id: string | null }
+  | { action: "rename"; id: string; name: string }
+  | { action: "delete"; id: string }
+  | { action: "move"; thread_id: string; folder_id: string | null };

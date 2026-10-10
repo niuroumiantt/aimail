@@ -322,3 +322,23 @@ CREATE TRIGGER IF NOT EXISTS crm_registration_no_delete BEFORE DELETE ON crm_reg
 CREATE TABLE IF NOT EXISTS crm_company_directory (
  id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL, received_at TEXT NOT NULL
 );
+
+-- Forward provenance survives uncertain SMTP results and process restarts.
+CREATE TABLE IF NOT EXISTS forward_attempt (
+ attempt_id INTEGER PRIMARY KEY REFERENCES reply_attempt(id),
+ source_message_id INTEGER NOT NULL REFERENCES message(id)
+);
+
+-- Personal organization is independent of business stages and immutable originals.
+CREATE TABLE IF NOT EXISTS mail_folder (
+ id INTEGER PRIMARY KEY, mailbox_id INTEGER NOT NULL REFERENCES mailbox(id),
+ owner TEXT NOT NULL, parent_id INTEGER REFERENCES mail_folder(id),
+ name TEXT NOT NULL, name_key TEXT NOT NULL, created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS mail_folder_sibling
+ ON mail_folder(mailbox_id,owner,coalesce(parent_id,0),name_key);
+CREATE TABLE IF NOT EXISTS mail_folder_member (
+ thread_id INTEGER NOT NULL REFERENCES thread(id), owner TEXT NOT NULL,
+ folder_id INTEGER NOT NULL REFERENCES mail_folder(id),
+ PRIMARY KEY(thread_id,owner)
+);
