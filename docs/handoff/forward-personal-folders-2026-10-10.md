@@ -34,3 +34,13 @@
 
 入口：server/src/aimail/api/folders.py、send/forwarding.py、send/reconcile.py、store/schema.sql；
 web/src/components/forward-composer.tsx、mail-folder-tree.tsx、data/mail-folders.ts。
+
+## 拖放归类补充（2026-10-10，m5）
+
+用户发现邮件只能通过“移动”按钮归类；拖动原网页链接还可能触发 Chrome 的分屏。
+已给普通/简洁/联系人分组列表的会话增加专用拖拽数据，并清除浏览器默认链接 URL。
+自建文件夹接受当前登录者、当前邮箱的会话，悬停高亮，松手调用现有个人文件夹接口；
+保存中防重复，失败不提示成功，原文件夹重复放入不发请求。全部三级均可作为目标。
+手机和平板继续使用“移动”按钮。未改浏览器分屏设置，也未操作生产邮件归类。
+本机完整检查：744 后端测试与 3 subtests、184 前端测试和全部守卫通过。
+实际浏览器样本拖放检查：普通列表和联系人分组均成功，计数为 2，目标列表包含两条会话。

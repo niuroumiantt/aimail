@@ -6,6 +6,10 @@
 .mail-personal-folders header button { width:28px; height:28px; color:var(--color-brand-text); }
 .mail-folder-row { display:flex; align-items:center; min-height:36px; border-radius:8px; margin:2px 6px; gap:2px; }
 .mail-folder-row[data-selected=true] { background:var(--color-brand-wash); color:var(--color-brand-text); }
+.mail-folder-row[data-drop-target=true] { background:var(--color-brand-wash); color:var(--color-brand-text); outline:2px dashed var(--color-brand); outline-offset:-2px; }
+.mail-folder-notice { color:var(--color-brand-text); font-size:12px; padding:8px 12px; overflow-wrap:anywhere; }
+.mail-thread-row[draggable=true] { cursor:grab; }
+.mail-thread-row[draggable=true]:active { cursor:grabbing; }
 .mail-folder-row a { display:flex; align-items:center; flex:1; min-width:0; gap:6px; font-size:13px; padding:6px 0; }
 .mail-folder-row a span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mail-folder-row svg { flex-shrink:0; }

@@ -1,20 +1,43 @@
 import { ChevronDown, ChevronRight, Folder, FolderInput, MoreHorizontal, Plus } from "lucide-react";
 import { Dialog, DropdownMenu } from "radix-ui";
-import { useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { folderPath, type FolderController } from "@/data/mail-folders";
 import type { MailFolder } from "@/data/types";
+import { draggedThread, isMailDrag } from "@/lib/mail-drag";
 import "@/tokens/mail-folders.css";
 
 type Editor = { action: "create" | "rename" | "delete"; item?: MailFolder };
 
-export function MailFolderTree({ controller }: { controller: FolderController }) {
+export function MailFolderTree({ controller, dragScope }: { controller: FolderController; dragScope?: string }) {
   const { data, busy, error, command, enabled } = controller;
   const [params] = useSearchParams();
   const selected = params.get("cf");
   const [closed, setClosed] = useState<string[]>([]);
   const [editor, setEditor] = useState<Editor>();
   const [name, setName] = useState("");
+  const [dropTarget, setDropTarget] = useState<string>();
+  const [notice, setNotice] = useState<{ text: string; error?: boolean }>();
+  const moving = useRef(false);
+  const dragOver = (event: DragEvent, item: MailFolder) => {
+    if (!dragScope || !enabled || busy || moving.current || !isMailDrag(event.dataTransfer)) return;
+    event.preventDefault(); event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDropTarget(item.id);
+  };
+  const drop = async (event: DragEvent, item: MailFolder) => {
+    event.preventDefault(); event.stopPropagation(); setDropTarget(undefined);
+    if (!dragScope || !enabled || busy || moving.current) return;
+    const threadId = draggedThread(event.dataTransfer, dragScope);
+    if (!threadId) return;
+    const path = folderPath(data.items, item.id);
+    if (data.assignments[threadId] === item.id) { setNotice({ text: `这条会话已在“${path}”` }); return; }
+    moving.current = true; setNotice({ text: `正在移至“${path}”…` });
+    try {
+      const problem = await command({ action: "move", thread_id: threadId, folder_id: item.id });
+      setNotice(problem ? { text: problem, error: true } : { text: `已移至“${path}”` });
+    } finally { moving.current = false; }
+  };
   const open = (value: Editor) => { setEditor(value); setName(value.action === "rename" ? value.item!.name : ""); };
   const save = async () => {
     if (!editor || busy) return;
@@ -27,9 +50,12 @@ export function MailFolderTree({ controller }: { controller: FolderController })
     const children = data.items.some(f => f.parent_id === item.id);
     const expanded = !closed.includes(item.id);
     return <li key={item.id}>
-      <div className="mail-folder-row" data-selected={selected === item.id} style={{ paddingLeft: (depth - 1) * 12 }}>
+      <div className="mail-folder-row" data-selected={selected === item.id} data-drop-target={dropTarget === item.id || undefined} style={{ paddingLeft: (depth - 1) * 12 }}
+        onDragEnter={event => dragOver(event, item)} onDragOver={event => dragOver(event, item)}
+        onDragLeave={event => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setDropTarget(current => current === item.id ? undefined : current); }}
+        onDrop={event => void drop(event, item)}>
         {children ? <button type="button" className="mail-folder-caret" aria-label={`${expanded ? "收起" : "展开"}${item.name}`} aria-expanded={expanded} onClick={() => setClosed(s => s.includes(item.id) ? s.filter(id => id !== item.id) : [...s, item.id])}>{expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</button> : <span className="mail-folder-caret" />}
-        <Link to={`/?cf=${encodeURIComponent(item.id)}`} title={folderPath(data.items, item.id)} aria-current={selected === item.id ? "page" : undefined}><Folder size={15} /><span>{item.name}</span><small>{item.count || ""}</small></Link>
+        <Link draggable={false} to={`/?cf=${encodeURIComponent(item.id)}`} title={folderPath(data.items, item.id)} aria-current={selected === item.id ? "page" : undefined}><Folder size={15} /><span>{item.name}</span><small>{item.count || ""}</small></Link>
         <DropdownMenu.Root><DropdownMenu.Trigger asChild><button className="mail-folder-more" type="button" aria-label={`${item.name}的文件夹操作`}><MoreHorizontal size={15} /></button></DropdownMenu.Trigger>
           <DropdownMenu.Portal><DropdownMenu.Content className="mail-folder-menu" sideOffset={4}>
             <DropdownMenu.Item disabled={depth >= 3 || busy} onSelect={() => open({ action: "create", item })}>{depth >= 3 ? "已到第三层" : "新建子文件夹"}</DropdownMenu.Item>
@@ -44,8 +70,10 @@ export function MailFolderTree({ controller }: { controller: FolderController })
   return <section className="mail-personal-folders" aria-label="自建文件夹">
     <header><h2>自建文件夹</h2><button type="button" aria-label="新建文件夹" title="新建文件夹（最多三层）" disabled={busy || !enabled} onClick={() => open({ action: "create" })}><Plus size={16} /></button></header>
     {branch(null)}
+    {data.items.length > 0 && dragScope && <p className="mail-folder-hint">拖动邮件到文件夹，或点击邮件上方的“移动”</p>}
+    {notice && <p role={notice.error ? "alert" : "status"} className={notice.error ? "mail-folder-error" : "mail-folder-notice"}>{notice.text}</p>}
     {!data.items.length && !error && <p className="mail-folder-hint">{enabled ? "点击 + 创建，最多三层" : "登录后可创建个人文件夹"}</p>}
-    {error && !editor && <p role="alert" className="mail-folder-error">{error}<button type="button" disabled={busy} onClick={() => void command()}>重试</button></p>}
+    {error && !editor && error !== notice?.text && <p role="alert" className="mail-folder-error">{error}<button type="button" disabled={busy} onClick={() => void command()}>重试</button></p>}
     <Dialog.Root open={Boolean(editor)} onOpenChange={value => { if (!value && !busy) setEditor(undefined); }}><Dialog.Portal>
       <Dialog.Overlay className="mail-folder-overlay" /><Dialog.Content className="mail-folder-dialog">
         <Dialog.Title>{editor?.action === "delete" ? "删除空文件夹" : editor?.action === "rename" ? "重命名文件夹" : "新建文件夹"}</Dialog.Title>

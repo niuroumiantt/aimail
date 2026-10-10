@@ -40,6 +40,7 @@ export default function InboxPage() {
   const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, attachmentFile, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
     useData();
   const folders = useMailFolders();
+  const dragScope = folders.enabled ? JSON.stringify([mailbox.address, user]) : undefined;
   const loadAssistant = useCallback(() => assistant(), [assistant]);
   const submitAssistant = useCallback((question: string) => askAssistant(question), [askAssistant]);
   const clearAssistantTurns = useCallback(() => clearAssistant(), [clearAssistant]);
@@ -84,14 +85,14 @@ export default function InboxPage() {
         {commandError?.scope === scope && commandError.message && <p role="alert" className="mail-command-error">{commandError.message}</p>}</>}
       customerInitiallyCollapsed
       modelControl={mailbox.address && <ModelSelector mailbox={mailbox.address} load={modelSelection} save={setModelSelection} />}
-      sidebar={<Sidebar personalFolders={<MailFolderTree key={`${mailbox.address}:${user}`} controller={folders} />} customFolderActive={Boolean(customFolder)} foldersOnly counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
+      sidebar={<Sidebar personalFolders={<MailFolderTree key={`${mailbox.address}:${user}`} controller={folders} dragScope={dragScope} />} customFolderActive={Boolean(customFolder)} foldersOnly counts={countFolders(threads)} activeFolder={folder} inInbox mailbox={mailbox} mailboxes={mailboxes} onMailboxChange={async address => {
         if (address === mailbox.address) return;
         navigate("/");
         setAssistantOpen(false);
         setForwardingFor(""); setReplyingFor(""); setQuery(""); setCommandError(undefined);
         await selectMailbox(address);
       }} />}
-      list={<ThreadList title={customFolder ? folders.data.items.find(f => f.id === customFolder)?.name || "自建文件夹" : undefined} threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
+      list={<ThreadList dragScope={dragScope} title={customFolder ? folders.data.items.find(f => f.id === customFolder)?.name || "自建文件夹" : undefined} threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
         headerControl={<button type="button" className="mail-list-sync mail-icon-button" aria-label={syncing ? "正在同步邮箱" : "同步邮箱"} title="同步当前邮箱" disabled={syncing} onClick={() => void syncNow()}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} /></button>}
         notice={syncNotice?.mailbox === mailbox.address ? syncNotice.message : undefined} />}
       detail={

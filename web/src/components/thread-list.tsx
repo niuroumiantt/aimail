@@ -17,6 +17,7 @@ export function ThreadList({
   headerControl,
   notice,
   title,
+  dragScope,
 }: {
   threads: Thread[];
   folder: FolderKey;
@@ -27,6 +28,7 @@ export function ThreadList({
   headerControl?: ReactNode;
   notice?: string;
   title?: string;
+  dragScope?: string;
 }) {
   const navigate = useNavigate();
   const [localQuery, setQuery] = useState("");
@@ -74,10 +76,10 @@ export function ThreadList({
         ) : visible.length === 0 && !error ? (
           <EmptyState title={term ? "没有匹配的邮件" : "这个分组是空的"} subtitle={term ? "试试联系人、公司名称或邮件主题。" : folder === "trash" ? "删除的会话会出现在这里，可以恢复。" : "邮件保留在全部列表，买卖相关往来会突出显示。"} />
         ) : (
-          preferences.grouped ? [...groups.entries()].map(([email, items]) => <section key={email} className="mail-contact-group"><button className="mail-contact-heading" type="button" aria-expanded={!collapsed.includes(email)} onClick={() => setCollapsed(current => current.includes(email) ? current.filter(value => value !== email) : [...current, email])}>{collapsed.includes(email) ? <ChevronRight size={14} strokeWidth={1.75} /> : <ChevronDown size={14} strokeWidth={1.75} />}<span>{items[0].contact}<small>{email}</small></span><small>{items.length} 个话题</small></button>{!collapsed.includes(email) && items.map(thread => <ThreadRow key={thread.id} thread={thread} search={search} compact={preferences.compact} />)}</section>)
+          preferences.grouped ? [...groups.entries()].map(([email, items]) => <section key={email} className="mail-contact-group"><button className="mail-contact-heading" type="button" aria-expanded={!collapsed.includes(email)} onClick={() => setCollapsed(current => current.includes(email) ? current.filter(value => value !== email) : [...current, email])}>{collapsed.includes(email) ? <ChevronRight size={14} strokeWidth={1.75} /> : <ChevronDown size={14} strokeWidth={1.75} />}<span>{items[0].contact}<small>{email}</small></span><small>{items.length} 个话题</small></button>{!collapsed.includes(email) && items.map(thread => <ThreadRow key={thread.id} thread={thread} search={search} compact={preferences.compact} dragScope={dragScope} />)}</section>)
             : ["今天", "昨天", "本周", "更早", "日期未知"].filter(label => dates.has(label)).map(label => <section key={label} aria-label={label}>
               <div className="mail-date-heading"><ChevronDown size={14} aria-hidden />{label}</div>
-              {dates.get(label)!.map(t => <ThreadRow key={t.id} thread={t} search={search} compact={preferences.compact} />)}
+              {dates.get(label)!.map(t => <ThreadRow key={t.id} thread={t} search={search} compact={preferences.compact} dragScope={dragScope} />)}
             </section>)
         )}
       </div>
