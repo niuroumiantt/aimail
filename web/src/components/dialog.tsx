@@ -11,6 +11,8 @@ export function ConfirmDialog({
   confirmLabel = "确认",
   onConfirm,
   children,
+  busy = false,
+  destructive = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -19,9 +21,11 @@ export function ConfirmDialog({
   confirmLabel?: string;
   onConfirm: () => void;
   children?: ReactNode;
+  busy?: boolean;
+  destructive?: boolean;
 }) {
   return (
-    <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
+    <RadixDialog.Root open={open} onOpenChange={value => { if (!busy) onOpenChange(value); }}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-40 bg-overlay" />
         <RadixDialog.Content className="fixed left-1/2 top-1/2 z-50 grid w-full max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-line bg-surface p-5 shadow-lg">
@@ -32,9 +36,9 @@ export function ConfirmDialog({
           {children}
           <div className="flex justify-end gap-2">
             <RadixDialog.Close asChild>
-              <Button variant="ghost">取消</Button>
+              <Button variant="ghost" disabled={busy}>取消</Button>
             </RadixDialog.Close>
-            <Button variant="solid" onClick={onConfirm}>
+            <Button variant={destructive ? "danger" : "solid"} disabled={busy} onClick={onConfirm}>
               {confirmLabel}
             </Button>
           </div>

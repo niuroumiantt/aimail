@@ -37,7 +37,7 @@ export default function InboxPage() {
   const folder = folderOf(params.get("f"));
   const customFolder = params.get("cf");
   const search = customFolder ? `?cf=${encodeURIComponent(customFolder)}` : folder === "all" ? "" : `?f=${folder}`;
-  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, attachmentFile, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
+  const { loading, error, threads, details, openThread, mailbox, mailboxes, selectMailbox, user, setUser, latestDraft, makeDraft, send, attachmentText, attachmentFile, getMessageTranslation, translateMessage, sync, syncing, analyzeThread, organizeThread, trashContactGroup, listCaptions, assistant, askAssistant, clearAssistant, customerContext, refreshCustomerContext, modelSelection, setModelSelection } =
     useData();
   const folders = useMailFolders();
   const dragScope = folders.enabled ? JSON.stringify([mailbox.address, user]) : undefined;
@@ -92,7 +92,7 @@ export default function InboxPage() {
         setForwardingFor(""); setReplyingFor(""); setQuery(""); setCommandError(undefined);
         await selectMailbox(address);
       }} />}
-      list={<ThreadList dragScope={dragScope} title={customFolder ? folders.data.items.find(f => f.id === customFolder)?.name || "自建文件夹" : undefined} threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
+      list={<ThreadList key={`${mailbox.address}:${user}`} onTrashGroup={trashContactGroup} loadCaptions={listCaptions} dragScope={dragScope} title={customFolder ? folders.data.items.find(f => f.id === customFolder)?.name || "自建文件夹" : undefined} threads={visible} folder={folder} search={search} query={query} loading={loading} error={error}
         headerControl={<button type="button" className="mail-list-sync mail-icon-button" aria-label={syncing ? "正在同步邮箱" : "同步邮箱"} title="同步当前邮箱" disabled={syncing} onClick={() => void syncNow()}><RefreshCw size={16} className={syncing ? "animate-spin" : ""} /></button>}
         notice={syncNotice?.mailbox === mailbox.address ? syncNotice.message : undefined} />}
       detail={

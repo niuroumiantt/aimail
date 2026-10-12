@@ -155,6 +155,9 @@ export type HistoryItem = {
   excerpt: string;
 };
 
+export type ListCaption = Attribution & { status: "pending" | "ok" | "failed"; text_zh: string; reason: string };
+export type GroupTrashRequest = { email: string; threads: { id: string; updated_at: string; message_count: number }[] };
+
 export type Thread = {
   id: string;
   subject: string;
@@ -171,6 +174,8 @@ export type Thread = {
   updated_at: string;
   /** 详情才有;列表里是空数组 */
   messages: Message[];
+  message_count?: number;
+  caption?: ListCaption | null;
   reading?: Reading;
   /** 同一位客户的其他线程。详情才有;空数组 = 第一次来信 */
   history?: HistoryItem[];

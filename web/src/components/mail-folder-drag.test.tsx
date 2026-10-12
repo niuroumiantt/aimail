@@ -28,7 +28,7 @@ afterEach(() => localStorage.clear());
 it.each([false, true])("drags a conversation from the %s grouped list to a third-level folder without navigating or exporting its URL", async grouped => {
   localStorage.setItem("aimail-list-preferences", JSON.stringify({ grouped, compact: grouped }));
   const c = makeController(); mount(c);
-  const row = screen.getByRole("link", { name: new RegExp(threads[0].subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
+  const row = screen.getByTitle(threads[0].subject).closest("a")!;
   const destination = screen.getByRole("link", { name: "新加坡" }).parentElement!;
   const data = transfer(); data.setData("text/uri-list", "https://mail.example.com/t/active");
   expect(row).toHaveAttribute("draggable", "true");

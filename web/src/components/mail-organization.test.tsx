@@ -43,7 +43,8 @@ it("respects explicit ordinary classifications and retains trade cues in title-o
   expect(inFolder({ ...ordinary, has_trade: true }, "leads")).toBe(true);
   wrap(<ThreadRow thread={inquiry} search="" compact />);
   expect(screen.getByLabelText("SALES LEAD")).toBeInTheDocument();
-  expect(screen.getByText(inquiry.subject)).toBeInTheDocument();
+  expect(screen.getByText(inquiry.contact)).toBeInTheDocument();
+  expect(screen.getByTitle(inquiry.subject)).toHaveTextContent("正在生成中文描述");
   expect(screen.queryByText(inquiry.company)).not.toBeInTheDocument();
 });
 

@@ -342,3 +342,15 @@ CREATE TABLE IF NOT EXISTS mail_folder_member (
  folder_id INTEGER NOT NULL REFERENCES mail_folder(id),
  PRIMARY KEY(thread_id,owner)
 );
+-- derived
+CREATE TABLE IF NOT EXISTS mail_list_caption (
+    thread_id INTEGER PRIMARY KEY REFERENCES thread(id),
+    source_id INTEGER NOT NULL REFERENCES message(id),
+    status TEXT NOT NULL CHECK(status IN ('pending','ok','failed')),
+    text_zh TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    model TEXT NOT NULL,
+    task_version TEXT NOT NULL,
+    produced_at TEXT NOT NULL,
+    token TEXT NOT NULL
+);

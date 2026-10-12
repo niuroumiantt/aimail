@@ -14,6 +14,8 @@ export function ThreadRow({ thread, search, compact = false, dragScope }: { thre
   const reading = thread.reading;
   const attributed = Boolean(reading?.model && reading.task_version && reading.produced_at);
   const suspect = reading?.status === "ok" && reading.unverified.length > 0;
+  const caption = thread.caption;
+  const captionReady = caption?.status === "ok" && caption.model && caption.task_version && caption.produced_at;
   const preview = reading?.status === "failed" ? "识别失败，请阅读原文"
     : suspect ? "摘要中的数字未通过核对，请阅读原文。"
     : reading?.status === "ok" && attributed ? reading.summary_zh : "尚未识别";
@@ -44,7 +46,13 @@ export function ThreadRow({ thread, search, compact = false, dragScope }: { thre
       {!compact && <time className="mail-thread-time" dateTime={thread.updated_at}>
         {relativeTime(thread.updated_at)}
       </time>}
-      <p className="mail-thread-subject" title={thread.subject}>{thread.subject}</p>
+      {compact && <span className="mail-compact-sender" title={thread.email}>{thread.contact || thread.email}</span>}
+      <p className="mail-thread-subject" title={thread.subject}>{compact
+        ? captionReady ? caption.text_zh
+          : caption?.status === "failed" ? "中文描述暂不可用"
+          : "正在生成中文描述…"
+        : thread.subject}</p>
+      {compact && captionReady && <span className="sr-only">{caption.model} · {caption.task_version} · {fullTime(caption.produced_at)}</span>}
       {!compact && <p className="mail-thread-summary" data-warning={suspect || reading?.status === "failed" || undefined}
         title={attributed ? `${reading!.model} · ${reading!.task_version} · ${fullTime(reading!.produced_at)}` : undefined}>{preview}</p>}
     </NavLink>
