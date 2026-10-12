@@ -20,6 +20,8 @@ import type {
   ReplyDraft,
   SendRequest,
   Thread,
+  ListCaption,
+  GroupTrashRequest,
 } from "./types";
 
 type State = {
@@ -60,6 +62,8 @@ type State = {
   translateMessage: (messageId: string, force?: boolean) => Promise<MessageTranslation>;
   analyzeThread: (threadId: string) => Promise<string>;
   organizeThread: (threadId: string, action: "trash" | "restore") => Promise<string>;
+  trashContactGroup: (request: GroupTrashRequest) => Promise<string>;
+  listCaptions: (ids: string[], generate: boolean, retry?: boolean) => Promise<Record<string, ListCaption | null>>;
   assistant: () => Promise<AssistantState>;
   askAssistant: (question: string) => Promise<AssistantState>;
   clearAssistant: () => Promise<AssistantState>;
@@ -285,9 +289,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return source.mailFolders(user, command);
   }, [source, user]);
 
+  const listCaptions = useCallback((ids: string[], generate: boolean, retry?: boolean) => {
+    if (!source) return Promise.reject(new Error("还没加载完"));
+    return source.listCaptions(ids, generate, retry);
+  }, [source]);
+  const trashContactGroup = useCallback(async (request: GroupTrashRequest) => {
+    if (!source) return "还没加载完";
+    try {
+      const result = await source.trashContactGroup(request, user);
+      if (activeSource.current === source) {
+        ++refreshVersion.current;
+        for (const id of result.ids) detailVersions.current.set(id, (detailVersions.current.get(id) ?? 0) + 1);
+        setDetails(value => Object.fromEntries(Object.entries(value).map(([id, t]) => [id, result.ids.includes(id) ? { ...t, deleted_at: result.deleted_at } : t])));
+        setThreads(value => value.map(t => result.ids.includes(t.id) ? { ...t, deleted_at: result.deleted_at } : t));
+      }
+      try { await refresh(source); } catch { /* 已删除，稍后同步即可。 */ }
+      return "";
+    } catch (e) { return e instanceof Error ? e.message : String(e); }
+  }, [source, user, refresh]);
+
   const value = useMemo<State>(
     () => ({
       mailFolders,
+      listCaptions,
+      trashContactGroup,
       loading,
       syncing,
       error,
@@ -375,7 +400,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       modelSelection,
       setModelSelection,
     }),
-    [mailFolders, loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, contactRegistration, extractContact, saveContact, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
+    [mailFolders, listCaptions, trashContactGroup, loading, syncing, error, threads, details, openThread, suggestions, failed, leads, outbox, mailbox, mailboxes, user, setUser, sync, act, source, send, refresh, activate, contactRegistration, extractContact, saveContact, customerContext, refreshCustomerContext, modelSelection, setModelSelection, getMessageTranslation, translateMessage],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -22,7 +22,7 @@ import anyio
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from aimail import backends, translation_store
 from aimail import send as send_mod
@@ -35,15 +35,32 @@ from aimail.store import (
     followup,
     history,
     leads,
+    list_captions,
     mail_state,
     model_selection,
     outbox,
     repo,
 )
 from aimail.store.db import connect
-from aimail.tasks import ask_mailbox
+from aimail.tasks import ask_mailbox, list_caption
 from aimail.tasks import draft as draft_mod
 from aimail.tasks.read import read_message
+
+
+class CaptionRequest(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=40)
+    retry: bool = False
+
+
+class TrashSnapshot(BaseModel):
+    id: int = Field(gt=0)
+    updated_at: str
+    message_count: int = Field(ge=0)
+
+
+class GroupTrashRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=320)
+    threads: list[TrashSnapshot] = Field(min_length=1, max_length=5000)
 
 
 def who(request: Request, require_oa_auth: bool = False) -> str:
@@ -250,6 +267,8 @@ def _thread_out(conn: sqlite3.Connection, row: sqlite3.Row, with_messages: bool)
         ).fetchone()
         is not None,
         "updated_at": row["last_at"],
+        "message_count": len(messages),
+        "caption": list_captions.get(conn, int(row["id"])),
         "reading": reading,
         "messages": [],
     }
@@ -326,6 +345,7 @@ def create_app(
         "/api/mailboxes",
         "/api/mailbox",
         "/api/threads",
+        "/api/list-captions",
         "/api/model-selection",
     }
 
@@ -603,6 +623,104 @@ def create_app(
         if jobs:
             threading.Thread(target=_run_customer_jobs, args=(jobs,), daemon=True).start()
         return {"queued": len(jobs)}
+
+    def _caption_ids(request: Request, ids: list[int]) -> list[int]:
+        selected = _mailbox_row(request)
+        db = _inbox_conn(request)
+        ids = list(dict.fromkeys(ids))
+        if not ids or len(ids) > 40:
+            raise HTTPException(422, "每次最多生成 40 个描述")
+        if any(repo.get_thread(db, id, int(selected["id"])) is None for id in ids):
+            raise HTTPException(404, "没有这条线程")
+        return ids
+
+    @app.get("/api/list-captions")
+    def get_captions(request: Request, ids: str) -> dict:
+        try:
+            keys = [int(id) for id in ids.split(",")]
+        except ValueError as exc:
+            raise HTTPException(422, "无效的邮件编号") from exc
+        keys = _caption_ids(request, keys)
+        return {str(id): list_captions.get(_inbox_conn(request), id) for id in keys}
+
+    def _run_caption_jobs(jobs: list[dict]) -> None:
+        worker = connect(database_path) if database_path else conn
+        try:
+            for start in range(0, len(jobs), 8):
+                batch = jobs[start : start + 8]
+                try:
+                    result = list_caption.generate(batch)
+                except Exception:
+                    result = None
+                    logging.getLogger(__name__).warning("中文列表描述生成失败")
+                if database_path:
+                    list_captions.finish(worker, batch, result)
+                else:
+                    with api_connection_lock:
+                        list_captions.finish(worker, batch, result)
+        finally:
+            if database_path:
+                worker.close()
+
+    @app.post("/api/list-captions")
+    def create_captions(request: Request, body: CaptionRequest) -> dict:
+        ids = _caption_ids(request, body.ids)
+        selected = _mailbox_row(request)
+        # Reading a saved description never needs a running model.
+        missing = [
+            id
+            for id in ids
+            if not (saved := list_captions.get(conn, id))
+            or saved["status"] == "pending"
+            or (saved["status"] == "failed" and body.retry)
+        ]
+        if missing:
+            with model_selection.use(conn, int(selected["id"])) as backend:
+                ready, _ = backends.ready()
+                if not ready:
+                    raise HTTPException(503, "模型暂不可用，已保存的中文描述仍可查看")
+                jobs = list_captions.claim(
+                    conn,
+                    missing,
+                    backend=backend,
+                    model=backends.describe(),
+                    retry=body.retry,
+                    raw_model=backends.model_name(),
+                )
+            if jobs:
+                threading.Thread(target=_run_caption_jobs, args=(jobs,), daemon=True).start()
+        return {str(id): list_captions.get(conn, id) for id in ids}
+
+    @app.post("/api/contact-group/trash")
+    def trash_contact_group(request: Request, body: GroupTrashRequest) -> dict:
+        actor = _person(request)
+        selected = _mailbox_row(request)
+        if len({item.id for item in body.threads}) != len(body.threads):
+            raise HTTPException(422, "邮件编号重复")
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            for item in body.threads:
+                row = repo.get_thread(conn, item.id, int(selected["id"]))
+                if (
+                    row is None
+                    or row["contact_email"].strip().lower() != body.email.strip().lower()
+                ):
+                    raise HTTPException(404, "联系人或邮箱范围不匹配，请刷新列表")
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM message WHERE thread_id=?", (item.id,)
+                ).fetchone()[0]
+                if row["last_at"] != item.updated_at or count != item.message_count:
+                    raise HTTPException(409, "邮件已有更新，请刷新列表后重新确认删除")
+            for item in body.threads:
+                mail_state.change(conn, item.id, "trash", actor)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        return {
+            "ids": [str(item.id) for item in body.threads],
+            "deleted_at": mail_state.deleted_at(conn, body.threads[0].id),
+        }
 
     def _organize_thread(thread_id: int, request: Request, action: str) -> dict:
         user = _person(request)

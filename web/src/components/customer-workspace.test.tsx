@@ -120,7 +120,7 @@ it("groups exact contacts without merging separate topics and supports working s
   expect(group).toHaveTextContent("2 个话题");
   expect(screen.getByRole("link", { name: /独立存储采购/ })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "简洁" }));
-  expect(screen.getByRole("link", { name: /独立存储采购/ })).toHaveClass("mail-thread-compact");
+  expect(screen.getByTitle("独立存储采购").closest("a")).toHaveClass("mail-thread-compact");
   fireEvent.click(screen.getByRole("button", { name: "概括" }));
   expect(screen.getByRole("link", { name: /独立存储采购/ })).not.toHaveClass("mail-thread-compact");
   fireEvent.change(screen.getByRole("searchbox"), { target: { value: "独立存储" } });

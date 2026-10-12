@@ -119,3 +119,12 @@
   .mail-original-message > div { padding: var(--ui-space-3) var(--ui-space-4); }
   .mail-original-message > header time { width: 100%; margin-left: 32px; }
 }
+
+.mail-contact-group-header { display: flex; align-items: stretch; border-bottom: 1px solid var(--color-line); background: var(--color-surface-2); }
+.mail-contact-group-header .mail-contact-heading { flex: 1; min-width: 0; border-bottom: 0; }
+.mail-group-trash { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin: 8px 8px 8px 0; padding: 4px 6px; border-radius: 6px; color: var(--color-danger-text); font-size: var(--ui-font-meta); white-space: nowrap; cursor: pointer; }
+.mail-group-trash:hover { background: var(--color-danger-wash); }
+.mail-compact-sender { flex: 0 1 auto; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.mail-thread-compact .mail-thread-subject { min-width: 0; }
+.mail-caption-notice { padding: 8px 12px; font-size: var(--ui-font-meta); color: var(--color-ink-2); }
+.mail-caption-notice button { color: var(--color-brand-text); text-decoration: underline; cursor: pointer; }

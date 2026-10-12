@@ -1,6 +1,7 @@
 /** 数据来源只有一个接口。现在读 fixtures/;M2 起读 API。界面代码不知道也不该知道区别。
  *  人的动作(确认、忽略、改状态、起草、发信)都要带身份;没有身份的调用服务端会拒绝(宪法第二、五条)。 */
 
+import { sampleListCaptions } from "@/fixtures/list-captions";
 import { replySubject } from "@/lib/text";
 import type {
   AttachmentText,
@@ -23,6 +24,8 @@ import type {
   ReplyDraft,
   SendRequest,
   Thread,
+  ListCaption,
+  GroupTrashRequest,
 } from "./types";
 
 export interface DataSource {
@@ -57,6 +60,8 @@ export interface DataSource {
   selectMailbox(address: string): DataSource;
   analyzeThread(threadId: string): Promise<Thread>;
   organizeThread(threadId: string, action: "trash" | "restore", user: string): Promise<Thread>;
+  trashContactGroup(request: GroupTrashRequest, user: string): Promise<{ ids: string[]; deleted_at: string }>;
+  listCaptions(ids: string[], generate: boolean, retry?: boolean): Promise<Record<string, ListCaption | null>>;
   assistant(): Promise<AssistantState>;
   askAssistant(question: string, user: string): Promise<AssistantState>;
   clearAssistant(user: string): Promise<AssistantState>;
@@ -152,7 +157,7 @@ export async function fixtureSource(): Promise<DataSource> {
   };
   const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
   // 列表和 API 一样不带信件与历史;详情才有。界面必须走 thread(id) 才看得到信
-  const listEntry = (t: Thread): Thread => ({ ...t, messages: [], history: undefined });
+  const listEntry = (t: Thread): Thread => ({ ...t, message_count: t.messages.length, messages: [], history: undefined });
   const source: DataSource = {
     mailFolders: async (user, command) => {
       requirePerson(user, "整理文件夹");
@@ -275,6 +280,22 @@ export async function fixtureSource(): Promise<DataSource> {
       threads = threads.map(t => t.id === id ? changed : t);
       return changed;
     },
+    trashContactGroup: async (request, user) => {
+      requirePerson(user, "整组删除");
+      for (const item of request.threads) {
+        const found = threads.find(t => t.id === item.id);
+        if (!found || found.email.trim().toLowerCase() !== request.email.trim().toLowerCase() || found.updated_at !== item.updated_at || (found.message_count ?? found.messages.length) !== item.message_count) throw new Error("邮件已有更新，请刷新后重试");
+      }
+      const ids = request.threads.map(t => t.id), deleted_at = new Date().toISOString();
+      threads = threads.map(t => ids.includes(t.id) ? { ...t, deleted_at } : t);
+      return { ids, deleted_at };
+    },
+    listCaptions: async ids => Object.fromEntries(ids.map(id => {
+      const thread = threads.find(t => t.id === id)!;
+      const text = sampleListCaptions[id] ?? thread.subject;
+      const caption: ListCaption = { status: /[\u3400-\u9fff]/.test(text) ? "ok" : "failed", text_zh: text, reason: "设计样本不调用真实模型", model: "设计样本", task_version: "list_caption@1", produced_at: new Date().toISOString() };
+      return [id, caption];
+    })),
     assistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
     askAssistant: async () => { throw new Error("设计样本不调用真实模型"); },
     clearAssistant: async () => ({ configured: false, reason: "设计样本不调用真实模型", model: "", mailbox: "sales@glocalstorage.example", turns: [] }),
@@ -390,6 +411,10 @@ export function apiSource(selected = localStorage.getItem("mailbox-address") ?? 
     },
     analyzeThread: (id) => api<Thread>(`/api/threads/${id}/analyze`, { method: "POST" }),
     organizeThread: (id, action, user) => api<Thread>(`/api/threads/${id}/${action}`, asPerson(user)),
+    trashContactGroup: (request, user) => api<{ ids: string[]; deleted_at: string }>("/api/contact-group/trash", asPerson(user, request, "POST")),
+    listCaptions: (ids, generate, retry = false) => generate
+      ? api<Record<string, ListCaption | null>>("/api/list-captions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids, retry }) })
+      : api<Record<string, ListCaption | null>>(`/api/list-captions?ids=${encodeURIComponent(ids.join(","))}`),
     assistant: () => api<AssistantState>("/api/assistant"),
     askAssistant: (question, user) => api<AssistantState>("/api/assistant", asPerson(user, { question }, "POST")),
     clearAssistant: (user) => api<AssistantState>("/api/assistant/clear", asPerson(user)),

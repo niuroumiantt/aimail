@@ -1,0 +1,25 @@
+{
+  "task_version": "list_caption@1",
+  "model": "Codex CLI · gpt-6.1-sol",
+  "synthetic_cases": 4,
+  "single_line_chinese_and_number_checks_passed": 4,
+  "manual_semantic_review_passed": 4,
+  "outputs": [
+    {
+      "subject": "Your latest statement is now available",
+      "text_zh": "九月份月结单现已可供查阅"
+    },
+    {
+      "subject": "RFQ Samsung DDR5",
+      "text_zh": "32颗Samsung DDR5内存芯片询价"
+    },
+    {
+      "subject": "Stock available",
+      "text_zh": "服务器CPU现货供应通知"
+    },
+    {
+      "subject": "实习生协议",
+      "text_zh": "实习生协议查收与签字事项"
+    }
+  ]
+}
