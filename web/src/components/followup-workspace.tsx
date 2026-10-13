@@ -1,3 +1,4 @@
+import { sessionFetch } from "@/lib/session-auth";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Alert, Avatar, Badge, Button, Card, Collapse, ConfigProvider, Descriptions, Empty, Input, Modal, Select, Skeleton, Space, Tag, Timeline } from "antd";
@@ -11,7 +12,7 @@ type State = { thread_id: number; owner: string; pending: string; version: numbe
 type FollowupList = { items: State[]; members: string[]; identity: string };
 type Detail = { state: State | null; unresolved_send: {id:number;sender:string;state:string;created_at:string}|null; last_message_id: number; thread: { subject: string; messages: {id:string;from_email:string;sent_at:string;body:string;quoted:string|null}[] }; history: { id: number; actor: string; action: string; at: string }[] };
 async function api<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, { method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json", "X-Mailbox-Address": localStorage.getItem("mailbox-address") ?? "" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const response = await sessionFetch(path, { method: body === undefined ? "GET" : "POST", headers: { "Content-Type": "application/json", "X-Mailbox-Address": localStorage.getItem("mailbox-address") ?? "" }, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(typeof error.detail === "string" ? error.detail : "跟进服务未启用或请求失败"); }
   return response.json();
 }

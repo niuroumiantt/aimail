@@ -2,6 +2,7 @@
  *  人的动作(确认、忽略、改状态、起草、发信)都要带身份;没有身份的调用服务端会拒绝(宪法第二、五条)。 */
 
 import { sampleListCaptions } from "@/fixtures/list-captions";
+import { sessionFetch } from "@/lib/session-auth";
 import { replySubject } from "@/lib/text";
 import type {
   AttachmentText,
@@ -317,7 +318,7 @@ export async function fixtureSource(): Promise<DataSource> {
 const READ_TIMEOUT_MS = 20_000;
 
 async function fetchResult<T>(path: string, init?: RequestInit, binary = false): Promise<T> {
-  const response = await fetch(path, init);
+  const response = await sessionFetch(path, init);
   if (!response.ok) {
     let detail = response.statusText;
     try {

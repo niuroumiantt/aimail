@@ -167,3 +167,13 @@ it("keeps folder requests and forwarding in the mailbox where the action began",
   for (const [, init] of fetcher.mock.calls) expect(new Headers(init.headers).get("X-Mailbox-Address")).toBe("sales@example.test");
   expect(JSON.parse(fetcher.mock.calls.at(-1)![1].body)).toMatchObject({ token: "one-use", forward_message_id: "11", include_attachments: true });
 });
+
+it("treats a login redirect as expiry and clears the read deadline without retry", async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn().mockResolvedValue({ type: "opaqueredirect", status: 0 });
+  vi.stubGlobal("fetch", fetcher);
+  await expect(apiSource().mailboxes()).rejects.toThrow("登录已过期，请重新登录");
+  expect(vi.getTimerCount()).toBe(0);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, CircleUserRound } from "lucide-react";
 
+import { sessionFetch, SessionExpiredError } from "@/lib/session-auth";
+
 type Session = { identity: string; username: string };
 
 const PROFILE_URL = "https://login.glocalstorage.cn/if/user/#/settings";
@@ -8,12 +10,13 @@ const SIGN_OUT_URL = "/oauth2/sign_out?rd=https%3A%2F%2Flogin.glocalstorage.cn%2
 
 export function AccountMenu() {
   const [session, setSession] = useState<Session>();
+  const [failure, setFailure] = useState("");
   useEffect(() => {
     let active = true;
-    fetch("/api/session", { headers: { Accept: "application/json" }, cache: "no-store" })
+    sessionFetch("/api/session", { headers: { Accept: "application/json" }, cache: "no-store" })
       .then(response => response.ok ? response.json() as Promise<Session> : undefined)
       .then(value => { if (active && value && typeof value.identity === "string") setSession({ identity: value.identity, username: typeof value.username === "string" ? value.username : "" }); })
-      .catch(() => {});
+      .catch(error => { if (active) setFailure(error instanceof SessionExpiredError ? "登录已过期" : "账号暂不可用"); });
     return () => { active = false; };
   }, []);
   const username = session?.username.trim() ?? "";
@@ -24,7 +27,7 @@ export function AccountMenu() {
       <details className="group relative">
         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1.5 text-ink-2 hover:bg-surface-2">
           <span className="mail-account-icon" aria-hidden><CircleUserRound size={18} strokeWidth={1.75} /></span>
-          <span className="mail-account-name max-w-56 truncate">{session ? displayName || session.identity.split("@")[0] : "正在读取账号…"}</span>
+          <span className="mail-account-name max-w-56 truncate">{session ? displayName || session.identity.split("@")[0] : failure || "正在读取账号…"}</span>
           <ChevronDown size={13} aria-hidden />
         </summary>
         <div className="absolute right-0 z-50 mt-1 grid min-w-52 gap-1 rounded-lg border border-line bg-surface p-2 shadow-lg">

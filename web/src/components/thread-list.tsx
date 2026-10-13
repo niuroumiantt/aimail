@@ -1,3 +1,4 @@
+import { SESSION_EXPIRED_MESSAGE } from "@/lib/session-auth";
 import type { Thread, GroupTrashRequest } from "@/data/types";
 import { useListCaptions, type LoadCaptions } from "@/data/list-captions";
 import { ConfirmDialog } from "./dialog";
@@ -90,7 +91,7 @@ export function ThreadList({
       </header>
       {notice && <p role="status" className="mail-sync-notice">{notice}</p>}
       {preferences.compact && (captions.error || captions.failed) && <p role="status" className="mail-caption-notice">{captions.error || "部分中文描述暂不可用"} <button type="button" onClick={captions.retry}>重试中文描述</button></p>}
-      {error && <p role="alert" className="border-b border-line px-4 py-3 text-xs text-danger-text">加载失败：{error}。请刷新页面重试。</p>}
+      {error && <p role="alert" className="border-b border-line px-4 py-3 text-xs text-danger-text">{error === SESSION_EXPIRED_MESSAGE ? "登录已过期，重新登录后会恢复邮件列表。" : `加载失败：${error}。请刷新页面重试。`}</p>}
       <div aria-busy={loading} className="mail-thread-list-scroll min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <p role="status" className="px-4 py-6 text-sm text-ink-2">正在加载邮件…</p>
