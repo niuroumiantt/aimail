@@ -46,9 +46,12 @@
 .mail-thread-subject { grid-column: 1 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ui-font-body); color: var(--color-ink); font-weight: 500; line-height: 1.5; }
 .mail-thread-summary { grid-column: 1 / -1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 40px; font-size: var(--ui-font-meta); color: var(--color-ink-2); line-height: 1.7; }
 .mail-thread-summary[data-warning="true"] { color: var(--color-danger-text); }
-.mail-thread-compact { display: flex; align-items: center; gap: var(--ui-space-2); min-height: 44px; padding-block: var(--ui-space-3); }
+/* Reserve the marker and sender tracks even for ordinary mail and short names.
+   Track widths depend on the list panel, not the viewport or the sender's length. */
+.mail-thread-compact { display: grid; grid-template-columns: 16px clamp(104px, 30%, 200px) minmax(0, 1fr); align-items: center; gap: var(--ui-space-2); min-height: 44px; padding-block: var(--ui-space-3); }
 .mail-thread-compact .mail-thread-sender, .mail-thread-compact .mail-thread-time { display: none; }
-.mail-thread-compact .mail-thread-subject { flex: 1; }
+.mail-thread-row.mail-thread-compact .mail-thread-subject { grid-column: 3; grid-row: 1; min-width: 0; }
+.mail-compact-marker { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: center; }
 .mail-compact-trade { flex-shrink: 0; color: var(--color-brand-text); }
 .mail-detail-header { display: grid; gap: var(--ui-space-3); padding: var(--ui-space-6); border-bottom: 1px solid var(--color-line); background: var(--color-surface); }
 .mail-detail-title { display: flex; align-items: flex-start; gap: var(--ui-space-2); }
@@ -124,7 +127,6 @@
 .mail-contact-group-header .mail-contact-heading { flex: 1; min-width: 0; border-bottom: 0; }
 .mail-group-trash { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin: 8px 8px 8px 0; padding: 4px 6px; border-radius: 6px; color: var(--color-danger-text); font-size: var(--ui-font-meta); white-space: nowrap; cursor: pointer; }
 .mail-group-trash:hover { background: var(--color-danger-wash); }
-.mail-compact-sender { flex: 0 1 auto; max-width: 35%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.mail-thread-compact .mail-thread-subject { min-width: 0; }
+.mail-compact-sender { grid-column: 2; grid-row: 1; justify-self: start; min-width: 0; max-width: 100%; padding: 3px var(--ui-space-2); border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ui-font-meta); font-weight: 600; line-height: 1.5; }
 .mail-caption-notice { padding: 8px 12px; font-size: var(--ui-font-meta); color: var(--color-ink-2); }
 .mail-caption-notice button { color: var(--color-brand-text); text-decoration: underline; cursor: pointer; }

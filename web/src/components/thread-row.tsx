@@ -1,13 +1,22 @@
 import { NavLink } from "react-router";
 import type { Thread } from "@/data/types";
 import { cn } from "@/lib/cn";
-import { fullTime, relativeTime } from "@/lib/text";
+import { fullTime, hash, relativeTime } from "@/lib/text";
 import { isLeadThread, MailLabel } from "./mail-label";
 import { FOLDER_LABEL, FOLDER_TONE } from "./folders";
 import { Pill } from "./pill";
 import { Zap } from "lucide-react";
 import { Avatar } from "./avatar";
 import { startMailDrag } from "@/lib/mail-drag";
+
+// Match the existing avatar palette; identity colors stay stable across mail topics.
+const SENDER_TINTS = [
+  "bg-brand-wash text-brand-deep",
+  "bg-ok-wash text-ok-text",
+  "bg-warn-wash text-warn-text",
+  "bg-danger-wash text-danger-text",
+  "bg-surface-3 text-ink-2",
+];
 
 export function ThreadRow({ thread, search, compact = false, dragScope }: { thread: Thread; search: string; compact?: boolean; dragScope?: string }) {
   const lead = isLeadThread(thread);
@@ -36,7 +45,7 @@ export function ThreadRow({ thread, search, compact = false, dragScope }: { thre
         )
       }
     >
-      {compact && lead && <Zap className="mail-compact-trade" size={15} aria-label="SALES LEAD" />}
+      {compact && <span className="mail-compact-marker">{lead && <Zap className="mail-compact-trade" size={15} aria-label="SALES LEAD" />}</span>}
       {!compact && <Avatar name={thread.contact || thread.email} className="mail-contact-avatar mail-thread-avatar" />}
       {!compact && <div className="mail-thread-sender">
         <span title={thread.email}>{thread.contact || thread.email}</span>
@@ -46,7 +55,10 @@ export function ThreadRow({ thread, search, compact = false, dragScope }: { thre
       {!compact && <time className="mail-thread-time" dateTime={thread.updated_at}>
         {relativeTime(thread.updated_at)}
       </time>}
-      {compact && <span className="mail-compact-sender" title={thread.email}>{thread.contact || thread.email}</span>}
+      {compact && <span
+        className={cn("mail-compact-sender", SENDER_TINTS[hash(thread.email.trim().toLowerCase() || thread.contact) % SENDER_TINTS.length])}
+        title={thread.contact && thread.contact !== thread.email ? `${thread.contact}\n${thread.email}` : thread.email}
+      >{thread.contact || thread.email}</span>}
       <p className="mail-thread-subject" title={thread.subject}>{compact
         ? captionReady ? caption.text_zh
           : caption?.status === "failed" ? "中文描述暂不可用"
