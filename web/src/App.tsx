@@ -1,6 +1,7 @@
 import { BrowserRouter, HashRouter, Navigate, Route, Routes } from "react-router";
 import { lazy, Suspense } from "react";
 import { TipProvider } from "@/components/tip";
+import { SessionNotice } from "@/components/session-notice";
 import { DataProvider } from "@/data/provider";
 import InboxPage from "@/pages/inbox";
 const KitPage = lazy(() => import("@/pages/kit"));
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <Router>
       <TipProvider delayDuration={300}>
+        <SessionNotice />
         <Suspense fallback={<p role="status">正在打开工作区…</p>}>
         <Routes>
           <Route path="/followups" element={<FollowupWorkspace />} />

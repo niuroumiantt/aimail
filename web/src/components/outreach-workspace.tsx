@@ -1,3 +1,4 @@
+import { sessionFetch } from "@/lib/session-auth";
 import { useCallback, useEffect, useState } from "react";
 import { Info, RefreshCw } from "lucide-react";
 import { WorkspaceHeader } from "@/components/workspace-header";
@@ -15,7 +16,7 @@ const names: Record<string, string> = { draft: "待确认六封内容", active: 
   smtp_accepted: "SMTP 已接受", skipped_late: "过期节点已跳过", sending: "正在发送" };
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
-  const response = await fetch(path, { method: body === undefined ? "GET" : "POST",
+  const response = await sessionFetch(path, { method: body === undefined ? "GET" : "POST",
     headers: { "Content-Type": "application/json", "X-User": getUser(), "X-Outreach-Action": "confirm-v1" },
     body: body === undefined ? undefined : JSON.stringify(body) });
   if (!response.ok) {

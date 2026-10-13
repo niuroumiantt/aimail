@@ -130,3 +130,8 @@
 .mail-compact-sender { grid-column: 2; grid-row: 1; justify-self: start; min-width: 0; max-width: 100%; padding: 3px var(--ui-space-2); border-radius: 999px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ui-font-meta); font-weight: 600; line-height: 1.5; }
 .mail-caption-notice { padding: 8px 12px; font-size: var(--ui-font-meta); color: var(--color-ink-2); }
 .mail-caption-notice button { color: var(--color-brand-text); text-decoration: underline; cursor: pointer; }
+
+/* Persistent recovery action for an expired SSO session; no automatic navigation. */
+.mail-session-notice { position: fixed; top: var(--ui-space-3); left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ui-space-3); width: max-content; max-width: calc(100% - 24px); padding: var(--ui-space-3) var(--ui-space-4); border: 1px solid var(--color-warn-line); border-radius: var(--radius-lg); background: var(--color-surface); color: var(--color-ink); box-shadow: var(--shadow-lg); font-size: var(--ui-font-body); }
+.mail-session-notice > a { display: inline-flex; align-items: center; gap: var(--ui-space-1); min-height: 32px; padding: var(--ui-space-1) var(--ui-space-3); border-radius: var(--radius-md); background: var(--color-brand); color: var(--color-on-brand); font-weight: 600; white-space: nowrap; }
+.mail-session-notice > a:hover { background: var(--color-brand-2); }
